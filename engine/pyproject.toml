@@ -1,0 +1,10 @@
+[project]
+name = "bulletproof-engine"
+version = "0.1.0"
+description = "Oura ingestion and deterministic training-recommendation engine for the Bulletproof project"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

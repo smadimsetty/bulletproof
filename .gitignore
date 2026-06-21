@@ -1,0 +1,22 @@
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# Supabase CLI
+supabase/.branches
+supabase/.temp
+
+# OS
+.DS_Store
+Thumbs.db
