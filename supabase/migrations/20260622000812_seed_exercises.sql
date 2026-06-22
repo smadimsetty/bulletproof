@@ -1,0 +1,18 @@
+insert into exercises (name, movement_pattern, is_complex) values
+  ('Chin tucks', 'mobility', false),
+  ('Thoracic extension on foam roller', 'mobility', false),
+  ('Levator scapulae stretch', 'mobility', false),
+  ('Banded ankle distraction', 'mobility', true),
+  ('Wall ankle test (knee-to-wall)', 'mobility', false),
+  ('Single-leg balance, eyes closed', 'balance', false),
+  ('90/90 hip stretch', 'mobility', false),
+  ('PNF hamstring stretch', 'mobility', true),
+  ('Couch stretch', 'mobility', false),
+  ('Deep squat hold', 'mobility', false),
+  ('Down dog progression', 'mobility', false),
+  ('Sleeper stretch (right)', 'mobility', false),
+  ('Shoulder CARs', 'mobility', false),
+  ('Nordic hamstring curl', 'hinge', true),
+  ('ATG split squat', 'squat', true),
+  ('Copenhagen plank', 'core', true),
+  ('Jefferson curl', 'hinge', true);
