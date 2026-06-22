@@ -13,13 +13,16 @@ a later *addition*, not a rewrite.
 - `apps/web/` — Next.js app (the renderer), deployed on Netlify
 - `engine/` — Python: Oura ingestion + deterministic scoring engine
 - `supabase/` — database schema, managed as versioned SQL migrations
-- `prototyping/weight-tuning/` — spreadsheet/notebook used to sanity-check
-  scoring weights against real historical data before the engine was written
+- `prototyping/weight-tuning/` — Python scripts + notebook used to pull real
+  Oura/Strong history and sanity-check scoring weights before the engine is
+  productionized
 - `docs/superpowers/specs/` — design docs
 - `docs/superpowers/plans/` — implementation plans
 
 ## Status
 
-Architecture and schema are being built first (the permanent layer). See
+Phase 0/1 (repo scaffolding + Supabase schema) and Phase 2 (weight-tuning
+prototype against real historical data) are complete. Next up: Phase 3,
+productionizing the tuned scoring logic into `engine/`. See
 `docs/superpowers/specs/2026-06-20-bulletproof-architecture-design.md` for the
 full design and phased roadmap, and `CLAUDE.md` for full product context.
