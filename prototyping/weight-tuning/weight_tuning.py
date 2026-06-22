@@ -6,12 +6,30 @@
 # WEIGHTS constants in that module can be tuned by eyeballing whether the
 # recommendation matches what actually happened / felt right.
 
+# %% [markdown]
+# ## Known ground-truth limitations
+#
+# Two human-judgment calls from session-history reconstruction shape what the
+# match rate below actually means:
+#
+# - **~220 days (2024-08-21 to 2025-04-14)** have no tracking signal at all
+#   (before Strong export tracking began) and were bulk-defaulted to `rest`.
+#   Match-rate performance on this stretch reflects the default, not a real
+#   recommendation test.
+# - **All 107 real gym days are tagged `upper_a`/`lower_a`**, never `_b` — the
+#   Strong export and `CLAUDE.md` give no way to distinguish an "A" workout
+#   from a "B" workout in this program. The engine's `_b` recommendations are
+#   never validated against real history here.
+
 # %%
 import os
 import sys
 from datetime import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.abspath("__file__")))
+sys.path.insert(
+    0,
+    os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals() else os.getcwd(),
+)
 from env_loader import load_env
 import supabase_client
 from scoring import recommend

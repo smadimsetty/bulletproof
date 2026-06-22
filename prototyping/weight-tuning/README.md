@@ -26,3 +26,18 @@ in `scoring.py` against real history. Tune `scoring.WEIGHTS` and re-run.
 
 Personal data files (`strong_workouts.csv`, `session_candidates*.csv`) are
 gitignored — this repo is public.
+
+## Known limitations in the reconstructed history
+
+Two human-judgment calls from session-history reconstruction materially affect
+the match-rate output in the notebook:
+
+- **Pre-tracking period (~220 days from 2024-08-21 to 2025-04-14):** These days
+  have no tracking signal at all (before Strong export tracking began) and were
+  bulk-defaulted to `rest`. Match-rate performance on this stretch reflects the
+  default classification, not a real test of the recommendation engine.
+- **Workout variants A vs B:** All 107 real gym days are tagged as
+  `upper_a`/`lower_a` — never `_b` — because the Strong export and `CLAUDE.md`
+  provide no way to distinguish an "A" workout from a "B" workout in this
+  program. As a result, the engine's `_b` recommendations are never validated
+  against real history in this phase.
