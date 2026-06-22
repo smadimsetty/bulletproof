@@ -20,3 +20,6 @@ supabase/.temp
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal data exports (sensitive, not for the public repo)
+prototyping/weight-tuning/*.csv
