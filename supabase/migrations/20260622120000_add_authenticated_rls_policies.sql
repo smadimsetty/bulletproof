@@ -4,25 +4,25 @@
 -- column yet — revisit with an owner_id column + scoped policies once a
 -- second user actually exists (see CLAUDE.md's multi-user principle).
 
-create policy authenticated_read_write_recovery on recovery
+create policy "authenticated read write recovery" on recovery
   for all
   to authenticated
   using (true)
   with check (true);
 
-create policy authenticated_read_write_activity on activity
+create policy "authenticated read write activity" on activity
   for all
   to authenticated
   using (true)
   with check (true);
 
-create policy authenticated_read_write_sessions on sessions
+create policy "authenticated read write sessions" on sessions
   for all
   to authenticated
   using (true)
   with check (true);
 
-create policy authenticated_read_recommendations on recommendations
+create policy "authenticated read recommendations" on recommendations
   for select
   to authenticated
   using (true);
