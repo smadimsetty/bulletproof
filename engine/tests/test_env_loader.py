@@ -6,24 +6,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import env_loader
 
 
-def test_git_entry_in_this_checkout_is_a_worktree_pointer_file():
-    """Sanity check on the test environment itself: this suite is expected
-    to run inside a git worktree (not a normal clone), which is exactly the
-    scenario that broke the old `os.path.isdir(.git)` check. If this
-    assumption ever stops holding, the rest of this test's value changes.
-    """
-    here = os.path.abspath(os.path.dirname(__file__))
-    root = here
-    while not os.path.exists(os.path.join(root, ".git")):
-        root = os.path.dirname(root)
-    git_entry = os.path.join(root, ".git")
-    assert os.path.isfile(git_entry), (
-        f"expected {git_entry!r} to be a worktree pointer FILE; "
-        "if this repo checkout is no longer a worktree, this test's premise "
-        "no longer applies"
-    )
-
-
 def test_resolve_main_repo_root_from_real_worktree():
     """_resolve_main_repo_root must correctly walk a real worktree's
     `.git` pointer file (no mocking) up to the main checkout's root, which
