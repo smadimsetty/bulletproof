@@ -26,6 +26,16 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Bulletproof reads your workouts from Apple Health to track pickleball, running, and gym sessions for your daily training recommendation.",
+          "NSHealthUpdateUsageDescription": "Bulletproof does not write any data to Apple Health.",
+          "background": false
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "e33508b8-cbaf-4e38-a565-25125d749a0e"
