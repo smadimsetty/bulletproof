@@ -33,3 +33,13 @@
 **What was actually verified live:** Two real triggered runs against the live Oura and Supabase APIs, right after merging. The first run wrote a real recommendation row for 2026-06-23 -- with readiness coming back `null` because Oura hadn't synced yet at that moment -- which proved the engine's graceful "no readiness data" fallback works for real, not just in a test mock. The second run confirmed the upsert logic is genuinely idempotent: still exactly one row for that date afterward, not two.
 
 **Next up:** Phase 4 -- HealthKit sync in the mobile app. This is the actual fix for the original Apple Watch bug report that kicked off this whole pivot.
+
+## 2026-06-23 -- HealthKit sync
+
+**What shipped:** The mobile app now reads Apple Watch workouts (pickleball, runs) directly from the phone's HealthKit data, instead of waiting on Oura's API to surface them. This is the literal fix for the original bug report that started the whole mobile pivot. On launch and whenever the app comes to the foreground, it pulls recent workouts from HealthKit and syncs them into the same `activity` table the rest of the system already reads from.
+
+**Caught and fixed before it shipped:** Two real type-mismatches between the plan's draft code and the HealthKit library actually installed -- the type names and the date-filter shape were both guesses in the plan, and both turned out wrong. Fixed by reading the installed library's real type definitions instead of guessing again, as the plan had anticipated might be needed. Separately, the whole-branch review caught something more serious: the sync was firing on every app launch *before* checking whether the user was signed in. A fresh install would trigger iOS's one-time HealthKit permission prompt before Supabase's security rules would even allow the synced data to be saved -- burning the prompt that matters for nothing. Fixed by gating the sync on having an active signed-in session.
+
+**Still pending (and why):** confirming this works on a real iPhone is blocked -- not by code, but by Apple credentials. Installing this build requires regenerating the app's Apple provisioning profile to include the new HealthKit permission, which needs an authenticated Apple Developer/EAS session and can't run non-interactively. This is the one step in the pipeline that genuinely needs Sohan: running `eas build --platform ios --profile preview` himself, interactively.
+
+**Next up:** Phase 5 -- the recommendation/summary UI in the mobile app.
