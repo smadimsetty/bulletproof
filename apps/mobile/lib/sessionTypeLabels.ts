@@ -17,6 +17,10 @@ export const SESSION_TYPE_LABELS: Record<SessionType, string> = {
   mobility: 'Mobility',
 };
 
+// Falls back to 'Unknown' rather than returning undefined: recommendations.ts
+// casts raw Supabase JSON to RecommendationPublicRow with no runtime
+// validation, so a session_type value that drifts ahead of the SessionType
+// union must still render as real text, not the literal string "undefined".
 export function labelForSessionType(type: SessionType): string {
-  return SESSION_TYPE_LABELS[type];
+  return SESSION_TYPE_LABELS[type] ?? 'Unknown';
 }

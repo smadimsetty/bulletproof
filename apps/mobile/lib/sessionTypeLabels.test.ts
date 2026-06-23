@@ -36,4 +36,8 @@ describe('labelForSessionType', () => {
   test('returns the mapped label for a known type', () => {
     expect(labelForSessionType('mobility')).toBe('Mobility');
   });
+
+  test('falls back to Unknown for a session_type outside the SessionType union (e.g. DB drift)', () => {
+    expect(labelForSessionType('made_up_type' as SessionType)).toBe('Unknown');
+  });
 });
