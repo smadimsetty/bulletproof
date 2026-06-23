@@ -9,7 +9,8 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "store"
+      "distribution": "store",
+      "autoIncrement": true
     },
     "production": {
       "autoIncrement": true
