@@ -43,3 +43,13 @@
 **Still pending (and why):** confirming this works on a real iPhone is blocked -- not by code, but by Apple credentials. Installing this build requires regenerating the app's Apple provisioning profile to include the new HealthKit permission, which needs an authenticated Apple Developer/EAS session and can't run non-interactively. This is the one step in the pipeline that genuinely needs Sohan: running `eas build --platform ios --profile preview` himself, interactively.
 
 **Next up:** Phase 5 -- the recommendation/summary UI in the mobile app.
+
+## 2026-06-23 -- Recommendation/summary UI
+
+**What shipped:** The mobile app's main screen now shows real content instead of a placeholder. It displays today's recommendation with a friendly name -- "Mobility" instead of a raw code like `mobility` -- plus the engine's plain-language explanation of why. Right alongside it, yesterday's recommendation appears too, fulfilling the "summary" half of the original two-output design from day one: a look back at yesterday, and a look forward to today. Both cards read straight from the existing `recommendations_public` database view, which keeps raw biometrics private -- only the friendly explanation is exposed, never the underlying readiness numbers.
+
+**Caught and fixed before it shipped:** Two real bugs, both caught in review before merge. First, a timezone bug: the original code computed "today" and "yesterday" using UTC instead of the phone's local time. For hours every evening (the gap between UTC midnight and local midnight), the app would have shown the wrong day's recommendation. Fixed by reusing the same local-date logic already proven in the HealthKit sync phase, so both read and write paths now agree on what day it is. Second, a small but visible bug: any session type not in the friendly-name lookup table would have rendered the literal word "undefined" on screen. Fixed with a graceful "Unknown" fallback, with a regression test that fails meaningfully against the old code.
+
+**Also confirmed clean:** the public/private data split is airtight at the database layer (a Postgres view, not just client-side discipline), this phase adds zero new dependencies, and all three verification checks -- tests, type-check, and an iOS export -- passed clean on the final code.
+
+**Next up:** Phase 6 -- a public web dashboard, the final phase in the backlog.
