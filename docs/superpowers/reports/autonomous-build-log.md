@@ -11,3 +11,15 @@
 **Also deferred (not blockers):** the production submit profile is still unconfigured (only preview/TestFlight is set up), and the Supabase client doesn't yet give a friendly error if environment variables are missing.
 
 **Next up:** once sign-in is confirmed on-device, the backlog moves to Phase 3 -- turning the tuned scoring engine into the app's real recommendation logic.
+
+## 2026-06-22 -- Engine productionization
+
+**What shipped:** The scoring logic prototyped in Phase 2's notebook is now a real, tested package at `engine/`. It pulls today's Oura readiness, reads recent session history from Supabase, scores every candidate session type, and writes an actual recommendation row to the database -- no more notebook-only runs. It already worked: running it live for today, 2026-06-22, produced a real recommendation of **top_pick = mobility, runner_up = upper_a**, because mobility was 25 days overdue. It also keeps biometrics private -- the public-facing rationale never shows the raw readiness number, only the internal one does.
+
+**Caught and fixed before it shipped:** Three bugs found during review, before merge: (1) a setup-loading bug that broke when running from a git worktree rather than the main folder, fixed over three rounds; (2) a function argument passed positionally instead of by name, inconsistent with the rest of the codebase -- reverted to match convention; (3) a module-loading bug in `run_daily.py` that would have silently broken once this runs unattended on a schedule (Phase 3's plan) -- caught and narrowly fixed rather than papered over.
+
+**Known accepted limitation:** if a single day ends up with more than one session logged, only one survives in the scoring history -- inherited from Phase 2's prototype, not a new bug, and rare in practice.
+
+**Also confirmed clean:** no secrets anywhere in the 13 commits; all tests pass (32/32) with no network access; the live re-run matches the automated review's prediction.
+
+**Next up:** Phase 3 -- a GitHub Actions daily cron job to run this engine automatically every morning.
