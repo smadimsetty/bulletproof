@@ -9,6 +9,7 @@
     "ios": {
       "bundleIdentifier": "com.sohan.bulletproof",
       "supportsTablet": true,
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
