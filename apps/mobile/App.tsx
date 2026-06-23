@@ -19,6 +19,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!session) {
+      // No authenticated session yet: skip HealthKit entirely so we don't burn
+      // the one-shot iOS permission prompt before the user has signed in and
+      // RLS would actually allow the upsert to persist.
+      return;
+    }
+
     syncHealthKitWorkouts().catch((err) => {
       console.warn('HealthKit sync failed on launch:', err);
     });
@@ -33,7 +40,7 @@ export default function App() {
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [session]);
 
   async function handleSignIn() {
     try {
