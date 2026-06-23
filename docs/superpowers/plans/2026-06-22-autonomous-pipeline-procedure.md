@@ -24,8 +24,15 @@ inside it mid-phase.
 
 ### 2. Planner dispatch (only if the phase has no spec/plan yet)
 
-Dispatch via the Agent tool, `subagent_type: "Plan"`, with this prompt
-(fill in the bracketed parts):
+Dispatch via the Agent tool, `subagent_type: "general-purpose"` (**not**
+`"Plan"` -- the `Plan` subagent type is read-only by design, with no
+Write/Edit/Bash-write access, so it cannot actually create or commit the
+spec/plan files it produces. Discovered the hard way on the engine
+productionization phase: the Plan dispatch did the design thinking
+correctly but could only hand back file content as text for the
+orchestrator to write itself. Use `general-purpose` so the same agent can
+write and commit directly), with this prompt (fill in the bracketed
+parts):
 
 ```
 You are the Planning agent for the Bulletproof project's autonomous build
