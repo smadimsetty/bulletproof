@@ -59,10 +59,10 @@ def test_pull_and_upsert_today_returns_readiness_and_upserts_row():
 
     assert readiness == 6  # round(65/10) == 6 under Python's banker's rounding
     mock_upsert.assert_called_once()
-    upserted_table, upserted_rows, conflict_col = mock_upsert.call_args[0]
-    assert upserted_table == "recovery"
-    assert conflict_col == "date"
-    assert upserted_rows[0]["date"] == "2026-06-22"
+    args, kwargs = mock_upsert.call_args
+    assert args[0] == "recovery"
+    assert args[1][0]["date"] == "2026-06-22"
+    assert kwargs["conflict_column"] == "date"
 
 
 def test_pull_and_upsert_today_returns_none_when_oura_has_no_data_yet():

@@ -42,5 +42,5 @@ def pull_and_upsert_today(today):
     sleep_by_day = {r["day"]: r for r in sleep_records if r["type"] == "long_sleep"}
 
     row = to_recovery_row(readiness_records[0], sleep_by_day)
-    supabase_client.upsert("recovery", [row], "date")
+    supabase_client.upsert("recovery", [row], conflict_column="date")
     return row["subjective_readiness"]
