@@ -23,5 +23,8 @@ supabase/.temp
 .DS_Store
 Thumbs.db
 
+# Playwright MCP verification artifacts
+.playwright-mcp/
+
 # Personal data exports (sensitive, not for the public repo)
 prototyping/weight-tuning/*.csv
