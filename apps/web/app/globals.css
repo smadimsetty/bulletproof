@@ -1,0 +1,82 @@
+/* apps/web/app/globals.css
+ *
+ * Minimal, framework-free styling -- one page, two cards, no UI library
+ * dependency (see design spec Decision 1).
+ */
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  background: #fafafa;
+  color: #1c1c1e;
+}
+
+main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+
+p.subtitle {
+  margin: 4px 0 0;
+  color: #6e6e73;
+  font-size: 14px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px;
+  border-radius: 12px;
+  background: #f2f2f7;
+}
+
+.card-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6e6e73;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.headline {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.runner-up {
+  font-size: 15px;
+  color: #3a3a3c;
+}
+
+.rationale {
+  font-size: 15px;
+  color: #3a3a3c;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.error-text {
+  font-size: 14px;
+  color: #b00020;
+}
