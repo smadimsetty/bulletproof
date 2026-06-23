@@ -6,6 +6,7 @@
 // per CLAUDE.md's public/private split). See
 // docs/superpowers/specs/2026-06-22-recommendation-ui-design.md Decision 1.
 import { supabase } from './supabase';
+import { localDateString } from './healthkitMapping';
 
 export type SessionType =
   | 'upper_a'
@@ -30,10 +31,6 @@ export type RecommendationsResult = {
   yesterday: RecommendationPublicRow | null;
 };
 
-function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 /**
  * Fetches the recommendations_public rows for `today` and the day before
  * it in a single query (see design spec Decision 7), then splits the
@@ -43,10 +40,10 @@ function toIsoDate(d: Date): string {
  * row as today's).
  */
 export async function fetchRecommendations(today: Date): Promise<RecommendationsResult> {
-  const todayIso = toIsoDate(today);
+  const todayIso = localDateString(today);
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayIso = toIsoDate(yesterday);
+  const yesterdayIso = localDateString(yesterday);
 
   const { data, error } = await supabase
     .from('recommendations_public')

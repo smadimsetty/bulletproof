@@ -94,4 +94,41 @@ describe('fetchRecommendations', () => {
 
     await expect(fetchRecommendations(TODAY)).rejects.toThrow('network down');
   });
+
+  // Regression test for the UTC/local-date bug: a fixed midday-UTC timestamp
+  // (like TODAY above) never crosses the UTC day boundary, so it can't catch
+  // a helper that derives the date via toISOString() instead of local date
+  // parts. This test instead builds "today" from local components late in
+  // the evening -- a time of day guaranteed to roll over to the *next* UTC
+  // calendar date in any timezone west of UTC (and plenty east of it too),
+  // which is exactly the scenario the plan's Global Constraints call out.
+  test('queries by local calendar date, not UTC date, near the UTC day boundary', async () => {
+    // 11:30pm local time -- in any timezone with a negative UTC offset
+    // (e.g. US timezones), this instant's UTC date is already the next day.
+    const localEvening = new Date(2026, 5, 22, 23, 30, 0); // 2026-06-22 23:30 local
+    const localEveningYesterday = new Date(2026, 5, 21, 23, 30, 0); // 2026-06-21 23:30 local
+
+    const buggyUtcToday = localEvening.toISOString().slice(0, 10);
+    const buggyUtcYesterday = localEveningYesterday.toISOString().slice(0, 10);
+
+    // Sanity check: this test only proves anything if the buggy UTC-based
+    // computation actually disagrees with the local date for this instant.
+    // If the test machine's TZ has zero/positive offset such that no
+    // divergence occurs at 23:30 local, skip the assertion meaningfully by
+    // failing loudly instead of silently passing.
+    const localOffsetMinutes = localEvening.getTimezoneOffset();
+    expect(localOffsetMinutes).toBeGreaterThan(0); // i.e. west of UTC, so divergence is guaranteed
+    expect(buggyUtcToday).not.toBe('2026-06-22');
+    expect(buggyUtcYesterday).not.toBe('2026-06-21');
+
+    const { inFn } = mockSupabaseResponse([]);
+
+    await fetchRecommendations(localEvening);
+
+    // The fix must use the *local* calendar date ('2026-06-22' /
+    // '2026-06-21'), not the UTC-rolled-forward date the old
+    // toIsoDate(d.toISOString().slice(0, 10)) helper would have produced.
+    expect(inFn).toHaveBeenCalledWith('date', ['2026-06-22', '2026-06-21']);
+    expect(inFn).not.toHaveBeenCalledWith('date', [buggyUtcToday, buggyUtcYesterday]);
+  });
 });
