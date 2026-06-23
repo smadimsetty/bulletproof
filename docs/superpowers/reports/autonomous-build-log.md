@@ -23,3 +23,13 @@
 **Also confirmed clean:** no secrets anywhere in the 13 commits; all tests pass (32/32) with no network access; the live re-run matches the automated review's prediction.
 
 **Next up:** Phase 3 -- a GitHub Actions daily cron job to run this engine automatically every morning.
+
+## 2026-06-23 -- Daily cron
+
+**What shipped:** A GitHub Actions workflow that runs the engine automatically every morning at 11:00 UTC, plus an on-demand manual trigger for testing or catching up on a missed day. This is the first time recommendations have generated themselves daily with zero manual intervention -- no one has to remember to run anything.
+
+**An interesting process note:** This is the one phase in the whole pipeline where live verification happened *after* merge instead of before. That's not a corner cut -- it's a real GitHub platform constraint: GitHub only registers scheduled (`schedule`) and manual (`workflow_dispatch`) triggers from workflow files that already exist on the repo's default branch. A workflow living only on a feature branch can't be triggered at all, so there was no way to test it live until it merged to `master`. The review caught everything checkable beforehand (secrets handling, exit-code behavior, Python version pinning) and explicitly flagged the trigger test as deferred, by necessity, to right after merge.
+
+**What was actually verified live:** Two real triggered runs against the live Oura and Supabase APIs, right after merging. The first run wrote a real recommendation row for 2026-06-23 -- with readiness coming back `null` because Oura hadn't synced yet at that moment -- which proved the engine's graceful "no readiness data" fallback works for real, not just in a test mock. The second run confirmed the upsert logic is genuinely idempotent: still exactly one row for that date afterward, not two.
+
+**Next up:** Phase 4 -- HealthKit sync in the mobile app. This is the actual fix for the original Apple Watch bug report that kicked off this whole pivot.
