@@ -63,3 +63,17 @@
 **Caught and fixed before it shipped:** review caught the README claiming the site was "live" before that was verified -- softened until confirmed. That's since happened for real: merge went out, deploy ran green, live browser load confirmed real data.
 
 **Pipeline status:** the last of the 6 planned phases. One thing remains outstanding across the whole pipeline: confirming HealthKit sync on Sohan's actual iPhone, which needs his Apple credentials and an interactive build -- only he can do that. Everything else in the backlog has shipped and been verified.
+
+## 2026-06-23 — Run complete
+
+All 6 planned phases are merged to `master`. Here's what the system can now do end to end that it could not do before this run started.
+
+**Before:** a scoring engine that only ran from a notebook against partly-synthetic history, with no automation, no app, and no public page.
+
+**Now:** every morning at 11:00 UTC, a GitHub Actions cron job runs the production engine (`engine/`) unattended -- it pulls that day's real Oura readiness, reads recent session history from Supabase, scores every candidate session type, and writes a real recommendation row to the database. No one has to remember to run anything; this has already happened automatically and been verified live against the real APIs. The iPhone app (in TestFlight) signs in with Apple, reads Apple Watch workouts straight from HealthKit and syncs them into the same `activity` table the engine reads from, and its home screen shows today's recommendation (friendly name + plain-language rationale) alongside yesterday's summary -- the original two-output design, now live on a phone. The same recommendation is also visible with no login at all at `https://smadimsetty.github.io/bulletproof/`, a public web page that redeploys itself automatically on every merge to master. Throughout, raw biometrics (HRV, the internal readiness number) never leave the private layer -- both the phone and the web page read only a public-safe Postgres view.
+
+**Outstanding across the whole pipeline -- exactly one item, needs Sohan:** confirming HealthKit sync (and Apple sign-in) works on a real iPhone. This requires regenerating the app's Apple provisioning profile to include the HealthKit permission and running `eas build --platform ios --profile preview` interactively -- an authenticated Apple Developer/EAS session that can't run non-interactively, so it cannot be done by this pipeline. Everything else -- engine, cron, database writes, web dashboard, public/private data split -- shipped and was independently verified live, not just in tests.
+
+**Two deliberate, documented scope decisions (not gaps, no action needed unless wanted):** a custom domain for the web dashboard (needs DNS access this pipeline doesn't have); and the web page and phone app each keep a small independent copy of fetch/label logic rather than sharing a package (the logic is small, stable, and the tooling is incompatible -- shared-package plumbing would solve a problem that doesn't exist yet).
+
+**CLAUDE.md:** the Status section was still describing the pre-Phase-3 state (weight-tuning in a notebook, "Next: move to Phase 3"). Updated below to reflect that Phase 3 through Phase 6 are all complete and the system is live end to end.
