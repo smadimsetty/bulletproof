@@ -1,5 +1,16 @@
+import os
 import sys
 from datetime import date
+
+# Every module in this package uses flat top-level imports (import scoring,
+# import env_loader, etc.), which only resolve when engine/'s own directory
+# is on sys.path -- automatic for `cd engine && python run_daily.py`, but
+# not for `python -m engine.run_daily` from the repo root. Appending (not
+# inserting at index 0) means any real same-named package already on the
+# path still wins -- this is only a fallback for engine's own sibling
+# modules, scoped to loading this module specifically rather than a
+# permanent side effect of importing the engine package at all.
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import env_loader
 import recovery_repo
