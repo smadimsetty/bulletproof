@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
+import { syncHealthKitWorkouts } from './lib/healthkitSync';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState('not signed in');
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -15,6 +17,30 @@ export default function App() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!session) {
+      // No authenticated session yet: skip HealthKit entirely so we don't burn
+      // the one-shot iOS permission prompt before the user has signed in and
+      // RLS would actually allow the upsert to persist.
+      return;
+    }
+
+    syncHealthKitWorkouts().catch((err) => {
+      console.warn('HealthKit sync failed on launch:', err);
+    });
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (appState.current !== 'active' && nextState === 'active') {
+        syncHealthKitWorkouts().catch((err) => {
+          console.warn('HealthKit sync failed on foreground:', err);
+        });
+      }
+      appState.current = nextState;
+    });
+
+    return () => subscription.remove();
+  }, [session]);
 
   async function handleSignIn() {
     try {
