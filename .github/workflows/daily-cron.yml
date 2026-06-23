@@ -1,0 +1,38 @@
+name: Daily Cron
+
+on:
+  schedule:
+    # 11:00 UTC daily -- see docs/superpowers/specs/2026-06-22-daily-cron-design.md
+    # Decision 2 for the full reasoning (pre-morning for US timezones,
+    # buffer for Oura sync lag, absorbs GitHub Actions' own scheduling slack).
+    - cron: "0 11 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Write .env from repository secrets
+        # engine/env_loader.py unconditionally reads a literal .env file at
+        # the repo root -- it does not fall back to already-exported
+        # process environment variables. This step materializes that file
+        # on the ephemeral runner's filesystem only; it is never committed
+        # (the repo's .gitignore already excludes .env) and is discarded
+        # when the job ends.
+        run: |
+          cat <<EOF > "$GITHUB_WORKSPACE/.env"
+          OURA_PERSONAL_ACCESS_TOKEN=${{ secrets.OURA_PERSONAL_ACCESS_TOKEN }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          EOF
+
+      - name: Run the engine
+        run: python -m engine.run_daily
