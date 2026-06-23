@@ -10,19 +10,26 @@ a later *addition*, not a rewrite.
 
 ## Project layout
 
-- `apps/web/` — Next.js app (the renderer), deployed on Netlify
-- `engine/` — Python: Oura ingestion + deterministic scoring engine
+- `apps/mobile/` — Expo/React Native app: the primary, authenticated
+  interface (HealthKit sync, today's/yesterday's recommendation)
+- `apps/web/` — Next.js app: a public, read-only, no-login dashboard showing
+  the same two recommendation outputs, deployed to GitHub Pages
+- `engine/` — Python: Oura ingestion + deterministic scoring engine, run
+  daily via GitHub Actions
 - `supabase/` — database schema, managed as versioned SQL migrations
 - `prototyping/weight-tuning/` — Python scripts + notebook used to pull real
-  Oura/Strong history and sanity-check scoring weights before the engine is
+  Oura/Strong history and sanity-check scoring weights before the engine was
   productionized
 - `docs/superpowers/specs/` — design docs
 - `docs/superpowers/plans/` — implementation plans
+- `docs/superpowers/reports/autonomous-build-log.md` — plain-language log of
+  what's shipped, phase by phase
 
 ## Status
 
-Phase 0/1 (repo scaffolding + Supabase schema) and Phase 2 (weight-tuning
-prototype against real historical data) are complete. Next up: Phase 3,
-productionizing the tuned scoring logic into `engine/`. See
-`docs/superpowers/specs/2026-06-20-bulletproof-architecture-design.md` for the
-full design and phased roadmap, and `CLAUDE.md` for full product context.
+Engine productionization, the daily GitHub Actions cron, HealthKit sync, the
+mobile app's recommendation/summary UI, and the public web dashboard are all
+complete. The public dashboard is live at
+https://smadimsetty.github.io/bulletproof/. See
+`docs/superpowers/reports/autonomous-build-log.md` for the full phase-by-phase
+history and `CLAUDE.md` for full product context.
