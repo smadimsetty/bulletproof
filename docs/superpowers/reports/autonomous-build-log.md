@@ -53,3 +53,13 @@
 **Also confirmed clean:** the public/private data split is airtight at the database layer (a Postgres view, not just client-side discipline), this phase adds zero new dependencies, and all three verification checks -- tests, type-check, and an iOS export -- passed clean on the final code.
 
 **Next up:** Phase 6 -- a public web dashboard, the final phase in the backlog.
+
+## 2026-06-23 -- Web dashboard
+
+**What shipped:** A public web page, no login required, live at `https://smadimsetty.github.io/bulletproof/`. It shows the same two outputs as the phone app's home screen -- today's and yesterday's recommendation -- to anyone who visits the link. It reads the same public-safe database view the phone app uses, so raw biometrics (HRV, readiness) never reach this page; only the friendly recommendation and plain-language reasoning do. Confirmed live in a real browser: today showing "Mobility" with runner-up "Upper Body A" plus rationale, yesterday showing "Mobility" with its rationale. The deploy workflow ran green end to end automatically the moment this merged to master -- no manual deploy step.
+
+**Deliberate scope decisions, not gaps:** Two things were intentionally left undone, both documented up front. A custom domain (vs. the GitHub Pages URL) needs DNS access this pipeline doesn't have -- a manual follow-up whenever Sohan wants it. And the web page and phone app each keep their own small copy of the fetch/label logic rather than sharing a codebase -- the two use incompatible tooling, and that logic is small and stable enough that shared-package plumbing now would solve a problem that doesn't exist yet.
+
+**Caught and fixed before it shipped:** review caught the README claiming the site was "live" before that was verified -- softened until confirmed. That's since happened for real: merge went out, deploy ran green, live browser load confirmed real data.
+
+**Pipeline status:** the last of the 6 planned phases. One thing remains outstanding across the whole pipeline: confirming HealthKit sync on Sohan's actual iPhone, which needs his Apple credentials and an interactive build -- only he can do that. Everything else in the backlog has shipped and been verified.
