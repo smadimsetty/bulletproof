@@ -201,6 +201,19 @@ draft CSV's accompanying commit message rather than hidden. This is
 explicitly an *offline AI-assisted research pass using web search*, as
 the phase brief specifies — not a guess.
 
+**Post-hoc correction (commit `2cade39`):** the first draft (commit
+`5dbbce3`) did not actually satisfy this decision — independent
+verification via YouTube's oEmbed existence-check endpoint found ~59% of
+the 122 claimed "sourced" URLs were hallucinated dead links, not real
+search results. A dedicated fix pass re-verified every URL via oEmbed,
+replaced every broken/wrong one with a freshly searched-and-oEmbed-verified
+real video, and regenerated the migration from the corrected CSV. A
+second independent random-sample re-check (15/15) confirmed the fix.
+Lesson for any future re-run of this phase: web search alone is not
+sufficient evidence a URL is real — verify the exact returned URL against
+oEmbed (or an equivalent existence check) before writing it to the CSV,
+every time, not just when something looks suspicious.
+
 ### 4. Corrective coverage: 4 body parts named in CLAUDE.md's non-negotiables (neck, ankles, hips, shoulders), each with hamstrings folded in as its own fifth tracked area since the spec's task brief calls it out by name
 
 The task brief says "neck, ankle, hips/hamstrings, shoulders" (4 areas,
