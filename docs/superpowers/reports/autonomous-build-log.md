@@ -1,5 +1,15 @@
 # Autonomous build log
 
+## 2026-06-24 -- v2 Phase 0: schema v2 migration
+
+**What shipped:** The database now supports multi-user from the ground up, and has the new tables v2's later phases need. 12 migrations added `split_taxonomy`/`activity_taxonomy`/`goal_taxonomy`/`body_part_taxonomy` lookup tables, expanded `user_profile` and `exercises` with the new v2 columns, simplified the session-type list (dropped `upper_a`/`upper_b`/`lower_a`/`lower_b` down to just `upper`/`lower`), added `recommendation_blocks`, `recommendation_block_exercises`, `exercise_logs`, and `daily_feedback`, and put real per-user row-level security on every personal table. All of it ran against the live production database and was independently re-verified afterward -- the existing data (your one profile row, the 17-exercise seed) survived untouched, and a second test user genuinely cannot read your rows.
+
+**Caught and fixed before closing out:** The whole-branch review flagged two real things. First, `master` had picked up an unrelated emergency engine fix (commit `03da84b`, needed to keep the daily cron job working against the new schema) on a separate track that never saw this branch's diff -- merging carelessly could have silently dropped one or the other. Resolved with a real three-way merge that keeps both. Second, a draft fix for two minor review findings (missing database indexes on the new per-user `owner_id` columns, and your hips/hamstrings pain note having collapsed into one entry instead of two) had a genuine bug in its SQL -- the query aggregated the wrong column and would have produced duplicated, malformed data. Caught before it ran, rewritten, and verified against the live database: your pains list now correctly shows hips and hamstrings as two separate entries, and all 7 indexes are in place.
+
+**Also confirmed clean:** no secrets in any of the 13 commits, the riskiest single step (renaming the session-type enum without a real "rename value" SQL trick) was done via the correct create/map/drop/rename sequence, and all 32 engine tests still pass against the merged, schema-v2-shaped database.
+
+**Next up:** Phase 1 -- seeding a richer, AI-tagged exercise database (100-200 exercises), which the engine's Claude-driven exercise selection (Phase 2) depends on.
+
 ## 2026-06-22 -- Mobile app bootstrap
 
 **What shipped:** The first version of the Bulletproof mobile app exists and is in Apple's hands. This phase built the iPhone app shell (Expo/React Native), wired it to the same Supabase database the rest of the system uses, and added "Sign in with Apple" as the login method. Database access rules were tightened so the phone app can only read/write data a logged-in user is allowed to see. The build was packaged and submitted to TestFlight (Apple's beta-testing platform).
