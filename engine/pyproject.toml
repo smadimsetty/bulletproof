@@ -3,7 +3,9 @@ name = "bulletproof-engine"
 version = "0.1.0"
 description = "Oura ingestion and deterministic training-recommendation engine for the Bulletproof project"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "anthropic>=0.70",
+]
 
 [project.optional-dependencies]
 test = ["pytest"]
@@ -11,3 +13,28 @@ test = ["pytest"]
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+# This package is a flat collection of top-level modules (env_loader.py,
+# scoring.py, etc. -- see README.md's module list), not a single importable
+# package directory. Newer setuptools' flat-layout auto-discovery refuses to
+# guess across that many top-level modules ("Multiple top-level modules
+# discovered in a flat-layout"), so they're listed explicitly here. This is
+# purely a packaging-metadata fix for `pip install -e ".[test]"` to succeed
+# (needed so `anthropic` installs into the environment) -- it does not
+# change the existing flat-import convention every module/test already uses.
+[tool.setuptools]
+py-modules = [
+    "env_loader",
+    "exercise_catalog_repo",
+    "oura_client",
+    "profile_repo",
+    "program_builder",
+    "program_prompt",
+    "rationale",
+    "recovery_repo",
+    "run_daily",
+    "scoring",
+    "sessions_repo",
+    "supabase_client",
+    "weather_client",
+]
