@@ -5,10 +5,8 @@ from scoring import WEIGHTS, days_since, pattern_of
 _SIGNAL_LABELS = {
     "rest": "your rest day was overdue",
     "mobility": "a mobility session was overdue",
-    "lower_a": "today follows a different movement pattern than yesterday",
-    "lower_b": "today follows a different movement pattern than yesterday",
-    "upper_a": "today follows a different movement pattern than yesterday",
-    "upper_b": "today follows a different movement pattern than yesterday",
+    "lower": "today follows a different movement pattern than yesterday",
+    "upper": "today follows a different movement pattern than yesterday",
     "pickleball": "you're recovered and clear to play",
     "run": "an easy aerobic day fits well here",
 }

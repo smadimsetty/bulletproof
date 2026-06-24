@@ -1,3 +1,5 @@
+import os
+
 import oura_client
 import supabase_client
 
@@ -6,7 +8,12 @@ def to_recovery_row(readiness_rec, sleep_by_day):
     """Build a `recovery` table row from one Oura daily_readiness record,
     rescaling Oura's 0-100 readiness score to the table's 1-10
     subjective_readiness column (see CLAUDE.md's "To verify at build time"
-    note on this rescaling)."""
+    note on this rescaling).
+
+    `owner_id` must be set explicitly: the column defaults to `auth.uid()`
+    (added by the v2 multi-user RLS migration), which resolves to NULL for
+    service-role REST calls like this one, so the column's NOT NULL
+    constraint would otherwise reject every row."""
     day = readiness_rec["day"]
     sleep_rec = sleep_by_day.get(day)
     score = readiness_rec["score"]
@@ -15,6 +22,7 @@ def to_recovery_row(readiness_rec, sleep_by_day):
         "date": day,
         "source": "oura",
         "subjective_readiness": subjective_readiness,
+        "owner_id": os.environ["ENGINE_OWNER_ID"],
     }
     if sleep_rec:
         row["sleep_hrs"] = round(sleep_rec["total_sleep_duration"] / 3600, 2)

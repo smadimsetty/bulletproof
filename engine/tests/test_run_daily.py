@@ -11,18 +11,19 @@ from run_daily import build_recommendation_row
 
 def test_build_recommendation_row_with_two_candidates():
     today = date(2026, 6, 22)
-    top2 = [("lower_a", 5.0), ("rest", 2.0)]
+    top2 = [("lower", 5.0), ("rest", 2.0)]
     breakdown = {"readiness": 7, "candidates": [], "signals": {}}
     row = build_recommendation_row(
         today, top2, breakdown, "internal text", "public text"
     )
     assert row == {
         "date": "2026-06-22",
-        "top_pick": "lower_a",
+        "top_pick": "lower",
         "runner_up": "rest",
         "score_breakdown": breakdown,
         "internal_rationale": "internal text",
         "public_rationale": "public text",
+        "owner_id": "00000000-0000-0000-0000-000000000000",
     }
 
 

@@ -41,6 +41,10 @@ def build_recommendation_row(today, top2, breakdown, internal_rationale, public_
         "score_breakdown": breakdown,
         "internal_rationale": internal_rationale,
         "public_rationale": public_rationale,
+        # owner_id defaults to auth.uid() (v2 multi-user RLS migration),
+        # which is NULL for this service-role REST call -- must be explicit
+        # or the NOT NULL constraint rejects the row.
+        "owner_id": os.environ["ENGINE_OWNER_ID"],
     }
 
 

@@ -8,14 +8,14 @@ from rationale import build_breakdown, build_internal_rationale, build_public_ra
 
 
 def test_build_breakdown_includes_readiness_and_sorted_candidates():
-    history = {date(2026, 6, 21): "upper_a"}
+    history = {date(2026, 6, 21): "upper"}
     today = date(2026, 6, 22)
-    top2 = [("lower_a", 5.0), ("rest", 2.0)]
+    top2 = [("lower", 5.0), ("rest", 2.0)]
     breakdown = build_breakdown(today, history, readiness=7, top2=top2)
 
     assert breakdown["readiness"] == 7
     assert breakdown["candidates"] == [
-        {"type": "lower_a", "score": 5.0},
+        {"type": "lower", "score": 5.0},
         {"type": "rest", "score": 2.0},
     ]
     assert breakdown["signals"]["yesterday_pattern"] == "upper"
@@ -65,7 +65,7 @@ def test_public_rationale_never_includes_raw_readiness_number():
 def test_public_rationale_mentions_same_pattern_penalty_without_numbers():
     breakdown = {
         "readiness": 7,
-        "candidates": [{"type": "lower_a", "score": 5.0}, {"type": "rest", "score": 3.0}],
+        "candidates": [{"type": "lower", "score": 5.0}, {"type": "rest", "score": 3.0}],
         "signals": {
             "days_since_rest": 3,
             "days_since_mobility": 1,
@@ -74,4 +74,4 @@ def test_public_rationale_mentions_same_pattern_penalty_without_numbers():
         },
     }
     text = build_public_rationale(breakdown)
-    assert "lower_a" in text or "lower" in text.lower()
+    assert "lower" in text.lower()

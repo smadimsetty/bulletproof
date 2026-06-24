@@ -10,14 +10,14 @@ from sessions_repo import load_recent_history
 
 def test_load_recent_history_maps_date_strings_to_session_types():
     fake_rows = [
-        {"date": "2026-06-20", "type": "upper_a"},
+        {"date": "2026-06-20", "type": "upper"},
         {"date": "2026-06-21", "type": "rest"},
     ]
     with patch("sessions_repo.supabase_client.get", return_value=fake_rows) as mock_get:
         history = load_recent_history(date(2026, 6, 22), lookback_days=60)
 
     assert history == {
-        date(2026, 6, 20): "upper_a",
+        date(2026, 6, 20): "upper",
         date(2026, 6, 21): "rest",
     }
     mock_get.assert_called_once()

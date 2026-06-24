@@ -25,19 +25,19 @@ def test_pattern_of_passes_through_other_types():
 def test_days_since_finds_most_recent_match():
     history = {
         date(2026, 1, 1): "rest",
-        date(2026, 1, 3): "upper_a",
+        date(2026, 1, 3): "upper",
     }
     assert days_since(history, date(2026, 1, 5), "rest") == 4
 
 
 def test_days_since_returns_large_number_when_never_found():
-    history = {date(2026, 1, 3): "upper_a"}
+    history = {date(2026, 1, 3): "upper"}
     assert days_since(history, date(2026, 1, 5), "rest") == 999
 
 
 def test_readiness_gate_blocks_non_rest_candidates():
     history = {}
-    score = score_candidate("upper_a", date(2026, 1, 5), history, readiness=2)
+    score = score_candidate("upper", date(2026, 1, 5), history, readiness=2)
     assert score is None
 
 
@@ -48,10 +48,10 @@ def test_readiness_gate_allows_rest_and_mobility():
 
 
 def test_same_pattern_as_yesterday_is_penalized():
-    history = {date(2026, 1, 4): "upper_a"}
+    history = {date(2026, 1, 4): "upper"}
     today = date(2026, 1, 5)
-    penalized = score_candidate("upper_a", today, history, readiness=7)
-    unpenalized = score_candidate("lower_a", today, history, readiness=7)
+    penalized = score_candidate("upper", today, history, readiness=7)
+    unpenalized = score_candidate("lower", today, history, readiness=7)
     assert penalized < unpenalized
 
 
@@ -66,7 +66,7 @@ def test_pickleball_blocked_when_readiness_too_low():
 
 
 def test_recommend_returns_top_two_sorted_by_score():
-    history = {date(2026, 1, 4): "upper_a"}
+    history = {date(2026, 1, 4): "upper"}
     today = date(2026, 1, 5)
     top2 = recommend(today, history, readiness=7)
     assert len(top2) == 2

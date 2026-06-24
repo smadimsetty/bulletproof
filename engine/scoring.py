@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-CANDIDATES = ["upper_a", "lower_a", "pickleball", "run", "rest", "mobility"]
+CANDIDATES = ["upper", "lower", "pickleball", "run", "rest", "mobility"]
 
 WEIGHTS = {
     "base_rotation": 1.0,

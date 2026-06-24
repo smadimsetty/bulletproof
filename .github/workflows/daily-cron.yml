@@ -32,6 +32,7 @@ jobs:
           OURA_PERSONAL_ACCESS_TOKEN=${{ secrets.OURA_PERSONAL_ACCESS_TOKEN }}
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ENGINE_OWNER_ID=${{ secrets.ENGINE_OWNER_ID }}
           EOF
 
       - name: Run the engine
