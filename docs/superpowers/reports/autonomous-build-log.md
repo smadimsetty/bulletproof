@@ -1,5 +1,15 @@
 # Autonomous build log
 
+## 2026-06-24 -- v2 Phase 1: exercise database seed
+
+**What shipped:** The exercise catalog is now real and richly tagged. It grew from 17 bare-bones rows to 189 -- the original 17 backfilled with proper tags (movement goal, body part, equipment, corrective flag) plus 172 new researched exercises covering every realistic combination of movement pattern and exercise type, with equipment variants (barbell/dumbbell/Smith machine/cable versions of the same lift) kept as separate rows so the right one can be recommended for whatever's available. 122 of the 189 rows now link to a real demonstration video. Every pain area from CLAUDE.md -- neck, ankles, hips, hamstrings, shoulders -- has at least 3 dedicated corrective exercises tagged for it, which is what the program-builder (next phase) will lean on for the Thursday mobility work.
+
+**Caught and fixed before it shipped -- the important one:** the first draft claimed it had "sourced real YouTube demo URLs via web search." That claim was checked, not taken on faith: an independent test against YouTube's own video-lookup endpoint on a random sample showed roughly 60% of those "sourced" links were dead -- invented video IDs that don't exist, not real search results. This is exactly the kind of mistake that looks fine until someone actually taps a link. A dedicated fix pass re-checked all 122 video links one by one, replaced every broken one with a freshly searched-and-confirmed-real video, and a second independent spot-check afterward came back 100% clean. Lesson logged in the design spec for next time: search finding *something* isn't the same as confirming the exact link returned is real.
+
+**Also confirmed clean:** no secrets in any commit; the live database migration only adds new rows and updates the original 17 by exact name match (nothing else touched, nothing silently overwritten); and a 7-point acceptance check ran for real against the live production table after the push -- right row count, no duplicate names, every goal/body-part/corrective minimum met, all 17 original rows confirmed backfilled. All passed.
+
+**Next up:** Phase 2 -- the engine module that has Claude actually pick each day's exercises from this catalog, instead of just picking a session type.
+
 ## 2026-06-24 -- v2 Phase 0: schema v2 migration
 
 **What shipped:** The database now supports multi-user from the ground up, and has the new tables v2's later phases need. 12 migrations added `split_taxonomy`/`activity_taxonomy`/`goal_taxonomy`/`body_part_taxonomy` lookup tables, expanded `user_profile` and `exercises` with the new v2 columns, simplified the session-type list (dropped `upper_a`/`upper_b`/`lower_a`/`lower_b` down to just `upper`/`lower`), added `recommendation_blocks`, `recommendation_block_exercises`, `exercise_logs`, and `daily_feedback`, and put real per-user row-level security on every personal table. All of it ran against the live production database and was independently re-verified afterward -- the existing data (your one profile row, the 17-exercise seed) survived untouched, and a second test user genuinely cannot read your rows.
