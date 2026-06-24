@@ -20,6 +20,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install engine dependencies
+        # Engine v2 added a real runtime dependency (the `anthropic` SDK,
+        # for program_builder.py's Claude call) -- previously this workflow
+        # ran with zero installs since the engine was stdlib-only. Installs
+        # from engine/pyproject.toml's `dependencies` list so this step
+        # never needs editing again if that list changes.
+        run: pip install -e ./engine
+
       - name: Write .env from repository secrets
         # engine/env_loader.py unconditionally reads a literal .env file at
         # the repo root -- it does not fall back to already-exported
@@ -27,12 +35,20 @@ jobs:
         # on the ephemeral runner's filesystem only; it is never committed
         # (the repo's .gitignore already excludes .env) and is discarded
         # when the job ends.
+        #
+        # ANTHROPIC_API_KEY: until this secret is actually added in the
+        # repo's GitHub settings, it resolves to an empty string here, which
+        # makes program_builder.py's Claude call fail immediately and fall
+        # back to the deterministic template program -- safe, not a crash,
+        # just means real Claude-driven exercise selection doesn't engage
+        # until the secret is added. See docs/superpowers/specs/2026-06-24-engine-v2-design.md.
         run: |
           cat <<EOF > "$GITHUB_WORKSPACE/.env"
           OURA_PERSONAL_ACCESS_TOKEN=${{ secrets.OURA_PERSONAL_ACCESS_TOKEN }}
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ENGINE_OWNER_ID=${{ secrets.ENGINE_OWNER_ID }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
           EOF
 
       - name: Run the engine

@@ -24,6 +24,7 @@ build-backend = "setuptools.build_meta"
 # change the existing flat-import convention every module/test already uses.
 [tool.setuptools]
 py-modules = [
+    "daily_feedback_repo",
     "env_loader",
     "exercise_catalog_repo",
     "oura_client",
