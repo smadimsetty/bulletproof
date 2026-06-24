@@ -82,7 +82,7 @@ def test_validate_response_accepts_known_exercise_ids():
         "rationale_internal": "internal text",
         "rationale_public": "public text",
     }
-    assert _validate_response(parsed, CATALOG_EXCERPT) is True
+    assert _validate_response(parsed, CATALOG_EXCERPT, ["lower"]) is True
 
 
 def test_validate_response_rejects_unknown_exercise_id():
@@ -101,7 +101,43 @@ def test_validate_response_rejects_unknown_exercise_id():
         "rationale_internal": "x",
         "rationale_public": "x",
     }
-    assert _validate_response(parsed, CATALOG_EXCERPT) is False
+    assert _validate_response(parsed, CATALOG_EXCERPT, ["lower"]) is False
+
+
+def test_validate_response_rejects_block_type_not_in_gated_blocks():
+    parsed = {
+        "blocks": [
+            {"block_type": "upper", "title": "Upper body", "estimated_minutes": 45, "exercises": []},
+        ],
+        "rationale_internal": "x",
+        "rationale_public": "x",
+    }
+    # gated_blocks said "lower", Claude returned "upper" -- must be rejected
+    # even though "upper" has no exercises to fail the id check on its own.
+    assert _validate_response(parsed, CATALOG_EXCERPT, ["lower"]) is False
+
+
+def test_validate_response_rejects_missing_gated_block():
+    parsed = {
+        "blocks": [],
+        "rationale_internal": "x",
+        "rationale_public": "x",
+    }
+    assert _validate_response(parsed, CATALOG_EXCERPT, ["lower"]) is False
+
+
+def test_validate_response_rejects_duplicate_block_type():
+    parsed = {
+        "blocks": [
+            {"block_type": "lower", "title": "A", "estimated_minutes": 45, "exercises": []},
+            {"block_type": "lower", "title": "B", "estimated_minutes": 45, "exercises": []},
+        ],
+        "rationale_internal": "x",
+        "rationale_public": "x",
+    }
+    # Only one "lower" was gated -- two is a duplicate, not a valid response,
+    # even though both individually pass the per-item block_type enum.
+    assert _validate_response(parsed, CATALOG_EXCERPT, ["lower"]) is False
 
 
 def test_build_fallback_blocks_uses_catalog_excerpt_deterministically():

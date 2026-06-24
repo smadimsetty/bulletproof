@@ -45,12 +45,18 @@ def _build_exercise_id_enum(catalog_excerpt):
     return ids
 
 
-def _build_output_schema(catalog_excerpt):
+def _build_output_schema(catalog_excerpt, gated_blocks):
     """Builds the per-request JSON schema for output_config.format.
     exercise_id is constrained to a literal enum of this day's actual
     catalog-excerpt ids -- a hallucinated id becomes a schema-validation
     failure inside client.messages.parse() itself, not a silent bad write
-    (design spec Decision 6, anti-hallucination layer 1)."""
+    (design spec Decision 6, anti-hallucination layer 1). block_type gets
+    the same treatment, constrained to today's actual gated_blocks list --
+    without this, Claude could return a block_type the deterministic gate
+    never decided on (or omit/duplicate one), which would flow straight
+    into recommendation_blocks unvalidated even though the exercise-id
+    checks were passing (caught in whole-branch review; see
+    docs/superpowers/specs/2026-06-24-engine-v2-design.md)."""
     exercise_schema = _exercise_output_schema()
     ids = sorted(_build_exercise_id_enum(catalog_excerpt))
     exercise_schema["properties"]["exercise_id"] = {"type": "string", "enum": ids} if ids else {"type": "string"}
@@ -63,7 +69,7 @@ def _build_output_schema(catalog_excerpt):
                 "items": {
                     "type": "object",
                     "properties": {
-                        "block_type": {"type": "string"},
+                        "block_type": {"type": "string", "enum": list(gated_blocks)},
                         "title": {"type": "string"},
                         "estimated_minutes": {"type": ["integer", "null"]},
                         "exercises": {"type": "array", "items": exercise_schema},
@@ -128,17 +134,27 @@ def _call_claude(system, messages, schema):
     )
 
 
-def _validate_response(parsed, catalog_excerpt):
+def _validate_response(parsed, catalog_excerpt, gated_blocks):
     """Anti-hallucination layer 2 (design spec Decision 6): re-checks every
     returned exercise_id against the same excerpt's id set, independently
-    of the schema enum that should have already blocked it. Returns False
-    on any violation -- callers treat False exactly like a parse failure
-    and fall back."""
+    of the schema enum that should have already blocked it. Also re-checks
+    that the returned blocks are exactly the gated set -- no missing,
+    extra, or duplicate block_type -- independently of the schema enum
+    that should have already constrained each individual block_type (a
+    per-item enum can't express "exactly these N items, no duplicates",
+    which is why this needs its own check rather than relying on the
+    schema alone). Returns False on any violation -- callers treat False
+    exactly like a parse failure and fall back."""
     valid_ids = _build_exercise_id_enum(catalog_excerpt)
     for block in parsed.get("blocks", []):
         for exercise in block.get("exercises", []):
             if exercise["exercise_id"] not in valid_ids:
                 return False
+
+    returned_block_types = [block["block_type"] for block in parsed.get("blocks", [])]
+    if sorted(returned_block_types) != sorted(gated_blocks):
+        return False
+
     return True
 
 
@@ -198,14 +214,14 @@ def build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback
     programming error (e.g. a malformed `profile`/`breakdown` input)."""
     catalog_excerpt = exercise_catalog_repo.load_catalog_excerpt(gated_blocks, profile)
 
-    schema = _build_output_schema(catalog_excerpt)
+    schema = _build_output_schema(catalog_excerpt, gated_blocks)
     system, messages = _assemble_messages(gated_blocks, profile, breakdown, recent_feedback, catalog_excerpt)
 
     try:
         response = _call_claude(system, messages, schema)
         parsed = response.parsed_output
-        if parsed is None or not _validate_response(parsed, catalog_excerpt):
-            raise ValueError("Claude response failed the exercise-id invariant check")
+        if parsed is None or not _validate_response(parsed, catalog_excerpt, gated_blocks):
+            raise ValueError("Claude response failed the exercise-id/block-type invariant check")
 
         return {
             "program_generated_by": "claude",
