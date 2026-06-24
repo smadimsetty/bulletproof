@@ -22,16 +22,20 @@ def get(table, params):
 
 def upsert(table, rows, conflict_column):
     """Upsert rows into a Supabase table via PostgREST, merging on
-    conflict_column (which must have a unique constraint)."""
+    conflict_column (which must have a unique constraint). Returns the
+    upserted rows (PostgREST's response body) -- `Prefer: return=
+    representation` is required for that response body to come back at
+    all; callers that need the generated id of an upserted row (e.g.
+    run_daily.py's recommendation_id lookup) depend on this return value."""
     if not rows:
-        return
+        return []
     url = os.environ["SUPABASE_URL"] + f"/rest/v1/{table}?on_conflict={conflict_column}"
     headers = _headers()
-    headers["Prefer"] = "resolution=merge-duplicates"
+    headers["Prefer"] = "resolution=merge-duplicates,return=representation"
     data = json.dumps(rows, default=str).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     with urllib.request.urlopen(req) as resp:
-        resp.read()
+        return json.load(resp)
 
 
 def insert(table, rows):

@@ -12,22 +12,25 @@ from datetime import date
 # permanent side effect of importing the engine package at all.
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+import daily_feedback_repo
 import env_loader
+import profile_repo
+import program_builder
 import recovery_repo
+import scoring
 import sessions_repo
 import supabase_client
-from rationale import build_breakdown, build_internal_rationale, build_public_rationale
-from scoring import recommend
+from rationale import build_breakdown
 
 SESSIONS_LOOKBACK_DAYS = 60
 
 
-def build_recommendation_row(today, top2, breakdown, internal_rationale, public_rationale):
+def build_recommendation_row(today, top2, breakdown, program):
     """Shape one row for the recommendations table from today's scoring
-    result. Raises ValueError if no candidates survived scoring (should be
-    unreachable in practice -- rest/mobility are never gated out -- but
-    fails loudly rather than writing a row with a null top_pick, which the
-    table's `not null` constraint would reject anyway)."""
+    result and program_builder output. Raises ValueError if no candidates
+    survived scoring (should be unreachable -- rest/mobility are never
+    gated out -- but fails loudly rather than writing a row with a null
+    top_pick, which the table's not-null constraint would reject anyway)."""
     if not top2:
         raise ValueError("no candidates survived scoring -- cannot build a recommendation row")
 
@@ -39,8 +42,11 @@ def build_recommendation_row(today, top2, breakdown, internal_rationale, public_
         "top_pick": top_pick,
         "runner_up": runner_up,
         "score_breakdown": breakdown,
-        "internal_rationale": internal_rationale,
-        "public_rationale": public_rationale,
+        "internal_rationale": program["internal_rationale"],
+        "public_rationale": program["public_rationale"],
+        "program_generated_by": program["program_generated_by"],
+        "claude_model": program["claude_model"],
+        "claude_usage": program["claude_usage"],
         # owner_id defaults to auth.uid() (v2 multi-user RLS migration),
         # which is NULL for this service-role REST call -- must be explicit
         # or the NOT NULL constraint rejects the row.
@@ -48,25 +54,94 @@ def build_recommendation_row(today, top2, breakdown, internal_rationale, public_
     }
 
 
+def build_block_rows(recommendation_id, blocks):
+    """Shapes recommendation_blocks rows from program_builder's block list,
+    in the same order Claude (or the fallback) returned them -- block_order
+    is purely positional, matching recommendation_blocks.block_order's
+    evident purpose (render blocks top-to-bottom in that order)."""
+    rows = []
+    for order, block in enumerate(blocks):
+        rows.append({
+            "recommendation_id": recommendation_id,
+            "block_order": order,
+            "block_type": block["block_type"],
+            "split_day_label": block.get("split_day_label"),
+            "title": block["title"],
+            "estimated_minutes": block.get("estimated_minutes"),
+        })
+    return rows
+
+
+def build_block_exercise_rows(block_ids, blocks):
+    """Shapes recommendation_block_exercises rows. block_ids must be in the
+    same order as blocks (the order build_block_rows iterated them in,
+    which is also the order the insert response returns ids in, since
+    PostgREST preserves insert-array order in its response array)."""
+    rows = []
+    for block_id, block in zip(block_ids, blocks):
+        for order, exercise in enumerate(block.get("exercises", [])):
+            rows.append({
+                "block_id": block_id,
+                "exercise_id": exercise["exercise_id"],
+                "exercise_order": order,
+                "prescribed_sets": exercise.get("sets"),
+                "prescribed_reps": exercise.get("reps"),
+                "prescribed_weight_note": exercise.get("weight_note"),
+                "is_unilateral_left_first": bool(exercise.get("unilateral_left_first")),
+                "notes": exercise.get("notes"),
+            })
+    return rows
+
+
 def main():
     env_loader.load_env()
     today = date.today()
+    owner_id = os.environ["ENGINE_OWNER_ID"]
 
     readiness = recovery_repo.pull_and_upsert_today(today)
     if readiness is None:
         print(f"Warning: no Oura readiness data available yet for {today.isoformat()}.", file=sys.stderr)
 
     history = sessions_repo.load_recent_history(today, lookback_days=SESSIONS_LOOKBACK_DAYS)
+    profile = profile_repo.load_profile(owner_id)
+    recent_feedback = daily_feedback_repo.load_recent_feedback(today)
 
-    top2 = recommend(today, history, readiness)
+    top2 = scoring.recommend(today, history, readiness, day_labels=profile["day_labels"], location=profile["location"])
     breakdown = build_breakdown(today, history, readiness, top2)
-    internal_rationale = build_internal_rationale(breakdown)
-    public_rationale = build_public_rationale(breakdown)
+    gated_blocks = scoring.gate_today(
+        today, history, readiness, pains=profile["pains"], location=profile["location"],
+        day_labels=profile["day_labels"],
+    )
 
-    row = build_recommendation_row(today, top2, breakdown, internal_rationale, public_rationale)
-    supabase_client.upsert("recommendations", [row], conflict_column="date")
+    program = program_builder.build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback, owner_id)
 
-    print(f"Wrote recommendation for {today.isoformat()}: top_pick={row['top_pick']}, runner_up={row['runner_up']}")
+    row = build_recommendation_row(today, top2, breakdown, program)
+    inserted = supabase_client.upsert("recommendations", [row], conflict_column="date")
+    recommendation_id = inserted[0]["id"] if inserted else None
+
+    if recommendation_id and program["blocks"]:
+        block_rows = build_block_rows(recommendation_id, program["blocks"])
+        supabase_client.insert("recommendation_blocks", block_rows)
+        # Re-read the just-inserted blocks to get their generated ids --
+        # supabase_client.insert() (unlike upsert()) discards the response
+        # body today (see its docstring: "Plain insert, no upsert"), so the
+        # ids aren't available from that call's return value yet. Querying
+        # by recommendation_id + block_order (both just written, both
+        # exact-match filters) is the simplest way to recover them without
+        # changing insert()'s existing contract for its other callers.
+        inserted_blocks = supabase_client.get(
+            "recommendation_blocks",
+            {"select": "id,block_order", "recommendation_id": f"eq.{recommendation_id}", "order": "block_order"},
+        )
+        block_ids = [b["id"] for b in inserted_blocks]
+        exercise_rows = build_block_exercise_rows(block_ids, program["blocks"])
+        if exercise_rows:
+            supabase_client.insert("recommendation_block_exercises", exercise_rows)
+
+    print(
+        f"Wrote recommendation for {today.isoformat()}: top_pick={row['top_pick']}, "
+        f"runner_up={row['runner_up']}, program_generated_by={row['program_generated_by']}"
+    )
 
 
 if __name__ == "__main__":
