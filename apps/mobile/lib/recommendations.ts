@@ -9,10 +9,8 @@ import { supabase } from './supabase';
 import { localDateString } from './healthkitMapping';
 
 export type SessionType =
-  | 'upper_a'
-  | 'upper_b'
-  | 'lower_a'
-  | 'lower_b'
+  | 'upper'
+  | 'lower'
   | 'pickleball'
   | 'run'
   | 'rest'
