@@ -1,4 +1,4 @@
-import { rangeDays, dateRangeBounds, isoWeekStart, type TimeRange } from './trendsRange';
+import { rangeDays, dateRangeBounds, isoWeekStart, enumerateDateRange, type TimeRange } from './trendsRange';
 
 describe('rangeDays', () => {
   test.each<[TimeRange, number]>([
@@ -42,5 +42,25 @@ describe('isoWeekStart', () => {
 
   test('a Sunday maps back to the same week\'s Monday', () => {
     expect(isoWeekStart('2026-06-28')).toBe('2026-06-22'); // 2026-06-28 is a Sunday
+  });
+});
+
+describe('enumerateDateRange', () => {
+  test('returns every date string inclusive of both bounds', () => {
+    expect(enumerateDateRange({ startDate: '2026-06-22', endDate: '2026-06-25' })).toEqual([
+      '2026-06-22',
+      '2026-06-23',
+      '2026-06-24',
+      '2026-06-25',
+    ]);
+  });
+
+  test('returns a single-element array when start equals end', () => {
+    expect(enumerateDateRange({ startDate: '2026-06-22', endDate: '2026-06-22' })).toEqual(['2026-06-22']);
+  });
+
+  test('spans a month boundary correctly', () => {
+    const result = enumerateDateRange({ startDate: '2026-05-30', endDate: '2026-06-02' });
+    expect(result).toEqual(['2026-05-30', '2026-05-31', '2026-06-01', '2026-06-02']);
   });
 });

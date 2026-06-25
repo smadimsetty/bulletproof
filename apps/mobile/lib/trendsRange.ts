@@ -49,3 +49,22 @@ export function isoWeekStart(dateString: string): string {
   date.setDate(date.getDate() - daysSinceMonday);
   return localDateString(date);
 }
+
+/**
+ * Every date string from startDate to endDate inclusive -- used to give
+ * the sleep/training chart a continuous x-axis even on days with no
+ * recovery or session row (design spec's sleep-line-overlaid-with-
+ * training-strip chart needs gaps to render as gaps, not be skipped).
+ */
+export function enumerateDateRange(bounds: DateRangeBounds): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${bounds.startDate}T00:00:00`);
+  const end = new Date(`${bounds.endDate}T00:00:00`);
+
+  while (cursor.getTime() <= end.getTime()) {
+    dates.push(localDateString(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+}
