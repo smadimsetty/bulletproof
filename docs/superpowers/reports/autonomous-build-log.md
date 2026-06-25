@@ -1,5 +1,15 @@
 # Autonomous build log
 
+## 2026-06-24 -- v2 Phase 4: Settings screen + full HealthKit sync
+
+**What shipped:** The Settings tab is real now, not a placeholder. It covers everything the new profile model needs: preferred training split, which activities are in rotation (grouped strength/cardio/recovery, with walking on by default), every pain area with its own severity and note, up to 3 training goals (a 4th is blocked with a visible warning, not silently dropped), training-frequency mode, diet, weight, birth date, and location -- plus a HealthKit section with a sync toggle and an honest "here's exactly what we read" disclosure. Separately, HealthKit syncing itself got more useful: it already had permission to read daily calories burned, steps, and distance but never actually used that permission -- now it does, and it also gained sleep and heart-rate reading for the first time. Calories and steps now land in the same `activity` table the rest of the system reads from.
+
+**Caught and fixed before it shipped:** nothing blocking -- the whole-branch review came back clean. It did independently verify (not just take on faith) two trickier pieces given this session's history of catching overclaimed accuracy: that the new daily-metrics sync writes to the database without colliding with or duplicating the existing workout sync, and that a numeric-code mapping for sleep stages (the HealthKit library represents "asleep" as two different internal codes that both need to count as the same thing) is actually correct against the real installed library's source, not just assumed. Both checked out.
+
+**Also confirmed clean:** no secrets in any commit; the HealthKit disclosure text matches what's actually queried, neither overselling nor underselling it; the existing sign-in/navigation logic from Phase 3 is completely untouched by this change; and all 28 mobile tests plus a clean TypeScript compile and a full production bundle export passed.
+
+**Next up:** Phase 5 -- the Home screen, which is where the new Claude-built daily program (Phase 2) actually becomes visible to Sohan for the first time on the phone.
+
 ## 2026-06-24 -- v2 Phase 3: mobile navigation bootstrap
 
 **What shipped:** The phone app's foundation is rebuilt to support more than one screen. Previously the whole app was one file that showed either a sign-in button or a single recommendation view. Now it has real navigation underneath: a bottom tab bar with Home, Trends, and Settings, plus a "logger" screen that slides up over whatever tab you're on. Every tab and the logger currently just say "coming in Phase X" -- this phase only builds the scaffolding the next several phases fill in with real content. Signing in with Apple, syncing Apple Watch workouts, and fetching recommendations all still happen exactly as before; nothing about how the app talks to Supabase or Apple changed, only how screens are organized.
