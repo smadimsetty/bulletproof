@@ -10,9 +10,10 @@
 // docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
 // Decision 4 for the save-timing rationale.
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
-import { sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import DropdownAddSection, { type DropdownOption } from '../../components/DropdownAddSection';
 import PainEntryRow, { type PainEntry } from '../../components/PainEntryRow';
 import HealthKitSection from '../../components/HealthKitSection';
@@ -71,6 +72,13 @@ export default function Settings() {
 
   const [goalsWarning, setGoalsWarning] = useState<string | null>(null);
 
+  const [dietDraft, setDietDraft] = useState('');
+  const [weightDraft, setWeightDraft] = useState('');
+  const [birthDateDraft, setBirthDateDraft] = useState('');
+  const [locationLabelDraft, setLocationLabelDraft] = useState('');
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [frequencyTargetsDraft, setFrequencyTargetsDraft] = useState<Record<string, string>>({});
+
   useEffect(() => {
     async function load() {
       const [profileRes, splitsRes, activitiesRes, goalsRes, bodyPartsRes] = await Promise.all([
@@ -99,6 +107,25 @@ export default function Settings() {
 
     load();
   }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    setDietDraft(profile.diet_preference ?? '');
+    setWeightDraft(profile.weight_kg != null ? String(profile.weight_kg) : '');
+    setBirthDateDraft(profile.birth_date ?? '');
+    setLocationLabelDraft(profile.location?.label ?? '');
+    const targets = profile.training_frequency_manual?.targets ?? {};
+    const draftEntries: Record<string, string> = {};
+    for (const key of [...profile.activities, ...getSplitDayLabels()]) {
+      draftEntries[key] = targets[key] != null ? String(targets[key]) : '';
+    }
+    setFrequencyTargetsDraft(draftEntries);
+
+    function getSplitDayLabels(): string[] {
+      const split = splits.find((s) => s.id === profile?.preferred_split);
+      return split?.day_labels ?? [];
+    }
+  }, [profile, splits]);
 
   const saveProfileFields = useCallback(
     async (fields: Partial<UserProfileRow>) => {
@@ -167,6 +194,64 @@ export default function Settings() {
 
   function handleToggleHealthKit(next: boolean) {
     saveProfileFields({ healthkit_sync_enabled: next });
+  }
+
+  function handleSetTrainingFrequencyMode(mode: 'manual' | 'auto') {
+    saveProfileFields({ training_frequency_mode: mode });
+  }
+
+  function handleSaveTrainingFrequencyTargets() {
+    const targets: Record<string, number> = {};
+    for (const [key, value] of Object.entries(frequencyTargetsDraft)) {
+      const parsed = Number(value);
+      if (value.trim() !== '' && !Number.isNaN(parsed)) {
+        targets[key] = parsed;
+      }
+    }
+    saveProfileFields({ training_frequency_manual: { targets } });
+  }
+
+  function handleSaveDiet() {
+    saveProfileFields({ diet_preference: dietDraft.trim() === '' ? null : dietDraft.trim() });
+  }
+
+  function handleSaveWeight() {
+    const parsed = Number(weightDraft);
+    saveProfileFields({ weight_kg: weightDraft.trim() === '' || Number.isNaN(parsed) ? null : parsed });
+  }
+
+  function handleSaveBirthDate() {
+    saveProfileFields({ birth_date: birthDateDraft.trim() === '' ? null : birthDateDraft.trim() });
+  }
+
+  async function handleSaveLocationLabel() {
+    const next = profile?.location
+      ? { ...profile.location, label: locationLabelDraft }
+      : { lat: 0, lon: 0, label: locationLabelDraft, timezone: '' };
+    saveProfileFields({ location: locationLabelDraft.trim() === '' ? null : next });
+  }
+
+  async function handleUseCurrentLocation() {
+    setLocationError(null);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      setLocationError('Location permission denied. You can still save the label above.');
+      return;
+    }
+    try {
+      const position = await Location.getCurrentPositionAsync({});
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      saveProfileFields({
+        location: {
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          label: locationLabelDraft,
+          timezone,
+        },
+      });
+    } catch (err: any) {
+      setLocationError(err.message ?? 'Failed to read current location.');
+    }
   }
 
   if (loading) {
@@ -253,6 +338,106 @@ export default function Settings() {
         />
       ))}
 
+      <View style={sharedStyles.card}>
+        <Text style={sharedStyles.sectionTitle}>Training Frequency</Text>
+        <View style={styles.modeRow}>
+          <Pressable
+            style={[styles.modeButton, profile.training_frequency_mode === 'auto' && styles.modeButtonActive]}
+            onPress={() => handleSetTrainingFrequencyMode('auto')}
+          >
+            <Text style={profile.training_frequency_mode === 'auto' ? styles.modeTextActive : styles.modeText}>
+              Auto
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.modeButton, profile.training_frequency_mode === 'manual' && styles.modeButtonActive]}
+            onPress={() => handleSetTrainingFrequencyMode('manual')}
+          >
+            <Text style={profile.training_frequency_mode === 'manual' ? styles.modeTextActive : styles.modeText}>
+              Manual
+            </Text>
+          </Pressable>
+        </View>
+        {profile.training_frequency_mode === 'manual' && (
+          <>
+            <Text style={sharedStyles.helperText}>Target sessions per week</Text>
+            {Object.keys(frequencyTargetsDraft).map((key) => (
+              <View key={key} style={styles.targetRow}>
+                <Text style={TYPE.body}>{key}</Text>
+                <TextInput
+                  style={[sharedStyles.textInput, styles.targetInput]}
+                  keyboardType="number-pad"
+                  value={frequencyTargetsDraft[key]}
+                  onChangeText={(text) =>
+                    setFrequencyTargetsDraft((prev) => ({ ...prev, [key]: text }))
+                  }
+                />
+              </View>
+            ))}
+            <Pressable style={sharedStyles.primaryButton} onPress={handleSaveTrainingFrequencyTargets}>
+              <Text style={sharedStyles.primaryButtonText}>Save targets</Text>
+            </Pressable>
+          </>
+        )}
+      </View>
+
+      <View style={sharedStyles.card}>
+        <Text style={sharedStyles.sectionTitle}>Diet</Text>
+        <TextInput
+          style={sharedStyles.textInput}
+          value={dietDraft}
+          onChangeText={setDietDraft}
+          placeholder="e.g. high protein, South Asian staples"
+        />
+        <Pressable style={sharedStyles.primaryButton} onPress={handleSaveDiet}>
+          <Text style={sharedStyles.primaryButtonText}>Save</Text>
+        </Pressable>
+      </View>
+
+      <View style={sharedStyles.card}>
+        <Text style={sharedStyles.sectionTitle}>Weight & Birth Date</Text>
+        <Text style={sharedStyles.helperText}>Weight (kg)</Text>
+        <TextInput
+          style={sharedStyles.textInput}
+          value={weightDraft}
+          onChangeText={setWeightDraft}
+          keyboardType="decimal-pad"
+        />
+        <Text style={sharedStyles.helperText}>Birth date (YYYY-MM-DD)</Text>
+        <TextInput
+          style={sharedStyles.textInput}
+          value={birthDateDraft}
+          onChangeText={setBirthDateDraft}
+          placeholder="1995-01-01"
+        />
+        <Pressable
+          style={sharedStyles.primaryButton}
+          onPress={() => {
+            handleSaveWeight();
+            handleSaveBirthDate();
+          }}
+        >
+          <Text style={sharedStyles.primaryButtonText}>Save</Text>
+        </Pressable>
+      </View>
+
+      <View style={sharedStyles.card}>
+        <Text style={sharedStyles.sectionTitle}>Location</Text>
+        <TextInput
+          style={sharedStyles.textInput}
+          value={locationLabelDraft}
+          onChangeText={setLocationLabelDraft}
+          placeholder="e.g. Austin, TX"
+        />
+        <Pressable style={sharedStyles.primaryButton} onPress={handleSaveLocationLabel}>
+          <Text style={sharedStyles.primaryButtonText}>Save label</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={handleUseCurrentLocation}>
+          <Text style={styles.secondaryButtonText}>Use current location</Text>
+        </Pressable>
+        {locationError && <Text style={sharedStyles.warningText}>{locationError}</Text>}
+      </View>
+
       <HealthKitSection
         enabled={profile.healthkit_sync_enabled}
         onToggle={handleToggleHealthKit}
@@ -260,3 +445,45 @@ export default function Settings() {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  modeRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  modeButton: {
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  modeButtonActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  modeText: {
+    color: COLORS.ink,
+  },
+  modeTextActive: {
+    color: COLORS.card,
+    fontWeight: '600',
+  },
+  targetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  targetInput: {
+    width: 80,
+    textAlign: 'right',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xs,
+  },
+  secondaryButtonText: {
+    color: COLORS.accent,
+    fontWeight: '600',
+  },
+});
