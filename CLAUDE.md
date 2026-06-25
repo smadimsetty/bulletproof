@@ -33,11 +33,18 @@ A personal, data-driven dynamic training system. Every morning it ingests recove
 ## System architecture (decided)
 Two layers: **the data model is permanent; the engine and interface are disposable.** Design the schema right once, then rebuild UI / swap logic (rules → AI) without migrating data.
 
-### Data model (get this right once)
-- `sessions` — date, type (`upper_a`/`upper_b`/`lower_a`/`lower_b`/`pickleball`/`run`/`rest`/`mobility`), duration, optional exercises+sets+reps+weight, notes
-- `recovery` — date, sleep_hrs, hrv, resting_hr, subjective_readiness (1–10), soreness_flags (neck/ankle/hips/shoulders/legs)
-- `exercises` — name, pattern, demo_video_url, is_complex (static lookup, built once)
-- `user` — profile + injury constraints (a table even though it's just Sohan, so multi-user = adding rows, not a rewrite)
+### Data model (v2, as of 2026-06-25 — multi-user-ready, real RLS on every personal table)
+- `sessions` — date, type (`upper`/`lower`/`pickleball`/`run`/`rest`/`mobility` — the `_a`/`_b` variants from v1 were dropped; day-to-day variety now comes from the engine picking different exercises within a type, not from rotating variant types), `started_at`/`ended_at`/`felt_rating`, owner_id. A partial unique index enforces at most one open (`ended_at IS NULL`) session per owner at a time.
+- `recovery` — date, sleep_hrs, hrv, resting_hr, subjective_readiness (1–10), soreness_flags, owner_id
+- `exercises` — name, movement_pattern, exercise_type (strength/mobility_stretch/plyometric/balance/cardio), demo_video_url, is_complex, target_goals[], body_parts[], evidence_rationale, equipment_needed[], default_sets, default_rep_range, unilateral, is_corrective. 189 tagged rows (seeded Phase 1), equipment variants of the same lift kept as separate rows. Global/shared, read-only to authenticated users.
+- `user_profile` — profile + `pains` (jsonb array of `{body_part, severity, note, since}` — renamed from v1's flat `injury_constraints`), `activities` (jsonb), `preferred_split` (FK to `split_taxonomy`), `current_goals` (jsonb, app-capped at 3), `training_frequency_mode`, `diet_preference`, `weight_kg`, `birth_date`, `location`, `healthkit_sync_enabled`, owner_id
+- `recommendations` — top_pick/runner_up/rationale as in v1, plus `program_generated_by` ('claude'/'fallback_template'), `claude_model`, `claude_usage` (service-role-only); owner_id. Child tables `recommendation_blocks` (one row per program block: type, order, title, estimated_minutes) and `recommendation_block_exercises` (one row per exercise within a block: prescribed sets/reps/weight-note, swap audit trail via `swapped_from_exercise_id`)
+- `exercise_logs` — one row per logged set (strength) or per checkbox item (mobility); the engine's primary recent-history signal now, more granular than `sessions` alone
+- `daily_feedback` — free-text per-day feedback from the Home screen, read by the program-builder
+- `split_taxonomy` / `activity_taxonomy` / `goal_taxonomy` / `body_part_taxonomy` — new lookup tables backing Settings' dropdown-to-add UI; global/shared, seeded once
+- `recommendations_public` — the same 5-column view (`date, top_pick, runner_up, public_rationale, generated_at`) the public web dashboard and phone app both read; contract unchanged across the whole v2 migration
+
+Multi-user RLS: every personal table has `owner_id uuid references auth.users not null default auth.uid()` with real `owner_id = auth.uid()` policies — verified against a second real auth user during the schema v2 migration, not just asserted.
 
 ### Engine (deterministic scoring — NOT an LLM freestyle)
 For each candidate in [upper, lower, pickleball, run, rest, mobility]:
@@ -64,17 +71,19 @@ Oura auto-delivers the entire `recovery` table every morning (sleep, HRV, restin
 - **Storage:** lean toward managed **Postgres (Supabase) with row-level security from day one** (multi-user-ready, no throwaway work) vs. a lighter SQLite/JSON start (faster, migrate later).
 - **Recommended sequence:** prototype the scoring logic in a Sheet against last-30-days history to tune the weights (cheap way to learn whether "optimal" feels optimal), THEN build the app. Don't build UI around untuned logic.
 
-## Open decisions (NOT yet settled — resolve before/while building)
-1. **Logging model:** recommend-only (keep logging gym work in Strong/Hevy) vs. **app-becomes-the-logger** (owns history — enables rep/weight progressive-overload suggestions, removes Strong-API dependency). Current lean: eventually the logger; could start recommend-only to ship faster. **Sub-question that drives the design:** how much does Sohan want to log in-the-moment — full sets/reps/weight, or just "did upper, felt 7/10"?
-2. **Storage/runtime:** Supabase + RLS once (no throwaway) vs. SQLite/JSON quick start.
-3. **Rotation granularity:** maintain `upper_a`/`upper_b` + `lower_a`/`lower_b` variants so identical sessions don't repeat.
+## Open decisions — resolved during the v2 rebuild (2026-06-25)
+1. **Logging model: app-becomes-the-logger**, not recommend-only. The mobile app's Logger screen (v2 Phase 6) owns real-time per-set logging (reps/weight/completion) against `exercise_logs`, which is now the engine's primary recent-history signal — no Strong/Hevy dependency.
+2. **Storage/runtime: Supabase + RLS**, done once, no throwaway. Now genuinely multi-user-ready (every personal table owner-scoped, verified against a second real auth user), not just structured for it.
+3. **Rotation granularity: no `upper_a`/`upper_b`/`lower_a`/`lower_b` variants.** The schema v2 migration simplified `session_type` to plain `upper`/`lower`; day-to-day variety comes from the engine's Claude-driven exercise selection picking different exercises within the same session type, not from rotating between pre-baked variant types.
+
+No open decisions remain from the original list. See `docs/superpowers/reports/autonomous-build-log.md`'s "2026-06-25 -- v2 run complete" entry for what's still outstanding (credentials/on-device verification, not design decisions).
 
 ## Principles / guardrails
 - **Friction-first:** if daily data-in takes >~20s, it dies. Optimize data-in before intelligence. (Oura largely solves recovery.)
 - Data model permanent; engine + UI disposable/rebuildable.
 - **Rules-based engine first** — transparent, debuggable, free, tunable (Sohan is a data analyst). ML only after months of logged data.
 - The **readiness gate doubles as the injury guardrail** (neck/ankle history) — when readiness tanks, it forces rest/mobility.
-- Multi-user is a later addition: design the schema for it (user table, RLS) but don't build it yet. Health data — even friends' sleep/HRV — is sensitive; RLS from the start, not bolted on.
+- Multi-user schema/RLS is now real (done in the v2 rebuild, not just designed-for) — every personal table is owner-scoped and verified against a second real auth user. What's still a later addition: actual multi-user *features* (invites, sharing, anything beyond "a second Apple ID could sign in and get their own isolated data"). Health data — even a friend's sleep/HRV — stays sensitive; RLS already covers it from the data layer up.
 - **"High-impact only":** cap junk volume; compound-based; science-backed exercise selection.
 
 ## To verify at build time (do NOT assert as current fact)
@@ -82,8 +91,10 @@ Oura auto-delivers the entire `recovery` table every morning (sleep, HRV, restin
 - ~~**Oura API specifics** (endpoints, auth, token scopes) — confirm at build time.~~ **Confirmed in Phase 2** (see `docs/superpowers/plans/2026-06-21-phase2-weight-tuning.md` Global Constraints): base URL `https://api.ouraring.com/v2/usercollection`, Bearer-token PAT auth (not OAuth2), `start_date`/`end_date` query params, `next_token` pagination. Readiness score is **0-100** (not the 1-10 this doc originally assumed for `subjective_readiness`) — rescaled via `max(1, min(10, round(score / 10)))` when written to the existing column rather than changing the schema. Oura genuinely auto-detects `pickleball` and `running` as named workout activities, though pickleball detection looks under-frequent relative to actual play frequency (26 instances over ~22 months of real data) — worth a second look once more data accumulates.
 
 ## Status
-All 6 planned phases are complete and merged to `master` as of 2026-06-23 — see `docs/superpowers/reports/autonomous-build-log.md` for the full per-phase log. The system now runs end to end: a GitHub Actions cron job runs the production engine (`engine/`) every morning at 11:00 UTC, pulling real Oura readiness and writing a real recommendation row to Supabase with zero manual intervention. The iPhone app (Expo/React Native, in TestFlight) signs in with Apple, syncs Apple Watch workouts from HealthKit into the same `activity` table, and shows today's recommendation plus yesterday's summary on its home screen. A public web dashboard at `https://smadimsetty.github.io/bulletproof/` shows the same two outputs to anyone with the link, no login required. Both clients read only a public-safe Postgres view — raw biometrics (HRV, the internal readiness number) stay private. Full Oura history (2024-08-21 to present) is live in Supabase's `recovery` + `activity` tables; reconstructed session history (665 days) is live in `sessions`.
+**v1** (6 phases, complete 2026-06-23) shipped a rules-only engine, a single-screen phone app, and a public web dashboard — see the build log's "2026-06-23 -- Run complete" entry.
 
-**One open item, needs Sohan directly:** confirming HealthKit sync and Apple sign-in on a real iPhone. This needs an authenticated Apple Developer/EAS session and an interactive `eas build --platform ios --profile preview` — it can't be run non-interactively, so it's the one piece of this system nobody but Sohan can verify. Everything else has shipped and been independently verified live (not just in tests).
+**v2** (9 more phases, complete 2026-06-25) rebuilt the schema for real multi-user readiness, gave the engine Claude-driven exercise selection on top of the deterministic safety rules, and rebuilt the phone app from one screen into four (Home, Settings, Logger, Trends) — see `docs/superpowers/reports/autonomous-build-log.md`'s "2026-06-25 -- v2 run complete" entry for the full before/after and the consolidated outstanding-items list. In short, end to end right now: every morning at 11:00 UTC a GitHub Actions cron job pulls real Oura readiness, asks Claude to build a full multi-block exercise program (or falls back to a safe deterministic picker if Claude/its API key isn't available), and writes it to Supabase. The iPhone app signs in with Apple, syncs Apple Watch workouts plus sleep/heart-rate from HealthKit, and across its four tabs shows today's full program with real per-set logging, an editable profile/settings screen, and time-range training analytics. The public web dashboard still shows the original two outputs (today's + yesterday's recommendation) to anyone with the link, no login required, and was re-verified against the new schema. Both clients read only public-safe Postgres views/owner-scoped RLS — raw biometrics never leave the private layer.
 
-**Next up:** whatever Sohan wants to build next — there is no more pre-planned backlog. Natural candidates per the original roadmap: tune the engine's scoring weights against more real history now that it's running daily; revisit the recommend-only vs. app-becomes-the-logger decision (see "Open decisions" above); or a custom domain for the web dashboard (currently blocked only on DNS access).
+**Outstanding, needs Sohan (see the build log entry for full detail):** no Anthropic API key configured yet (engine runs safely without Claude's smarter picks until then); the on-demand exercise-swap backend is a plain function, not yet wrapped in a callable Edge Function; and an on-device walkthrough is owed across four mobile phases (nav rewrite, new HealthKit permission, the full Logger flow, the Trends charts) since this build environment has no phone/simulator/live-Supabase access.
+
+**Next up:** no pre-planned backlog remains. Natural candidates: add the Anthropic key to turn on Claude exercise selection for real; do the on-device walkthrough in one pass; build the swap Edge Function; or just use the app for a few weeks and see what's actually missing.

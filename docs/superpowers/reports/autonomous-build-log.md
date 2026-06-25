@@ -1,5 +1,35 @@
 # Autonomous build log
 
+## 2026-06-25 -- v2 run complete
+
+All 9 planned v2 phases are merged to `master`. Here's what changed end to end since the last full wrap-up (2026-06-23).
+
+**Before this run:** a rules-only engine that picked a session *type* (lift/pickleball/run/rest/mobility) with no specific exercises, a single-screen phone app showing just that recommendation, and a database built for exactly one user.
+
+**Now:** the database is multi-user-ready (every personal table is owner-scoped with real row-level security, not the single-implicit-user policies v1 shipped with), and the engine asks Claude (Sonnet 4.6) to pick the actual exercises -- sets, reps, coaching notes -- from a 189-exercise tagged catalog, with the deterministic rules still having final say over *which kind* of day it is and a safe fallback if Claude is ever unavailable. The phone app went from one screen to four: Home (today's full program block by block, yesterday's summary, a feedback box), Settings (editable training split, activities, pains, goals, full HealthKit sync including sleep/heart rate), Logger (real per-set logging with swap/remove/add, Start/End Workout, a DB-enforced single-active-session rule), and Trends (time-range analytics, a sleep/training overlay chart, a muscle-group volume chart with a best-lifts drill-down). The public web dashboard was re-verified against the new schema and had one real latent bug fixed (a stale enum value list) in the process.
+
+**Two "Open decisions" from before this run are now resolved:**
+- **Logging model:** settled on app-becomes-the-logger, not recommend-only. The Logger screen (Phase 6) owns real-time set/rep/weight entry against `exercise_logs`, which is now also the engine's primary recent-history signal.
+- **Rotation granularity:** settled on *not* maintaining `upper_a`/`upper_b`/`lower_a`/`lower_b` variants. The schema simplified to plain `upper`/`lower`; day-to-day variety now comes from Claude picking different exercises within the same session type, not from rotating between pre-baked variant types.
+
+**Consolidated outstanding items, needs Sohan (nothing here blocks daily use):**
+1. **No Anthropic API key configured yet** (flagged since Phase 2) -- the engine keeps generating safe, correct recommendations via its deterministic fallback picker; it just won't get Claude's smarter exercise selection until a key is added as a GitHub secret.
+2. **The on-demand swap endpoint (`build_program_for_activity`) is a plain Python function only** -- no Edge Function/API route wraps it yet, so Home's "swap this activity" picker UI is real but says "not available yet" when tapped.
+3. **On-device verification is owed across Phases 3, 4, 6, and 7** -- the mobile nav rewrite, the new HealthKit sleep/heart-rate permission prompt, the full Logger flow (haptics, live swap/remove/add, the conflict-resume prompt), and the Trends charts have only been verified via tests/compile/bundle-export, never tapped through on a real phone or simulator, since this environment has none. Nothing failed; nothing has been watched render, either.
+4. **Two of Phase 6's RLS policies** and the Phase 8 web fix's auto-deploy were never independently re-confirmed against live Supabase/the live site (no credentials/browser in this sandbox) -- low-risk, but unverified is unverified.
+
+**Next up:** no more pre-planned backlog. Natural candidates: get an Anthropic key into GitHub secrets to turn on Claude exercise selection for real; the on-device walkthrough above (worth doing in one pass now that 4 phases are queued for it); building the Edge Function for real swap support; or just using the app for a few weeks and seeing what's actually missing.
+
+## 2026-06-25 -- v2 Phase 8: web dashboard contract check
+
+**What shipped:** A fix, not a feature -- this phase's job was to confirm the public web dashboard (the no-login page at smadimsetty.github.io/bulletproof) still works correctly now that the whole v2 rebuild has changed the database underneath it, and it found a real problem worth fixing. The web app's session-type code still had the old four-way upper_a/upper_b/lower_a/lower_b split that the very first v2 phase (schema v2 migration) simplified down to plain upper/lower weeks ago -- the exact same bug the phone app independently hit and fixed back in Phase 5, just in the web app's own separate copy of the same logic. It hadn't caused a visible problem yet only because nothing had forced a compile error; the code was internally consistent with its own outdated assumptions. Fixed to match the live database, both the type definition and the friendly on-screen labels ("Upper Body" / "Lower Body"), confirmed identical to what the phone app shows.
+
+**Confirmed, not assumed:** the actual database view this page reads from (`recommendations_public`) has had the exact same five columns since it was first created -- double-checked against every migration that ever touched it, not just trusted from memory. So this was purely a one-app-behind-on-an-old-value-list bug, not a deeper breaking change. A fresh review of the full diff independently re-confirmed the fix is complete (grepped the whole web app for any other stale reference, found none) and that the web and phone apps' label text now match exactly, word for word.
+
+**Verified:** the web app's own test suite (10 tests), a full TypeScript check, and a full production build all ran clean after the fix. This change pushed to master, which should trigger the existing auto-deploy workflow the same way every prior web change has -- not independently re-confirmed live in a browser this session (no browser access in this environment), worth a quick visual check next time someone looks at the live site.
+
+**Pipeline status:** this was the 9th and final phase of the planned v2 backlog. A wrap-up report covering the whole run follows.
+
 ## 2026-06-25 -- v2 Phase 7: Trends screen
 
 **What shipped:** The third and final tab, Trends, now shows real analytics instead of a placeholder. A week/month/6mo/year selector controls everything below it: a plain-language summary ("You averaged 7.2 hrs of sleep and trained 4 sessions (2 upper, 1 lower, 1 mobility) and training volume is trending up"), a sleep-hours line chart with a color-coded strip underneath showing what kind of session happened each day, and a bar chart of total training volume by muscle group. Tapping any muscle-group bar opens a ranked "best lifts" list for that body part -- heaviest weight for isolation moves, an Epley-estimated one-rep-max for compound lifts (squat, deadlift, etc.), with a "show more" to see further down the list.
