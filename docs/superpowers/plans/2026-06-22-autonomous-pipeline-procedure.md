@@ -24,6 +24,22 @@ inside it mid-phase.
 
 ### 2. Planner dispatch (only if the phase has no spec/plan yet)
 
+**Token-optimization note (extended during Phase 7/Trends, 2026-06-25):**
+the same logic from the per-task-loop note below applies here. An
+attached/interactive orchestrator that will also implement the phase
+itself doesn't need a separate Planner subagent producing a giant
+implementation plan with verbatim code in every step — that level of
+detail exists to let a *different*, context-free Developer agent execute
+without re-deriving the design. When the orchestrator is both planner and
+implementer, write a short decisions note directly instead (just the
+non-obvious calls — library choices, ambiguous-spec resolutions, data-
+shape decisions — not a restatement of the design spec, and no verbatim
+code) and track the task breakdown in the orchestrator's own todo list.
+Phase 7 did this with a single ~90-line decisions doc instead of a
+multi-thousand-line plan. Fall back to a full Planner dispatch only when
+a detached/unattended run will hand the plan to separate Developer
+subagents.
+
 Dispatch via the Agent tool, `subagent_type: "general-purpose"` (**not**
 `"Plan"` -- the `Plan` subagent type is read-only by design, with no
 Write/Edit/Bash-write access, so it cannot actually create or commit the
