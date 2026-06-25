@@ -22,7 +22,7 @@ import { AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { syncHealthKitWorkouts } from '../lib/healthkitSync';
+import { syncHealthKitWorkouts, syncHealthKitDailyMetrics } from '../lib/healthkitSync';
 import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommendations';
 
 type RecommendationsState = {
@@ -87,12 +87,18 @@ export default function RootLayout() {
     syncHealthKitWorkouts().catch((err) => {
       console.warn('HealthKit sync failed on launch:', err);
     });
+    syncHealthKitDailyMetrics().catch((err) => {
+      console.warn('HealthKit daily metrics sync failed on launch:', err);
+    });
     loadRecommendations();
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appState.current !== 'active' && nextState === 'active') {
         syncHealthKitWorkouts().catch((err) => {
           console.warn('HealthKit sync failed on foreground:', err);
+        });
+        syncHealthKitDailyMetrics().catch((err) => {
+          console.warn('HealthKit daily metrics sync failed on foreground:', err);
         });
         loadRecommendations();
       }
