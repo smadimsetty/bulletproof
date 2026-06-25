@@ -2,7 +2,12 @@
 import {
   groupWorkoutsByLocalDate,
   localDateString,
+  mergeDailyMetricsIntoActivityRows,
+  sumQuantityByLocalDate,
+  sumSleepMinutesByLocalDate,
   toActivityRows,
+  type MinimalQuantitySample,
+  type MinimalSleepSample,
   type MinimalWorkoutSample,
 } from '../healthkitMapping';
 
@@ -119,5 +124,139 @@ describe('toActivityRows', () => {
 
   it('returns an empty array for an empty grouping', () => {
     expect(toActivityRows(new Map())).toEqual([]);
+  });
+});
+
+function quantitySample(overrides: Partial<MinimalQuantitySample>): MinimalQuantitySample {
+  return {
+    startDate: new Date(2026, 5, 20, 8, 0),
+    endDate: new Date(2026, 5, 20, 8, 0),
+    quantity: 100,
+    ...overrides,
+  };
+}
+
+function sleepSample(overrides: Partial<MinimalSleepSample>): MinimalSleepSample {
+  return {
+    startDate: new Date(2026, 5, 19, 23, 0),
+    endDate: new Date(2026, 5, 20, 6, 0),
+    categoryValue: 'asleepCore',
+    ...overrides,
+  };
+}
+
+describe('sumQuantityByLocalDate', () => {
+  it('sums multiple samples on the same local date', () => {
+    const samples = [
+      quantitySample({ startDate: new Date(2026, 5, 20, 8, 0), quantity: 300 }),
+      quantitySample({ startDate: new Date(2026, 5, 20, 18, 0), quantity: 200 }),
+    ];
+
+    const result = sumQuantityByLocalDate(samples);
+
+    expect(result.get('2026-06-20')).toBe(500);
+  });
+
+  it('keeps separate dates in separate buckets', () => {
+    const samples = [
+      quantitySample({ startDate: new Date(2026, 5, 20, 8, 0), quantity: 300 }),
+      quantitySample({ startDate: new Date(2026, 5, 21, 8, 0), quantity: 150 }),
+    ];
+
+    const result = sumQuantityByLocalDate(samples);
+
+    expect(result.get('2026-06-20')).toBe(300);
+    expect(result.get('2026-06-21')).toBe(150);
+  });
+
+  it('returns an empty map for no samples', () => {
+    expect(sumQuantityByLocalDate([]).size).toBe(0);
+  });
+});
+
+describe('sumSleepMinutesByLocalDate', () => {
+  it('sums asleep-bucket durations and excludes inBed/awake', () => {
+    const samples = [
+      sleepSample({
+        startDate: new Date(2026, 5, 19, 23, 0),
+        endDate: new Date(2026, 5, 20, 1, 0),
+        categoryValue: 'asleepCore',
+      }),
+      sleepSample({
+        startDate: new Date(2026, 5, 20, 1, 0),
+        endDate: new Date(2026, 5, 20, 1, 15),
+        categoryValue: 'awake',
+      }),
+      sleepSample({
+        startDate: new Date(2026, 5, 20, 1, 15),
+        endDate: new Date(2026, 5, 20, 6, 15),
+        categoryValue: 'asleepDeep',
+      }),
+      sleepSample({
+        startDate: new Date(2026, 5, 19, 22, 30),
+        endDate: new Date(2026, 5, 19, 23, 0),
+        categoryValue: 'inBed',
+      }),
+    ];
+
+    const result = sumSleepMinutesByLocalDate(samples);
+
+    // bucketed by the sample's *start* local date: 120 + 300 = 420 minutes
+    // on 2026-06-19 (23:00-01:00 starts on the 19th) + (01:15-06:15 starts
+    // on the 20th) -- see Step 3's implementation for the exact bucketing
+    // rule (by startDate's local date, matching groupWorkoutsByLocalDate).
+    expect(result.get('2026-06-19')).toBe(120);
+    expect(result.get('2026-06-20')).toBe(300);
+  });
+
+  it('treats asleepUnspecified and asleep as asleep-bucket', () => {
+    const samples = [
+      sleepSample({
+        startDate: new Date(2026, 5, 20, 1, 0),
+        endDate: new Date(2026, 5, 20, 2, 0),
+        categoryValue: 'asleep',
+      }),
+      sleepSample({
+        startDate: new Date(2026, 5, 20, 2, 0),
+        endDate: new Date(2026, 5, 20, 2, 30),
+        categoryValue: 'asleepUnspecified',
+      }),
+    ];
+
+    const result = sumSleepMinutesByLocalDate(samples);
+
+    expect(result.get('2026-06-20')).toBe(90);
+  });
+
+  it('returns an empty map for no samples', () => {
+    expect(sumSleepMinutesByLocalDate([]).size).toBe(0);
+  });
+});
+
+describe('mergeDailyMetricsIntoActivityRows', () => {
+  it('produces one partial row per date present in either map', () => {
+    const calories = new Map([['2026-06-20', 2200]]);
+    const steps = new Map([
+      ['2026-06-20', 8000],
+      ['2026-06-21', 5000],
+    ]);
+
+    const rows = mergeDailyMetricsIntoActivityRows(calories, steps);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.date === '2026-06-20')).toEqual({
+      date: '2026-06-20',
+      total_calories: 2200,
+      steps: 8000,
+    });
+    expect(rows.find((r) => r.date === '2026-06-21')).toEqual({
+      date: '2026-06-21',
+      total_calories: null,
+      steps: 5000,
+    });
+  });
+
+  it('returns an empty array when both maps are empty', () => {
+    expect(mergeDailyMetricsIntoActivityRows(new Map(), new Map())).toEqual([]);
   });
 });
