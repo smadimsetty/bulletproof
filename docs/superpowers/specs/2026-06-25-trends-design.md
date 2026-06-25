@@ -75,7 +75,18 @@ in for that plan.
    group/range is never large enough to warrant server-side pagination at
    this user count).
 
-6. **No isolated render tests for screen-level components** — same
+6. **The volume chart's bars are one per muscle group, not one per
+   week**, despite "weekly volume" in the spec text — a bar must map
+   1:1 to a drill-down target (the spec's "each bar tappable into a
+   drill-down list"), and a single week can span many muscle groups, so
+   weeks-as-bars and "tap a bar to drill into one muscle group" don't fit
+   together. The weekly buckets from Decision 4 still exist internally
+   (`aggregateWeeklyVolumeByBodyPart`) and get summed across the whole
+   selected range per body part (`totalVolumeByBodyPart`) for what's
+   actually rendered — the weekly granularity is preserved for a possible
+   future per-week breakdown view, just not exposed in this chart yet.
+
+7. **No isolated render tests for screen-level components** — same
    precedent as every prior phase (no RN render harness in this repo).
    Pure aggregation/range functions get real unit tests; chart/screen
    components get `tsc` + the Task-14-equivalent manual/bundle pass.

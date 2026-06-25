@@ -1,6 +1,7 @@
 import {
   estimateOneRepMax,
   aggregateWeeklyVolumeByBodyPart,
+  totalVolumeByBodyPart,
   rankBestLifts,
   fetchMuscleGroupLogs,
   type MuscleGroupLogRow,
@@ -84,6 +85,25 @@ describe('aggregateWeeklyVolumeByBodyPart', () => {
         { weekStart: '2026-06-29', bodyPart: 'hips', volume: 500 },
       ])
     );
+  });
+});
+
+describe('totalVolumeByBodyPart', () => {
+  test('sums weekly buckets into one total per body part, sorted descending', () => {
+    const result = totalVolumeByBodyPart([
+      { weekStart: '2026-06-01', bodyPart: 'hips', volume: 500 },
+      { weekStart: '2026-06-08', bodyPart: 'hips', volume: 300 },
+      { weekStart: '2026-06-01', bodyPart: 'chest', volume: 1200 },
+    ]);
+
+    expect(result).toEqual([
+      { bodyPart: 'chest', volume: 1200 },
+      { bodyPart: 'hips', volume: 800 },
+    ]);
+  });
+
+  test('returns an empty array for no input', () => {
+    expect(totalVolumeByBodyPart([])).toEqual([]);
   });
 });
 
