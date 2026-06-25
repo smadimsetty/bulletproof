@@ -79,7 +79,7 @@ export default function Trends() {
     <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
       <Text style={TYPE.screenTitle}>Trends</Text>
       <TimeRangeSelector value={range} onSelect={setRange} />
-      <TrendsSummaryCard loading={false} summary={summary} />
+      <TrendsSummaryCard summary={summary} />
       <SleepTrainingChart history={history} />
       <MuscleGroupVolumeChart totals={volumeTotals} onBarPress={setSelectedBodyPart} />
       <BestLiftsSheet
