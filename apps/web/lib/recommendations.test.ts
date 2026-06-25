@@ -27,16 +27,16 @@ const YESTERDAY_ISO = '2026-06-21';
 const todayRow = {
   date: TODAY_ISO,
   top_pick: 'mobility',
-  runner_up: 'upper_a',
-  public_rationale: "Today's pick is mobility -- a mobility session was overdue. Runner-up: upper a.",
+  runner_up: 'upper',
+  public_rationale: "Today's pick is mobility -- a mobility session was overdue. Runner-up: upper.",
   generated_at: '2026-06-22T11:00:05Z',
 };
 
 const yesterdayRow = {
   date: YESTERDAY_ISO,
-  top_pick: 'lower_a',
+  top_pick: 'lower',
   runner_up: null,
-  public_rationale: "Today's pick is lower a -- this keeps your training balanced this week.",
+  public_rationale: "Today's pick is lower -- this keeps your training balanced this week.",
   generated_at: '2026-06-21T11:00:04Z',
 };
 

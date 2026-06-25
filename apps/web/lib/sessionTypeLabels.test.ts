@@ -2,16 +2,7 @@
 import { SESSION_TYPE_LABELS, labelForSessionType } from './sessionTypeLabels';
 import type { SessionType } from './recommendations';
 
-const ALL_SESSION_TYPES: SessionType[] = [
-  'upper_a',
-  'upper_b',
-  'lower_a',
-  'lower_b',
-  'pickleball',
-  'run',
-  'rest',
-  'mobility',
-];
+const ALL_SESSION_TYPES: SessionType[] = ['upper', 'lower', 'pickleball', 'run', 'rest', 'mobility'];
 
 describe('SESSION_TYPE_LABELS', () => {
   test('has a defined, non-empty label for every session_type enum value', () => {
@@ -21,10 +12,8 @@ describe('SESSION_TYPE_LABELS', () => {
   });
 
   test('produces the expected friendly names', () => {
-    expect(SESSION_TYPE_LABELS.upper_a).toBe('Upper Body A');
-    expect(SESSION_TYPE_LABELS.upper_b).toBe('Upper Body B');
-    expect(SESSION_TYPE_LABELS.lower_a).toBe('Lower Body A');
-    expect(SESSION_TYPE_LABELS.lower_b).toBe('Lower Body B');
+    expect(SESSION_TYPE_LABELS.upper).toBe('Upper Body');
+    expect(SESSION_TYPE_LABELS.lower).toBe('Lower Body');
     expect(SESSION_TYPE_LABELS.pickleball).toBe('Pickleball');
     expect(SESSION_TYPE_LABELS.run).toBe('Run');
     expect(SESSION_TYPE_LABELS.rest).toBe('Rest');

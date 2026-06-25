@@ -14,10 +14,8 @@
 import { supabase } from './supabase';
 
 export type SessionType =
-  | 'upper_a'
-  | 'upper_b'
-  | 'lower_a'
-  | 'lower_b'
+  | 'upper'
+  | 'lower'
   | 'pickleball'
   | 'run'
   | 'rest'
