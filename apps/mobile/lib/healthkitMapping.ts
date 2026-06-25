@@ -16,6 +16,48 @@ export interface MinimalWorkoutSample {
   readonly totalDistanceMeters: number | null;
 }
 
+export interface MinimalQuantitySample {
+  readonly startDate: Date;
+  readonly endDate: Date;
+  readonly quantity: number;
+}
+
+/**
+ * The subset of CategoryValueSleepAnalysis values (per
+ * @kingstinct/react-native-healthkit's generated enum) that count as
+ * "asleep" for this app's purposes -- excludes inBed/awake. See
+ * docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
+ * Decision 1.
+ */
+export type SleepCategoryValue =
+  | 'inBed'
+  | 'asleepUnspecified'
+  | 'asleep'
+  | 'awake'
+  | 'asleepCore'
+  | 'asleepDeep'
+  | 'asleepREM';
+
+const ASLEEP_BUCKET: ReadonlySet<SleepCategoryValue> = new Set([
+  'asleepUnspecified',
+  'asleep',
+  'asleepCore',
+  'asleepDeep',
+  'asleepREM',
+]);
+
+export interface MinimalSleepSample {
+  readonly startDate: Date;
+  readonly endDate: Date;
+  readonly categoryValue: SleepCategoryValue;
+}
+
+export interface DailyMetricsRow {
+  date: string;
+  total_calories: number | null;
+  steps: number | null;
+}
+
 export interface ActivityWorkoutEntry {
   activity: string;
   intensity: null;
@@ -110,6 +152,71 @@ export function toActivityRows(
       sedentary_time: null,
       workout_count: samples.length,
       workouts: samples.map(toWorkoutEntry),
+    });
+  }
+  return rows;
+}
+
+/**
+ * Sums a quantity sample's `quantity` field per local calendar date of its
+ * start time. Used for ActiveEnergyBurned, DistanceWalkingRunning, and
+ * StepCount -- all three are additive day totals, unlike heart rate which
+ * is a point-in-time reading (not summed; see healthkitSync.ts for how the
+ * most-recent heart-rate sample is surfaced instead).
+ */
+export function sumQuantityByLocalDate(
+  samples: readonly MinimalQuantitySample[]
+): Map<string, number> {
+  const sums = new Map<string, number>();
+  for (const sample of samples) {
+    const day = localDateString(sample.startDate);
+    sums.set(day, (sums.get(day) ?? 0) + sample.quantity);
+  }
+  return sums;
+}
+
+/**
+ * Sums sleep-analysis sample durations (in minutes) per local calendar
+ * date of each sample's start time, counting only "asleep" bucket values
+ * (asleep/asleepUnspecified/asleepCore/asleepDeep/asleepREM) -- inBed and
+ * awake periods are excluded, matching how this app wants "time actually
+ * asleep," not "time in bed."
+ */
+export function sumSleepMinutesByLocalDate(
+  samples: readonly MinimalSleepSample[]
+): Map<string, number> {
+  const sums = new Map<string, number>();
+  for (const sample of samples) {
+    if (!ASLEEP_BUCKET.has(sample.categoryValue)) {
+      continue;
+    }
+    const day = localDateString(sample.startDate);
+    const minutes = (sample.endDate.getTime() - sample.startDate.getTime()) / 60000;
+    sums.set(day, (sums.get(day) ?? 0) + minutes);
+  }
+  return sums;
+}
+
+/**
+ * Merges day-bucketed calories and steps maps into partial `activity`-row
+ * updates -- one row per date present in either map, with the other
+ * field null if that date has no data for it. Intended for a narrower
+ * upsert than toActivityRows' full row shape: Postgres upsert only
+ * updates the columns actually listed, so layering this on top of
+ * whatever syncHealthKitWorkouts() already wrote for that date is safe
+ * (it does not null out workouts/workout_count).
+ */
+export function mergeDailyMetricsIntoActivityRows(
+  calories: Map<string, number>,
+  steps: Map<string, number>
+): DailyMetricsRow[] {
+  const dates = new Set<string>([...calories.keys(), ...steps.keys()]);
+  const rows: DailyMetricsRow[] = [];
+  for (const date of dates) {
+    rows.push({
+      date,
+      total_calories: calories.get(date) ?? null,
+      steps: steps.get(date) ?? null,
     });
   }
   return rows;
