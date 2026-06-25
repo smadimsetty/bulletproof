@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Bulletproof uses your location to label your training location and timezone in Settings. This is optional and only used when you tap \"Use current location.\""
       }
     },
     "android": {
