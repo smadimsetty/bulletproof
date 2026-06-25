@@ -33,7 +33,12 @@ convention.
 
 - Read `docs/superpowers/specs/2026-06-23-bulletproof-v2-design.md` and
   `docs/superpowers/plans/2026-06-22-autonomous-pipeline-procedure.md`
-  before starting any task below — they are not repeated here.
+  before starting any task below — they are not repeated here. As of the
+  Phase 6 resumption (2026-06-25), the procedure doc's per-task loop has a
+  token-optimization note: an attached/interactive orchestrator should
+  implement and self-verify each task directly rather than dispatching a
+  Developer/Tester/Critic subagent per task, reserving subagent dispatch
+  for the once-per-phase whole-branch Critic and Reporter steps.
 - No human checkpoint for: local commits, push/merge to master, ordinary
   Claude API test calls during development (cents-level cost, already
   approved as part of this plan's own cost estimate).

@@ -66,6 +66,33 @@ Your job:
 
 ### 3. Per-task loop (Developer → Tester → Critic → revise)
 
+**Token-optimization note (added during Phase 6 resumption, 2026-06-25):**
+the dispatch pattern below was designed for a fully detached/unattended
+run, where each subagent spawn pays the cost of re-deriving context the
+orchestrator doesn't otherwise have. When the orchestrating session is
+itself attached and interactive (i.e. it already holds full context on the
+codebase, the plan, and CLAUDE.md from the conversation so far — the normal
+case for a resumed/interactive run like this one), spawning fresh
+Developer/Tester/Critic subagents per task just pays that re-derivation
+cost three times per task for no benefit. In that case, **skip subagent
+dispatch for individual tasks entirely**: the orchestrator implements each
+task directly (same TDD discipline — failing test first, minimal
+implementation, full suite + `tsc` run, commit) and self-verifies as the
+Tester/Critic steps describe (independently re-run the suite, manually
+exercise the behavior, check at least one edge case, check against
+CLAUDE.md conventions) before committing. Reserve actual subagent dispatch
+for the one part of this procedure that genuinely benefits from a fresh,
+independent set of eyes: the whole-branch Critic pass (step 5), still
+dispatched once per phase, not once per task. The Reporter (step 7) does
+not need independence — it's a synthesis of what the orchestrator already
+knows firsthand, so an attached orchestrator should write the build-log
+entry directly rather than paying to have a fresh agent reconstruct the
+phase's history from commits/progress notes. This cuts subagent dispatches
+for an N-task phase from up to `3N` (worst case with revision rounds) down
+to 1 total. Fall back to the full per-task dispatch loop below only for a
+genuinely detached/unattended run where no orchestrator session holds
+context between tasks.
+
 For each task in the active plan (the existing mobile bootstrap plan for
 Phase 1, or the Planner's freshly written plan for Phases 2-6), track a
 `round` counter starting at 1.
