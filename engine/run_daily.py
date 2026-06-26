@@ -105,7 +105,7 @@ def recommendation_already_fresh(today):
     )
     if not existing:
         return False
-    return existing[0]["score_breakdown"].get("readiness") is not None
+    return (existing[0].get("score_breakdown") or {}).get("readiness") is not None
 
 
 def main():
