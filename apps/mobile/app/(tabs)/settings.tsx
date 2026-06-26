@@ -65,6 +65,7 @@ export default function Settings() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<UserProfileRow | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [splits, setSplits] = useState<SplitTaxonomyRow[]>([]);
   const [activityOptions, setActivityOptions] = useState<ActivityTaxonomyRow[]>([]);
   const [goalOptions, setGoalOptions] = useState<GoalTaxonomyRow[]>([]);
@@ -78,6 +79,7 @@ export default function Settings() {
   const [locationLabelDraft, setLocationLabelDraft] = useState('');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [frequencyTargetsDraft, setFrequencyTargetsDraft] = useState<Record<string, string>>({});
+  const [savedSection, setSavedSection] = useState<'diet' | 'weight' | 'location' | 'frequency' | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -128,17 +130,26 @@ export default function Settings() {
   }, [profile, splits]);
 
   const saveProfileFields = useCallback(
-    async (fields: Partial<UserProfileRow>) => {
-      if (!profile) return;
+    async (fields: Partial<UserProfileRow>): Promise<boolean> => {
+      if (!profile) return false;
+      setSaveError(null);
       const { error } = await supabase
         .from('user_profile')
         .update(fields)
         .eq('id', profile.id);
       if (error) {
-        setLoadError(error.message);
-        return;
+        // A failed save must never blank the rest of this screen --
+        // setLoadError used to be (re)used for this, which meant any one
+        // field's save failure replaced every working section with a
+        // generic full-screen error (the `if (loadError || !profile)`
+        // early return below), making the whole screen look broken even
+        // when only one save genuinely failed. saveError surfaces as a
+        // small dismissible banner instead.
+        setSaveError(error.message);
+        return false;
       }
       setProfile((prev) => (prev ? { ...prev, ...fields } : prev));
+      return true;
     },
     [profile]
   );
@@ -200,7 +211,7 @@ export default function Settings() {
     saveProfileFields({ training_frequency_mode: mode });
   }
 
-  function handleSaveTrainingFrequencyTargets() {
+  async function handleSaveTrainingFrequencyTargets() {
     const targets: Record<string, number> = {};
     for (const [key, value] of Object.entries(frequencyTargetsDraft)) {
       const parsed = Number(value);
@@ -208,27 +219,37 @@ export default function Settings() {
         targets[key] = parsed;
       }
     }
-    saveProfileFields({ training_frequency_manual: { targets } });
+    const ok = await saveProfileFields({ training_frequency_manual: { targets } });
+    if (ok) setSavedSection('frequency');
   }
 
-  function handleSaveDiet() {
-    saveProfileFields({ diet_preference: dietDraft.trim() === '' ? null : dietDraft.trim() });
+  async function handleSaveDiet() {
+    const ok = await saveProfileFields({ diet_preference: dietDraft.trim() === '' ? null : dietDraft.trim() });
+    if (ok) setSavedSection('diet');
   }
 
-  function handleSaveWeight() {
-    const parsed = Number(weightDraft);
-    saveProfileFields({ weight_kg: weightDraft.trim() === '' || Number.isNaN(parsed) ? null : parsed });
-  }
-
-  function handleSaveBirthDate() {
-    saveProfileFields({ birth_date: birthDateDraft.trim() === '' ? null : birthDateDraft.trim() });
+  async function handleSaveWeightAndBirthDate() {
+    const parsedWeight = Number(weightDraft);
+    // Both fields share one Save button -- await both before confirming,
+    // rather than firing them and forgetting, so "Saved." only appears
+    // once both columns actually landed (these are two separate UPDATE
+    // statements since saveProfileFields always targets the fields it's
+    // given; that's fine here since each touches a distinct column).
+    const [weightOk, birthDateOk] = await Promise.all([
+      saveProfileFields({
+        weight_kg: weightDraft.trim() === '' || Number.isNaN(parsedWeight) ? null : parsedWeight,
+      }),
+      saveProfileFields({ birth_date: birthDateDraft.trim() === '' ? null : birthDateDraft.trim() }),
+    ]);
+    if (weightOk && birthDateOk) setSavedSection('weight');
   }
 
   async function handleSaveLocationLabel() {
     const next = profile?.location
       ? { ...profile.location, label: locationLabelDraft }
       : { lat: 0, lon: 0, label: locationLabelDraft, timezone: '' };
-    saveProfileFields({ location: locationLabelDraft.trim() === '' ? null : next });
+    const ok = await saveProfileFields({ location: locationLabelDraft.trim() === '' ? null : next });
+    if (ok) setSavedSection('location');
   }
 
   async function handleUseCurrentLocation() {
@@ -241,7 +262,7 @@ export default function Settings() {
     try {
       const position = await Location.getCurrentPositionAsync({});
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      saveProfileFields({
+      const ok = await saveProfileFields({
         location: {
           lat: position.coords.latitude,
           lon: position.coords.longitude,
@@ -249,6 +270,7 @@ export default function Settings() {
           timezone,
         },
       });
+      if (ok) setSavedSection('location');
     } catch (err: any) {
       setLocationError(err.message ?? 'Failed to read current location.');
     }
@@ -286,36 +308,49 @@ export default function Settings() {
     <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
       <Text style={TYPE.screenTitle}>Settings</Text>
 
-      <DropdownAddSection
-        title="Preferred Split"
-        options={splitOptions}
-        selectedIds={[profile.preferred_split]}
-        onAdd={handleSplitChange}
-        onRemove={() => {}}
-        singleSelect
-      />
+      {saveError && (
+        <View style={[sharedStyles.card, styles.saveErrorCard]}>
+          <Text style={sharedStyles.warningText}>Couldn't save: {saveError}</Text>
+          <Pressable onPress={() => setSaveError(null)}>
+            <Text style={styles.dismissText}>Dismiss</Text>
+          </Pressable>
+        </View>
+      )}
 
-      <DropdownAddSection
-        title="Activities"
-        options={activityDropdownOptions}
-        selectedIds={profile.activities}
-        onAdd={handleAddActivity}
-        onRemove={handleRemoveActivity}
-      />
+      <View style={sharedStyles.card}>
+        <DropdownAddSection
+          title="Preferred Split"
+          options={splitOptions}
+          selectedIds={[profile.preferred_split]}
+          onAdd={handleSplitChange}
+          onRemove={() => {}}
+          singleSelect
+        />
+      </View>
+
+      <View style={sharedStyles.card}>
+        <DropdownAddSection
+          title="Activities"
+          options={activityDropdownOptions}
+          selectedIds={profile.activities}
+          onAdd={handleAddActivity}
+          onRemove={handleRemoveActivity}
+        />
+      </View>
 
       <View style={sharedStyles.card}>
         <Text style={sharedStyles.sectionTitle}>Goals</Text>
         <Text style={sharedStyles.helperText}>Choose up to {GOALS_CAP}.</Text>
+        <DropdownAddSection
+          title=""
+          options={goalDropdownOptions}
+          selectedIds={profile.current_goals}
+          onAdd={handleAddGoal}
+          onRemove={handleRemoveGoal}
+          addDisabled={profile.current_goals.length >= GOALS_CAP}
+          addDisabledMessage={goalsWarning ?? undefined}
+        />
       </View>
-      <DropdownAddSection
-        title=""
-        options={goalDropdownOptions}
-        selectedIds={profile.current_goals}
-        onAdd={handleAddGoal}
-        onRemove={handleRemoveGoal}
-        addDisabled={profile.current_goals.length >= GOALS_CAP}
-        addDisabledMessage={goalsWarning ?? undefined}
-      />
 
       <View style={sharedStyles.card}>
         <Text style={sharedStyles.sectionTitle}>Pains</Text>
@@ -376,6 +411,7 @@ export default function Settings() {
             <Pressable style={sharedStyles.primaryButton} onPress={handleSaveTrainingFrequencyTargets}>
               <Text style={sharedStyles.primaryButtonText}>Save targets</Text>
             </Pressable>
+            {savedSection === 'frequency' && <Text style={sharedStyles.helperText}>Saved.</Text>}
           </>
         )}
       </View>
@@ -385,12 +421,16 @@ export default function Settings() {
         <TextInput
           style={sharedStyles.textInput}
           value={dietDraft}
-          onChangeText={setDietDraft}
+          onChangeText={(text) => {
+            setDietDraft(text);
+            setSavedSection(null);
+          }}
           placeholder="e.g. high protein, South Asian staples"
         />
         <Pressable style={sharedStyles.primaryButton} onPress={handleSaveDiet}>
           <Text style={sharedStyles.primaryButtonText}>Save</Text>
         </Pressable>
+        {savedSection === 'diet' && <Text style={sharedStyles.helperText}>Saved.</Text>}
       </View>
 
       <View style={sharedStyles.card}>
@@ -399,25 +439,26 @@ export default function Settings() {
         <TextInput
           style={sharedStyles.textInput}
           value={weightDraft}
-          onChangeText={setWeightDraft}
+          onChangeText={(text) => {
+            setWeightDraft(text);
+            setSavedSection(null);
+          }}
           keyboardType="decimal-pad"
         />
         <Text style={sharedStyles.helperText}>Birth date (YYYY-MM-DD)</Text>
         <TextInput
           style={sharedStyles.textInput}
           value={birthDateDraft}
-          onChangeText={setBirthDateDraft}
+          onChangeText={(text) => {
+            setBirthDateDraft(text);
+            setSavedSection(null);
+          }}
           placeholder="1995-01-01"
         />
-        <Pressable
-          style={sharedStyles.primaryButton}
-          onPress={() => {
-            handleSaveWeight();
-            handleSaveBirthDate();
-          }}
-        >
+        <Pressable style={sharedStyles.primaryButton} onPress={handleSaveWeightAndBirthDate}>
           <Text style={sharedStyles.primaryButtonText}>Save</Text>
         </Pressable>
+        {savedSection === 'weight' && <Text style={sharedStyles.helperText}>Saved.</Text>}
       </View>
 
       <View style={sharedStyles.card}>
@@ -425,7 +466,10 @@ export default function Settings() {
         <TextInput
           style={sharedStyles.textInput}
           value={locationLabelDraft}
-          onChangeText={setLocationLabelDraft}
+          onChangeText={(text) => {
+            setLocationLabelDraft(text);
+            setSavedSection(null);
+          }}
           placeholder="e.g. Austin, TX"
         />
         <Pressable style={sharedStyles.primaryButton} onPress={handleSaveLocationLabel}>
@@ -434,6 +478,7 @@ export default function Settings() {
         <Pressable style={styles.secondaryButton} onPress={handleUseCurrentLocation}>
           <Text style={styles.secondaryButtonText}>Use current location</Text>
         </Pressable>
+        {savedSection === 'location' && <Text style={sharedStyles.helperText}>Saved.</Text>}
         {locationError && <Text style={sharedStyles.warningText}>{locationError}</Text>}
       </View>
 
@@ -447,6 +492,8 @@ export default function Settings() {
 
 const styles = StyleSheet.create({
   centered: { alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
+  saveErrorCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dismissText: { color: COLORS.accent, fontWeight: '600' },
   modeRow: {
     flexDirection: 'row',
     gap: SPACING.xs,

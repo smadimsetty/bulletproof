@@ -1,5 +1,5 @@
 // apps/mobile/lib/exerciseLogs.test.ts
-import { fetchTodaysExerciseLogs, upsertExerciseLog } from './exerciseLogs';
+import { deleteExerciseLog, fetchTodaysExerciseLogs, upsertExerciseLog } from './exerciseLogs';
 
 jest.mock('./supabase', () => ({
   supabase: {
@@ -217,5 +217,60 @@ describe('upsertExerciseLog', () => {
         weightKg: null,
       })
     ).rejects.toThrow('lookup failed');
+  });
+
+  test('refuses to write a row with no resolvable exercise id, without querying the database', async () => {
+    const fromMock = supabase.from as jest.Mock;
+    fromMock.mockClear();
+
+    await expect(
+      upsertExerciseLog({
+        date: TODAY,
+        recommendationBlockExerciseId: 'bex-1',
+        exerciseId: '',
+        blockType: 'lower',
+        setNumber: 1,
+        completed: true,
+        repsCompleted: 8,
+        weightKg: 40,
+      })
+    ).rejects.toThrow('cannot be logged');
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteExerciseLog', () => {
+  function mockDeleteChain(result: { error: { message: string } | null }) {
+    const eqSetNumberFn = jest.fn().mockResolvedValue(result);
+    const isSetNumberFn = jest.fn().mockResolvedValue(result);
+    const eqBlockExerciseFn = jest.fn(() => ({ eq: eqSetNumberFn, is: isSetNumberFn }));
+    const eqDateFn = jest.fn(() => ({ eq: eqBlockExerciseFn }));
+    const deleteFn = jest.fn(() => ({ eq: eqDateFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ delete: deleteFn });
+    return { eqDateFn, eqBlockExerciseFn, eqSetNumberFn, isSetNumberFn };
+  }
+
+  test('deletes the row matching the block-exercise id and set number', async () => {
+    const { eqBlockExerciseFn, eqSetNumberFn } = mockDeleteChain({ error: null });
+
+    await deleteExerciseLog('bex-1', 2);
+
+    expect(supabase.from).toHaveBeenCalledWith('exercise_logs');
+    expect(eqBlockExerciseFn).toHaveBeenCalledWith('recommendation_block_exercise_id', 'bex-1');
+    expect(eqSetNumberFn).toHaveBeenCalledWith('set_number', 2);
+  });
+
+  test('uses an IS NULL match for a mobility checklist item (setNumber null)', async () => {
+    const { isSetNumberFn } = mockDeleteChain({ error: null });
+
+    await deleteExerciseLog('bex-2', null);
+
+    expect(isSetNumberFn).toHaveBeenCalledWith('set_number', null);
+  });
+
+  test('throws if the delete returns an error', async () => {
+    mockDeleteChain({ error: { message: 'delete failed' } });
+
+    await expect(deleteExerciseLog('bex-1', 1)).rejects.toThrow('delete failed');
   });
 });

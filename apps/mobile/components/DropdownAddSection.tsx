@@ -7,6 +7,17 @@
 // docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
 // Decision 10 for why this is the one shared abstraction this phase
 // introduces.
+//
+// Renders its own content only, no card chrome -- it used to wrap
+// itself in sharedStyles.card unconditionally, which worked fine for
+// Preferred Split/Activities (this was their only content) but produced
+// a visibly broken layout for Goals and Pains, both of which need a
+// title/helper line of their own ABOVE this control: Settings.tsx ended
+// up rendering two separate sharedStyles.card views back to back (one
+// for the title, one for this component's self-wrap, the second with an
+// empty title), or for Pains, a card nested inside a card. Every call
+// site now wraps this component in its own single sharedStyles.card
+// together with whatever title/helper text it needs.
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLORS, SPACING, sharedStyles } from '../lib/theme';
@@ -70,8 +81,8 @@ export default function DropdownAddSection({
   }
 
   return (
-    <View style={sharedStyles.card}>
-      <Text style={sharedStyles.sectionTitle}>{title}</Text>
+    <View style={styles.container}>
+      {title !== '' && <Text style={sharedStyles.sectionTitle}>{title}</Text>}
 
       <View style={styles.chipRow}>
         {selected.map((option) => (
@@ -132,6 +143,9 @@ export default function DropdownAddSection({
 }
 
 const styles = StyleSheet.create({
+  container: {
+    gap: SPACING.sm,
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -23,7 +23,7 @@ import { AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { syncHealthKitWorkouts, syncHealthKitDailyMetrics } from '../lib/healthkitSync';
+import { isHealthKitSyncEnabled, syncHealthKitWorkouts, syncHealthKitDailyMetrics } from '../lib/healthkitSync';
 import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommendations';
 import { fetchActiveSession } from '../lib/sessionLifecycle';
 import type { ActiveSessionRow } from '../lib/sessionLifecycle';
@@ -86,6 +86,19 @@ export default function RootLayout() {
     }
   }, []);
 
+  const runHealthKitSyncIfEnabled = useCallback(async (label: string) => {
+    const enabled = await isHealthKitSyncEnabled().catch(() => false);
+    if (!enabled) {
+      return;
+    }
+    syncHealthKitWorkouts().catch((err) => {
+      console.warn(`HealthKit sync failed on ${label}:`, err);
+    });
+    syncHealthKitDailyMetrics().catch((err) => {
+      console.warn(`HealthKit daily metrics sync failed on ${label}:`, err);
+    });
+  }, []);
+
   useEffect(() => {
     if (!session) {
       // No authenticated session yet: skip HealthKit, the recommendations
@@ -98,23 +111,13 @@ export default function RootLayout() {
       return;
     }
 
-    syncHealthKitWorkouts().catch((err) => {
-      console.warn('HealthKit sync failed on launch:', err);
-    });
-    syncHealthKitDailyMetrics().catch((err) => {
-      console.warn('HealthKit daily metrics sync failed on launch:', err);
-    });
+    runHealthKitSyncIfEnabled('launch');
     loadRecommendations();
     loadActiveSession();
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appState.current !== 'active' && nextState === 'active') {
-        syncHealthKitWorkouts().catch((err) => {
-          console.warn('HealthKit sync failed on foreground:', err);
-        });
-        syncHealthKitDailyMetrics().catch((err) => {
-          console.warn('HealthKit daily metrics sync failed on foreground:', err);
-        });
+        runHealthKitSyncIfEnabled('foreground');
         loadRecommendations();
         loadActiveSession();
       }
@@ -122,7 +125,7 @@ export default function RootLayout() {
     });
 
     return () => subscription.remove();
-  }, [session, loadRecommendations, loadActiveSession]);
+  }, [session, loadRecommendations, loadActiveSession, runHealthKitSyncIfEnabled]);
 
   return (
     <>

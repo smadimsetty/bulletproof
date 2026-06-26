@@ -52,6 +52,7 @@ export default function Logger() {
     null
   );
   const [celebration, setCelebration] = useState<{ minutes: number } | null>(null);
+  const [feltRatingStatus, setFeltRatingStatus] = useState<'idle' | 'saved' | 'error'>('idle');
 
   const load = useCallback(async () => {
     if (!blockId) {
@@ -142,8 +143,13 @@ export default function Logger() {
 
   async function handleFeltRating(rating: number) {
     if (!session) return;
-    await submitFeltRating(session.id, rating);
-    setSession((prev) => (prev ? { ...prev, feltRating: rating } : prev));
+    try {
+      await submitFeltRating(session.id, rating);
+      setSession((prev) => (prev ? { ...prev, feltRating: rating } : prev));
+      setFeltRatingStatus('saved');
+    } catch {
+      setFeltRatingStatus('error');
+    }
   }
 
   function handleOpenSwap(row: LoggerExercise) {
@@ -296,7 +302,13 @@ export default function Logger() {
         <Text style={styles.addExerciseText}>+ Add an exercise</Text>
       </Pressable>
 
-      {session && <FeltRatingPicker value={session.feltRating} onSelect={handleFeltRating} />}
+      {session && (
+        <View>
+          <FeltRatingPicker value={session.feltRating} onSelect={handleFeltRating} />
+          {feltRatingStatus === 'saved' && <Text style={sharedStyles.helperText}>Saved.</Text>}
+          {feltRatingStatus === 'error' && <Text style={sharedStyles.warningText}>Couldn't save — try again.</Text>}
+        </View>
+      )}
 
       <ExercisePickerSheet
         visible={pickerTarget != null}

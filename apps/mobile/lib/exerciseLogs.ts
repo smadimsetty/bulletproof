@@ -125,6 +125,20 @@ async function findExistingLogId(input: UpsertExerciseLogInput, dateIso: string)
  * batched, per the design spec's "incremental save" requirement.
  */
 export async function upsertExerciseLog(input: UpsertExerciseLogInput): Promise<void> {
+  if (!input.exerciseId) {
+    // Refuse early rather than letting a blank/invalid exercise_id hit
+    // the not-null FK column and fail at the database -- that failure
+    // would be indistinguishable from a transient network error to every
+    // call site's best-effort `.catch()`, which is exactly how this bug
+    // went unnoticed: a row whose `exercises` join failed (the RLS gap
+    // fixed in 20260624050000_logger_rls_fixes.sql) silently fell back to
+    // exerciseId: '' in loggerBlock.ts, and every save for that row
+    // failed forever with zero visible feedback. This throws a real,
+    // distinguishable error so callers can show the user something
+    // instead of a row that quietly never persists.
+    throw new Error('This exercise has no resolvable id and cannot be logged.');
+  }
+
   const dateIso = localDateString(input.date);
   const existingId = await findExistingLogId(input, dateIso);
 
@@ -149,6 +163,31 @@ export async function upsertExerciseLog(input: UpsertExerciseLogInput): Promise<
   }
 
   const { error } = await supabase.from('exercise_logs').insert(payload);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
+ * Deletes today's logged row for one set (or one mobility checklist item,
+ * with setNumber null), if one exists. A no-op, not an error, when no
+ * matching row exists -- the swipe-to-delete affordance in StrengthSetRow
+ * calls this for sets the user added locally but never blurred/saved yet,
+ * same as for ones that were.
+ */
+export async function deleteExerciseLog(
+  recommendationBlockExerciseId: string,
+  setNumber: number | null
+): Promise<void> {
+  let query = supabase
+    .from('exercise_logs')
+    .delete()
+    .eq('date', localDateString(new Date()))
+    .eq('recommendation_block_exercise_id', recommendationBlockExerciseId);
+
+  query = setNumber != null ? query.eq('set_number', setNumber) : query.is('set_number', null);
+
+  const { error } = await query;
   if (error) {
     throw new Error(error.message);
   }

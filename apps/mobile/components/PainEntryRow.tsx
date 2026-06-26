@@ -7,6 +7,19 @@
 // list-density optimization. See
 // docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
 // Decisions 5 and 10.
+//
+// The note field commits on blur via local draft state, not on every
+// keystroke -- it used to call onChange() directly from onChangeText,
+// which fired a full profile save (a network round trip) per character.
+// Beyond the obvious waste, it made the field genuinely feel broken: the
+// TextInput's value is controlled by the parent's profile.pains state,
+// which only updates once each round trip resolves, so fast typing could
+// visibly stall or drop characters while a previous keystroke's request
+// was still in flight. Every other free-text field in Settings (Diet,
+// Weight, Birth date, Location) already uses this same draft-then-blur
+// pattern; this brings the pain note field in line with that convention
+// instead of being the one outlier.
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { COLORS, SPACING, sharedStyles } from '../lib/theme';
 
@@ -27,6 +40,18 @@ export interface PainEntryRowProps {
 const SEVERITY_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default function PainEntryRow({ label, entry, onChange, onRemove }: PainEntryRowProps) {
+  const [noteDraft, setNoteDraft] = useState(entry.note);
+
+  useEffect(() => {
+    setNoteDraft(entry.note);
+  }, [entry.note]);
+
+  function handleNoteBlur() {
+    if (noteDraft !== entry.note) {
+      onChange({ ...entry, note: noteDraft });
+    }
+  }
+
   return (
     <View style={[sharedStyles.card, styles.container]}>
       <View style={styles.headerRow}>
@@ -58,8 +83,9 @@ export default function PainEntryRow({ label, entry, onChange, onRemove }: PainE
       <Text style={sharedStyles.helperText}>Note</Text>
       <TextInput
         style={[sharedStyles.textInput, styles.noteInput]}
-        value={entry.note}
-        onChangeText={(text) => onChange({ ...entry, note: text })}
+        value={noteDraft}
+        onChangeText={setNoteDraft}
+        onBlur={handleNoteBlur}
         placeholder="Anything worth remembering about this"
         multiline
       />

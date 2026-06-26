@@ -29,11 +29,13 @@ export default function MobilityChecklistRow({
 }: MobilityChecklistRowProps) {
   const [completed, setCompleted] = useState(initiallyCompleted);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleToggle() {
     const next = !completed;
     setCompleted(next);
     setSaving(true);
+    setSaveError(null);
 
     try {
       await Haptics.selectionAsync();
@@ -53,10 +55,12 @@ export default function MobilityChecklistRow({
         repsCompleted: null,
         weightKg: null,
       });
-    } catch {
+    } catch (err: any) {
       // Revert the optimistic toggle on failure -- the user's tap did
-      // not actually persist.
+      // not actually persist -- and say so, rather than reverting
+      // silently with no indication anything went wrong.
       setCompleted(!next);
+      setSaveError(err.message ?? 'Could not save this.');
     } finally {
       setSaving(false);
     }
@@ -79,6 +83,7 @@ export default function MobilityChecklistRow({
           )}
         </View>
       </Pressable>
+      {saveError && <Text style={sharedStyles.warningText}>{saveError}</Text>}
       <View style={styles.actionRow}>
         <Pressable onPress={onSwap} accessibilityLabel={`Swap ${exercise.name}`}>
           <Text style={styles.actionText}>{'⇄'} Swap</Text>

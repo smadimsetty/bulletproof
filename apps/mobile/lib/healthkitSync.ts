@@ -85,6 +85,24 @@ async function getSinceDate(): Promise<Date> {
 }
 
 /**
+ * Reads the signed-in user's user_profile.healthkit_sync_enabled flag.
+ * Settings' toggle writes this column directly, but until this function
+ * existed nothing ever read it back -- _layout.tsx called the sync
+ * functions below unconditionally on every sign-in/foreground, so the
+ * toggle had no effect on anything. Defaults to false (don't sync) on any
+ * read failure, matching this feature's existing "never block the app"
+ * posture -- HealthKit access is opt-in, so a failed read should not
+ * silently opt the user back in.
+ */
+export async function isHealthKitSyncEnabled(): Promise<boolean> {
+  const { data, error } = await supabase.from('user_profile').select('healthkit_sync_enabled').single();
+  if (error || !data) {
+    return false;
+  }
+  return Boolean((data as { healthkit_sync_enabled: boolean }).healthkit_sync_enabled);
+}
+
+/**
  * Reads HealthKit workout samples since the last sync and upserts them
  * into the `activity` table. Safe to call repeatedly (idempotent upsert
  * keyed on `date`) and safe to call when HealthKit is unavailable or
