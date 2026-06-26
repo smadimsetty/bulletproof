@@ -1,5 +1,15 @@
 # Autonomous build log
 
+## 2026-06-26 -- Day wrap-up: EAS build/submit gotchas
+
+Closing out a long day's session (full-build audit, on-device walkthrough, Logger/Settings bug-fix pass -- entries below, oldest at the bottom) with the operational gotchas hit getting an actual TestFlight build into Sohan's hands, since none of it was a code bug:
+
+1. `eas build` failed at "Install dependencies" -- fixed with `apps/mobile/.npmrc` (`legacy-peer-deps=true`). See the npm-install entry further down for the root cause.
+2. `eas build` succeeding doesn't mean TestFlight gets it -- `eas submit --platform ios --profile preview --latest` is a separate, easy-to-forget step EAS does not chain automatically.
+3. `eas submit` then failed repeatedly with a generic "Something went wrong" -- no detail from the CLI even with `--verbose`, and no way to pull more detail without the user's own authenticated Expo-dashboard session (confirmed via WebFetch -- it hits Expo's login wall). Root cause turned out to be a build-number mismatch: `eas.json`'s `appVersionSource: "remote"` means EAS tracks the iOS build number itself, and its counter (stuck at 7) was behind what Apple expected (8). `eas build:version:get --platform ios` (read-only) confirmed the stuck value. `eas build:version:set` fixes the counter going forward but **requires an interactive terminal -- it refuses piped stdin even with input supplied**, so Sohan had to run it himself. Critically, **bumping the counter doesn't retroactively fix an already-built binary** -- retrying `eas submit --latest` after the bump kept failing identically because `--latest` just re-uploads the same old .ipa (same Build ID, same build timestamp) with the stale number still baked in. Only a genuinely new `eas build`, run after the counter fix, actually picked up 8 and let the submission through.
+
+End state: a real TestFlight build with everything from today's audit, on-device-bug-fix pass, and engine/migration fixes is now in Sohan's hands. Next session picks up wherever his on-device feedback on this build points.
+
 ## 2026-06-26 -- Logger and Settings bug-fix pass
 
 Continuing the same day's on-device walkthrough, Sohan asked to fix the full Logger and Settings punch list end to end, properly rather than patched over. Each bug got traced to a real root cause before fixing, not just patched at the symptom:
