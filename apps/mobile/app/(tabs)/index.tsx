@@ -79,7 +79,7 @@ export default function Home() {
       setHomeData(data);
       return data;
     } catch (err: any) {
-      setLoadError(err.message ?? 'Failed to load your program.');
+      console.warn('Poll refetch failed, will retry on next tick:', err.message ?? err);
       return null;
     }
   }, []);
@@ -106,13 +106,15 @@ export default function Home() {
     }, 90000);
   }, [refetchHomeData, stopPolling]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
+  const runLoad = useCallback(async (options: { showSpinner: boolean }) => {
+    if (options.showSpinner) {
+      setLoading(true);
+    }
     try {
       const [data, groups] = await Promise.all([fetchHomeData(new Date()), fetchSwapOptions()]);
       setHomeData(data);
       setSwapGroups(groups);
+      setLoadError(null);
       if (!data.today || data.today.isProvisional) {
         beginWaitingForFreshRecommendation();
       } else {
@@ -120,17 +122,31 @@ export default function Home() {
         setWaitingMessage(null);
       }
     } catch (err: any) {
-      setLoadError(err.message ?? 'Failed to load your program.');
+      setHomeData((prev) => {
+        if (!prev) {
+          // Nothing on screen yet -- this is the only case where it's
+          // correct to block with the full-page error view.
+          setLoadError(err.message ?? 'Failed to load your program.');
+        } else {
+          console.warn('Refresh failed, keeping last known program on screen:', err.message ?? err);
+        }
+        return prev;
+      });
     } finally {
-      setLoading(false);
+      if (options.showSpinner) {
+        setLoading(false);
+      }
     }
   }, [beginWaitingForFreshRecommendation, stopPolling]);
 
+  const load = useCallback(() => runLoad({ showSpinner: true }), [runLoad]);
+  const softReload = useCallback(() => runLoad({ showSpinner: false }), [runLoad]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await softReload();
     setRefreshing(false);
-  }, [load]);
+  }, [softReload]);
 
   useEffect(() => {
     load();
@@ -140,12 +156,12 @@ export default function Home() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appStateRef.current !== 'active' && nextState === 'active') {
-        load();
+        softReload();
       }
       appStateRef.current = nextState;
     });
     return () => subscription.remove();
-  }, [load]);
+  }, [softReload]);
 
   function handleOpenBlock(block: ProgramBlock) {
     router.push(`/logger/${block.id}`);
