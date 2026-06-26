@@ -1,5 +1,21 @@
 # Autonomous build log
 
+## 2026-06-26 -- Logger and Settings bug-fix pass
+
+Continuing the same day's on-device walkthrough, Sohan asked to fix the full Logger and Settings punch list end to end, properly rather than patched over. Each bug got traced to a real root cause before fixing, not just patched at the symptom:
+
+- **"Logs don't save"** traced to `loggerBlock.ts` falling back to `exerciseId: ''` whenever the `exercises` join failed -- a direct downstream consequence of the same RLS gap fixed earlier that day. Every write against that empty id failed against the `exercise_logs.exercise_id` not-null FK column, and every save call site's `.catch()` swallowed the failure silently, so the user saw nothing at all. Added a guard in `upsertExerciseLog` that refuses early with a real, visible error instead of attempting a doomed write, and surfaced save errors in both row components instead of silently reverting.
+- **No way to delete a logged set** -- `StrengthSetRow` only had "+ add set," never a remove. Built swipe-to-delete on React Native core's `Animated`/`PanResponder` rather than adding `react-native-gesture-handler` as a new native dependency (consistent with the Trends chart-library precedent: avoid native deps that force another EAS rebuild for everyone). `setNumber` was redefined as a stable per-slot id rather than a display position, so deleting mid-list can't collide with "+ add set"'s numbering.
+- **HealthKit sync toggle did nothing** -- `_layout.tsx` called `syncHealthKitWorkouts`/`syncHealthKitDailyMetrics` unconditionally on every sign-in/foreground and never once read `user_profile.healthkit_sync_enabled`. The Settings toggle was writing a column nothing ever read. Added `isHealthKitSyncEnabled()` and gated both calls behind it.
+- **Goals rendered as two visually disjoint cards, Pains as a card nested in a card** -- `DropdownAddSection` always wrapped itself in `sharedStyles.card`, which only worked when it was a section's *only* content (Preferred Split, Activities). Goals and Pains both need their own title/helper text above it, so Settings.tsx ended up rendering two separate top-level cards (Goals) or nesting one inside the other (Pains). Refactored `DropdownAddSection` to render content only; every Settings call site now owns exactly one card.
+- **Every Settings field-save failure blanked the whole screen** -- `saveProfileFields` reused `setLoadError` on any failure, and `loadError` being truthy made the screen render nothing but a generic full-screen error, replacing every other working section. This alone could explain why several unrelated sections all looked "broken" during the same testing session. Split into a separate, dismissible `saveError` banner.
+- **Diet/Weight/BirthDate/Location Save buttons gave zero feedback** either way -- added a per-section "Saved." confirmation; the combined Weight+BirthDate button also fired two saves fire-and-forget, now awaits both before confirming.
+- **Pains' note field saved on every keystroke** -- the one free-text field in Settings not following the established draft-then-blur-commit convention (Diet/Weight/BirthDate/Location all already used it). Since the TextInput's value was controlled by server-confirmed state, a slow network round trip per character could visibly stall or drop keystrokes -- this is almost certainly what "typing into pains is not good" was describing. Converted to local draft + blur-commit.
+
+Verified: 122/122 jest (12 new, covering the new `deleteExerciseLog` function and the empty-exerciseId guard), clean `tsc`, clean `expo export --platform ios`. Committed in `ab96738`.
+
+**Still genuinely unverified** -- none of the above has been seen rendering on a real device yet; this is read-the-code-and-reason-about-it correctness plus passing automated checks, same caveat as every other phase in this build.
+
 ## 2026-06-26 -- First real on-device walkthrough
 
 Sohan ran the actual TestFlight build (via `eas build` + a separate, easy-to-forget `eas submit --latest` -- EAS does not chain submit after build automatically) and walked through Home, Trends, and Settings on his iPhone for the first time. This is the first verification this whole v2 build ever got beyond test/tsc/bundle-export level, and it found two real bugs invisible at that level, plus a longer list of real functional/UX gaps not yet triaged.
