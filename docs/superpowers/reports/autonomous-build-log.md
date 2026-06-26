@@ -1,5 +1,29 @@
 # Autonomous build log
 
+## 2026-06-26 -- First real on-device walkthrough
+
+Sohan ran the actual TestFlight build (via `eas build` + a separate, easy-to-forget `eas submit --latest` -- EAS does not chain submit after build automatically) and walked through Home, Trends, and Settings on his iPhone for the first time. This is the first verification this whole v2 build ever got beyond test/tsc/bundle-export level, and it found two real bugs invisible at that level, plus a longer list of real functional/UX gaps not yet triaged.
+
+**Bug 1 -- "Yesterday" card showing stale, self-contradicting text.** The Home screen's Yesterday card and Today's Program subtitle showed the exact same sentence verbatim ("Today's program covers: mobility."). Root cause: both rationale-generation code paths (`rationale.py`'s `build_public_rationale`, used when Claude is configured, and `program_builder.py`'s `_fallback_rationale`, used otherwise) hardcoded day-relative wording ("Today's pick is X" / "Today's program covers: X") directly into the string written to `recommendations.public_rationale`. That string is persisted once and re-displayed verbatim by both clients (mobile Home screen, web dashboard) under whichever date header it ends up under -- correct the day it's generated, wrong the next day once it's "Yesterday." Fixed by rewording both to date-neutral phrasing ("Recommended: X -- reason."). Forward-looking only; rows already written keep the old wording until the next cron run overwrites them.
+
+**Bug 2 -- every exercise name rendering as "Unknown exercise."** Root cause was not a code bug at all: `supabase/migrations/20260624050000_logger_rls_fixes.sql` -- written during Phase 6 specifically because its own author had already predicted this exact symptom ("this also retroactively explains why Phase 5's nested join should have been returning null exercise fields under strict RLS enforcement for a signed-in user") -- had simply never been pushed to the live database. **This whole build has no CI step that applies migrations**; every one of the 27 migration files needs a manual `supabase db push`, and this one specific file sat unapplied for two days. Confirmed via a read-only `supabase migration list --linked` (every other migration through `20260624040000` was already live; only this one was missing), then applied via `supabase db push --linked` after explicit confirmation from Sohan, since it touches live production schema. Two RLS policies added (`authenticated_read_exercises` on `exercises`, `owner_write_recommendation_block_exercises` on `recommendation_block_exercises`), no data or table changes. Verified applied via a second `migration list --linked` afterward.
+
+**Tooling note, also fixed:** the first real `eas build --platform ios --profile preview` run failed outright at the "Install dependencies" phase. Reproduced locally: a plain `npm install` (no flag) in `apps/mobile` hits an `ERESOLVE` peer-dependency conflict (`expo-router`'s `@expo/ui` -> `@radix-ui` chain wants a `react-dom` peer range that doesn't include the exact `react@19.2.7`/`react-dom@19.2.7` pair this project pins) -- local work had been silently working around this by hand with `--legacy-peer-deps` each time, which doesn't help EAS's own install step. Fixed with `apps/mobile/.npmrc` (`legacy-peer-deps=true`), so every environment resolves the same way automatically.
+
+**Real functional/UX bugs found on-device, not yet fixed (full list, in the order Sohan wants them tackled -- Logger first since it's the app's core daily-use loop, then Settings):**
+- Logger: logged sets don't persist.
+- Logger: no way to delete a logged set once entered (wants a swipe-to-delete gesture).
+- Logger: the felt-rating ("how are you feeling") picker's actual save behavior needs re-verification -- unclear if it's not saving or just not visibly confirming.
+- Settings: diet/weight/birth-date/location fields (the explicit-Save-button sections) don't persist.
+- Settings: HealthKit sync toggle doesn't visibly do anything.
+- Settings: the Goals section renders as two visually disjoint cards instead of one -- a layout bug, not just a styling preference.
+- Settings: the dropdown-add picker (used by both Goals and Activities) doesn't functionally work.
+- Settings: Pains free-text entry UX needs a rework (not specified further yet).
+- Home: "Swap activity" sheet is still exactly the documented not-available-yet shell -- flagged again as a real gap now that it's been seen on-device, not new information.
+- General visual/aesthetic pass -- explicitly deferred by Sohan ("ignore for now, let's get function right first").
+
+See CLAUDE.md's Status section for the current short version of this list.
+
 ## 2026-06-25 -- Post-v2 full audit
 
 **What happened:** Sohan asked for a thorough, professional-grade audit of the entire v2 build -- does it match the plans/specs, is the UI clean and consistent, is the code efficient -- across all four domains (database schema, the Python engine, the mobile app, the web app). Four independent review passes ran in parallel, each reading its domain's design specs, statically reviewing the real code, and actually running the real test suites/type-checks/builds rather than assuming.
