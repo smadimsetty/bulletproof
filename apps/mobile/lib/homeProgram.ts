@@ -45,6 +45,7 @@ export interface TodayProgram {
   readonly topPick: SessionType;
   readonly runnerUp: SessionType | null;
   readonly publicRationale: string;
+  readonly isProvisional: boolean;
   readonly blocks: readonly ProgramBlock[];
 }
 
@@ -59,6 +60,7 @@ interface RawRecommendationRow {
   top_pick: SessionType;
   runner_up: SessionType | null;
   public_rationale: string;
+  score_breakdown: { readiness: number | null } | null;
 }
 
 interface RawBlockExerciseRow {
@@ -90,7 +92,7 @@ interface RawBlockRow {
 async function fetchRecommendationRow(dateIso: string): Promise<RawRecommendationRow | null> {
   const { data, error } = await supabase
     .from('recommendations')
-    .select('id, date, top_pick, runner_up, public_rationale')
+    .select('id, date, top_pick, runner_up, public_rationale, score_breakdown')
     .eq('date', dateIso)
     .maybeSingle();
 
@@ -175,6 +177,7 @@ export async function fetchHomeData(today: Date): Promise<HomeData> {
       topPick: todayRow.top_pick,
       runnerUp: todayRow.runner_up,
       publicRationale: todayRow.public_rationale,
+      isProvisional: todayRow.score_breakdown?.readiness == null,
       blocks,
     },
     yesterdayRationale: yesterdayRow?.public_rationale ?? null,

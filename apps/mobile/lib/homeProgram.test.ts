@@ -22,6 +22,7 @@ const todayRecommendationRow = {
   top_pick: 'mobility',
   runner_up: 'upper',
   public_rationale: "Today's program covers: mobility.",
+  score_breakdown: { readiness: 7 },
 };
 
 const yesterdayRecommendationRow = {
@@ -205,5 +206,64 @@ describe('fetchHomeData', () => {
     });
 
     await expect(fetchHomeData(TODAY)).rejects.toThrow('network down');
+  });
+
+  test('marks today as provisional when score_breakdown.readiness is null', async () => {
+    const fromMock = supabase.from as jest.Mock;
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'recommendations') {
+        const chain: any = {
+          select: jest.fn(() => chain),
+          eq: jest.fn(() => chain),
+          maybeSingle: jest.fn(() =>
+            Promise.resolve({
+              data: { ...todayRecommendationRow, score_breakdown: { readiness: null } },
+              error: null,
+            })
+          ),
+        };
+        return chain;
+      }
+      if (table === 'recommendation_blocks') {
+        const chain: any = {
+          select: jest.fn(() => chain),
+          eq: jest.fn(() => chain),
+          order: jest.fn(() => Promise.resolve({ data: [], error: null })),
+        };
+        return chain;
+      }
+      throw new Error(`unexpected table in test: ${table}`);
+    });
+
+    const result = await fetchHomeData(TODAY);
+
+    expect(result.today!.isProvisional).toBe(true);
+  });
+
+  test('marks today as not provisional when score_breakdown.readiness is present', async () => {
+    const fromMock = supabase.from as jest.Mock;
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'recommendations') {
+        const chain: any = {
+          select: jest.fn(() => chain),
+          eq: jest.fn(() => chain),
+          maybeSingle: jest.fn(() => Promise.resolve({ data: todayRecommendationRow, error: null })),
+        };
+        return chain;
+      }
+      if (table === 'recommendation_blocks') {
+        const chain: any = {
+          select: jest.fn(() => chain),
+          eq: jest.fn(() => chain),
+          order: jest.fn(() => Promise.resolve({ data: [], error: null })),
+        };
+        return chain;
+      }
+      throw new Error(`unexpected table in test: ${table}`);
+    });
+
+    const result = await fetchHomeData(TODAY);
+
+    expect(result.today!.isProvisional).toBe(false);
   });
 });

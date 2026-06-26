@@ -147,3 +147,50 @@ def test_main_calls_gate_today_and_program_builder(monkeypatch):
     mock_build.assert_called_once()
     assert mock_upsert.call_count == 1  # recommendations row
     assert mock_insert.call_count >= 1  # at least the recommendation_blocks insert
+
+
+def test_recommendation_already_fresh_true_when_readiness_present():
+    import run_daily
+
+    with patch("run_daily.supabase_client.get", return_value=[{"score_breakdown": {"readiness": 7}}]):
+        assert run_daily.recommendation_already_fresh(date(2026, 6, 26)) is True
+
+
+def test_recommendation_already_fresh_false_when_no_row():
+    import run_daily
+
+    with patch("run_daily.supabase_client.get", return_value=[]):
+        assert run_daily.recommendation_already_fresh(date(2026, 6, 26)) is False
+
+
+def test_recommendation_already_fresh_false_when_readiness_null():
+    import run_daily
+
+    with patch("run_daily.supabase_client.get", return_value=[{"score_breakdown": {"readiness": None}}]):
+        assert run_daily.recommendation_already_fresh(date(2026, 6, 26)) is False
+
+
+def test_recommendation_already_fresh_queries_correct_table_and_filter():
+    import run_daily
+
+    with patch("run_daily.supabase_client.get", return_value=[]) as mock_get:
+        run_daily.recommendation_already_fresh(date(2026, 6, 26))
+
+    mock_get.assert_called_once_with(
+        "recommendations", {"select": "score_breakdown", "date": "eq.2026-06-26"}
+    )
+
+
+def test_main_skips_pipeline_when_recommendation_already_fresh():
+    import run_daily
+
+    with patch("run_daily.env_loader.load_env"), \
+         patch("run_daily.recommendation_already_fresh", return_value=True), \
+         patch("run_daily.recovery_repo.pull_and_upsert_today") as mock_pull, \
+         patch("run_daily.program_builder.build_daily_program") as mock_build, \
+         patch("run_daily.supabase_client.upsert") as mock_upsert:
+        run_daily.main()
+
+    mock_pull.assert_not_called()
+    mock_build.assert_not_called()
+    mock_upsert.assert_not_called()

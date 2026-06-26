@@ -16,12 +16,14 @@
 // app/_layout.tsx's `recommendations` state -- that state comes from
 // `recommendations_public`, which excludes `id` and therefore can't join
 // to recommendation_blocks. See design spec Decision 1.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Linking,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,6 +37,7 @@ import { formatSetsReps } from '../../lib/programDisplay';
 import { submitDailyFeedback } from '../../lib/dailyFeedback';
 import { fetchSwapOptions, type SwapOptionGroup } from '../../lib/swapOptions';
 import { labelForSessionType } from '../../lib/sessionTypeLabels';
+import { triggerDailyEngine } from '../../lib/engineTrigger';
 
 export default function Home() {
   const router = useRouter();
@@ -51,23 +54,114 @@ export default function Home() {
   const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
+  const [waitingMessage, setWaitingMessage] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const triggerInFlightRef = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appStateRef = useRef(AppState.currentState);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    triggerInFlightRef.current = false;
+  }, []);
+
+  const refetchHomeData = useCallback(async (): Promise<HomeData | null> => {
+    try {
+      const data = await fetchHomeData(new Date());
+      setHomeData(data);
+      return data;
+    } catch (err: any) {
+      console.warn('Poll refetch failed, will retry on next tick:', err.message ?? err);
+      return null;
+    }
+  }, []);
+
+  const beginWaitingForFreshRecommendation = useCallback(() => {
+    if (triggerInFlightRef.current) {
+      return;
+    }
+    triggerInFlightRef.current = true;
+    setWaitingMessage('Building today\'s program…');
+    triggerDailyEngine();
+
+    pollIntervalRef.current = setInterval(async () => {
+      const data = await refetchHomeData();
+      if (data?.today && !data.today.isProvisional) {
+        stopPolling();
+        setWaitingMessage(null);
+      }
+    }, 4000);
+
+    pollTimeoutRef.current = setTimeout(() => {
+      stopPolling();
+      setWaitingMessage('Still working on it — pull down to refresh.');
+    }, 90000);
+  }, [refetchHomeData, stopPolling]);
+
+  const runLoad = useCallback(async (options: { showSpinner: boolean }) => {
+    if (options.showSpinner) {
+      setLoading(true);
+    }
     try {
       const [data, groups] = await Promise.all([fetchHomeData(new Date()), fetchSwapOptions()]);
       setHomeData(data);
       setSwapGroups(groups);
+      setLoadError(null);
+      if (!data.today || data.today.isProvisional) {
+        beginWaitingForFreshRecommendation();
+      } else {
+        stopPolling();
+        setWaitingMessage(null);
+      }
     } catch (err: any) {
-      setLoadError(err.message ?? 'Failed to load your program.');
+      setHomeData((prev) => {
+        if (!prev) {
+          // Nothing on screen yet -- this is the only case where it's
+          // correct to block with the full-page error view.
+          setLoadError(err.message ?? 'Failed to load your program.');
+        } else {
+          console.warn('Refresh failed, keeping last known program on screen:', err.message ?? err);
+        }
+        return prev;
+      });
     } finally {
-      setLoading(false);
+      if (options.showSpinner) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [beginWaitingForFreshRecommendation, stopPolling]);
+
+  const load = useCallback(() => runLoad({ showSpinner: true }), [runLoad]);
+  const softReload = useCallback(() => runLoad({ showSpinner: false }), [runLoad]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await softReload();
+    setRefreshing(false);
+  }, [softReload]);
 
   useEffect(() => {
     load();
-  }, [load]);
+    return () => stopPolling();
+  }, [load, stopPolling]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current !== 'active' && nextState === 'active') {
+        softReload();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [softReload]);
 
   function handleOpenBlock(block: ProgramBlock) {
     router.push(`/logger/${block.id}`);
@@ -124,7 +218,11 @@ export default function Home() {
   const yesterdayRationale = homeData?.yesterdayRationale ?? null;
 
   return (
-    <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
+    <ScrollView
+      style={sharedStyles.screen}
+      contentContainerStyle={sharedStyles.screenContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+    >
       <Text style={TYPE.screenTitle}>Home</Text>
 
       <View style={sharedStyles.card}>
@@ -145,7 +243,9 @@ export default function Home() {
         </View>
 
         {!today && (
-          <Text style={sharedStyles.helperText}>Today's program hasn't generated yet.</Text>
+          <Text style={sharedStyles.helperText}>
+            {waitingMessage ?? "Today's program hasn't generated yet."}
+          </Text>
         )}
 
         {today && (
@@ -174,6 +274,9 @@ export default function Home() {
               </Pressable>
             ))}
           </>
+        )}
+        {today?.isProvisional && waitingMessage && (
+          <Text style={sharedStyles.helperText}>{waitingMessage}</Text>
         )}
       </View>
 
