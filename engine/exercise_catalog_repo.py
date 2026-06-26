@@ -29,12 +29,13 @@ SELECT_COLUMNS = (
 
 
 def _matches_profile(row, profile):
-    """A row is relevant if it tags one of the profile's current_goals, one
-    of the profile's pain body_parts, or is a corrective row for a
-    pain-relevant body part -- design spec Decision 7's filter, mirrored
-    here in Python since expressing an array-intersection OR across three
-    different jsonb/array shapes in one PostgREST query string is more
-    fragile than filtering the (already movement_pattern-narrowed,
+    """A row is relevant if it tags one of the profile's current_goals or
+    one of the profile's pain body_parts (a corrective row tagged with a
+    pain-relevant body part already matches via the second check, so
+    `is_corrective` needs no separate branch) -- design spec Decision 7's
+    filter, mirrored here in Python since expressing an array-intersection
+    OR across different jsonb/array shapes in one PostgREST query string
+    is more fragile than filtering the (already movement_pattern-narrowed,
     typically small) result set in Python."""
     goals = set(profile.get("current_goals") or [])
     pain_parts = {p["body_part"] for p in (profile.get("pains") or [])}
@@ -44,8 +45,6 @@ def _matches_profile(row, profile):
     if row_goals & goals:
         return True
     if row_parts & pain_parts:
-        return True
-    if row.get("is_corrective") and row_parts & pain_parts:
         return True
     return False
 

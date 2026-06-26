@@ -8,7 +8,7 @@
 // happened.
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, SESSION_TYPE_COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
 import { labelForSessionType } from '../lib/sessionTypeLabels';
 import type { HistoryPoint } from '../lib/trendsHistory';
 import type { SessionType } from '../lib/recommendations';
@@ -16,15 +16,6 @@ import type { SessionType } from '../lib/recommendations';
 export interface SleepTrainingChartProps {
   readonly history: readonly HistoryPoint[];
 }
-
-const SESSION_TYPE_COLORS: Record<SessionType, string> = {
-  upper: '#3A6B5C',
-  lower: '#6B8E7F',
-  pickleball: '#C98A3E',
-  run: '#4E7FB3',
-  rest: '#B7B2AB',
-  mobility: '#A66B8E',
-};
 
 function shortDayLabel(dateString: string): string {
   const date = new Date(`${dateString}T00:00:00`);

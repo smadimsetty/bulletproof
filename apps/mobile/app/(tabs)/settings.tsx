@@ -10,7 +10,7 @@
 // docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
 // Decision 4 for the save-timing rationale.
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import { supabase } from '../../lib/supabase';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
@@ -256,18 +256,17 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <View style={sharedStyles.screen}>
-        <Text style={[TYPE.body, { padding: 16 }]}>Loading settings…</Text>
+      <View style={[sharedStyles.screen, styles.centered]}>
+        <ActivityIndicator color={COLORS.accent} />
+        <Text style={TYPE.body}>Loading settings…</Text>
       </View>
     );
   }
 
   if (loadError || !profile) {
     return (
-      <View style={sharedStyles.screen}>
-        <Text style={[TYPE.body, { padding: 16 }]}>
-          Couldn't load settings: {loadError ?? 'unknown error'}
-        </Text>
+      <View style={[sharedStyles.screen, styles.centered]}>
+        <Text style={TYPE.body}>Couldn't load settings: {loadError ?? 'unknown error'}</Text>
       </View>
     );
   }
@@ -447,6 +446,7 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
+  centered: { alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   modeRow: {
     flexDirection: 'row',
     gap: SPACING.xs,

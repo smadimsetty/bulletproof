@@ -9,6 +9,7 @@
 // docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
 // Decision 9 for the palette rationale.
 import { StyleSheet } from 'react-native';
+import type { SessionType } from './recommendations';
 
 export const COLORS = {
   background: '#F7F5F2',
@@ -19,6 +20,20 @@ export const COLORS = {
   accentMuted: '#DCE6E2',
   border: '#E7E3DC',
   danger: '#B3261E',
+} as const;
+
+// Muted-but-distinguishable per-session-type colors for Trends'
+// sleep/training overlay chart (the one place the app needs more than
+// one accent color at a time). Lives here, not in the chart component,
+// so any future screen needing the same per-type color stays consistent
+// with this single source rather than redefining its own palette.
+export const SESSION_TYPE_COLORS: Record<SessionType, string> = {
+  upper: '#3A6B5C',
+  lower: '#6B8E7F',
+  pickleball: '#C98A3E',
+  run: '#4E7FB3',
+  rest: '#B7B2AB',
+  mobility: '#A66B8E',
 } as const;
 
 export const SPACING = {
