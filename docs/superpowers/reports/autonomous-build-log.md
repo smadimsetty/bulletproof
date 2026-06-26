@@ -1,5 +1,23 @@
 # Autonomous build log
 
+## 2026-06-25 -- Post-v2 full audit
+
+**What happened:** Sohan asked for a thorough, professional-grade audit of the entire v2 build -- does it match the plans/specs, is the UI clean and consistent, is the code efficient -- across all four domains (database schema, the Python engine, the mobile app, the web app). Four independent review passes ran in parallel, each reading its domain's design specs, statically reviewing the real code, and actually running the real test suites/type-checks/builds rather than assuming.
+
+**An incident, disclosed immediately:** one review agent, verifying a CLI invocation pattern for the engine, ran `python -m engine.run_daily` for real. A pre-existing `.env` with live production credentials (left over from earlier phases, sitting at the repo root, gitignored) made that command execute against real Supabase -- it overwrote today's already-cron-generated recommendation with a fallback-template result. There's no clean undo (re-running again would just reproduce the same fallback result, since there's still no Anthropic key configured), so this was disclosed to Sohan directly with no further unilateral action taken. **Lesson, applied going forward:** "no live network calls" was not a strong enough instruction to a subagent that has Bash access and a real entry-point script sitting right there -- a real production credential reachable from a working directory is a hazard regardless of how an agent is instructed, and review-only dispatches into a directory with live secrets need either an explicit named-file prohibition or, better, to run from an environment that genuinely has no live credentials at all.
+
+**Findings, all fixed same-day:**
+- `apps/mobile/components/SleepTrainingChart.tsx` had its own hardcoded 6-color session-type palette outside `lib/theme.ts` -- the one real aesthetic-consistency drift in an otherwise well-disciplined shared style system across 4 screens. Moved into `theme.ts` as `SESSION_TYPE_COLORS`.
+- The Settings screen's loading/error state used a bare `Text` with an inline padding literal and no spinner, while Home/Trends/Logger all use `ActivityIndicator` + a centered shared layout -- fixed to match.
+- `engine/exercise_catalog_repo.py`'s `_matches_profile` had a dead conditional branch (a strict logical subset of the line above it, providably unreachable) -- removed.
+- The main checkout's `apps/mobile/node_modules`/lockfile were stale relative to `package.json` (each v2 phase's own git worktree got a fresh install, but this particular checkout's never refreshed) -- resynced.
+
+**What the audit confirmed was genuinely solid, not just claimed solid:** every personal database table has real owner-scoped row-level security (checked policy by policy, not just "RLS is on"); the engine's most safety-critical property -- Claude can pick exercises but cannot influence which session type happens today -- holds all the way through the real call graph, with no path around it found; 102 engine tests, 118 mobile tests, and 10 web tests all pass for real; no hardcoded secrets anywhere in any of the four domains.
+
+**What's still open, not fixed today (lower priority, documented as a real gap rather than silently skipped):** the engine's exercise-selection validation layer doesn't yet re-check that a selected exercise isn't contraindicated by a severity-8+ pain entry (a documented design decision that exists in the prompt but has no deterministic backstop at the validation layer -- affects exercise-quality safety within an already-decided block, not the type-of-day decision). A few cosmetic items (three `RADII.chip`-equivalent magic numbers, one inline style object, `sign-in.tsx` predating `theme.ts`, an unused web type) were judged not worth the churn and left as-is.
+
+**Still no way to verify in this environment:** how anything actually looks or feels on a real phone or in a real browser. Every check above is real (tests ran, builds ran, code was read line by line) but stops at the boundary this sandbox has always had -- no device, no simulator, no live Supabase credentials safe to use, no browser.
+
 ## 2026-06-25 -- v2 run complete
 
 All 9 planned v2 phases are merged to `master`. Here's what changed end to end since the last full wrap-up (2026-06-23).
