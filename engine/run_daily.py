@@ -93,11 +93,30 @@ def build_block_exercise_rows(block_ids, blocks):
     return rows
 
 
+def recommendation_already_fresh(today):
+    """True if today's recommendations row already reflects real (non-null)
+    Oura readiness -- meaning an earlier run today (cron or on-demand)
+    already did the real work and this run should be a no-op. A missing
+    row, or a row whose score_breakdown.readiness is still null (an
+    earlier run before Oura had synced), is not considered fresh."""
+    existing = supabase_client.get(
+        "recommendations",
+        {"select": "score_breakdown", "date": f"eq.{today.isoformat()}"},
+    )
+    if not existing:
+        return False
+    return existing[0]["score_breakdown"].get("readiness") is not None
+
+
 def main():
     env_loader.load_env()
     today = date.today()
-    owner_id = os.environ["ENGINE_OWNER_ID"]
 
+    if recommendation_already_fresh(today):
+        print(f"Recommendation for {today.isoformat()} already generated with real readiness data -- skipping.")
+        return
+
+    owner_id = os.environ["ENGINE_OWNER_ID"]
     readiness = recovery_repo.pull_and_upsert_today(today)
     if readiness is None:
         print(f"Warning: no Oura readiness data available yet for {today.isoformat()}.", file=sys.stderr)
