@@ -85,11 +85,9 @@ today row missing, OR today.score_breakdown.readiness is null?
    │           │    because Oura hadn't synced yet)
    ▼           ▼
 render it   show "Building today's program…", call
-            supabase.functions.invoke('trigger-daily-engine'),
-            subscribe to Realtime on `recommendations` filtered to
-            today's date, re-run fetchHomeData() when a row event
-            arrives (90s timeout -> "still working on it, pull to
-            refresh")
+            supabase.functions.invoke('trigger-daily-engine'), then poll
+            fetchHomeData() every 4s until it comes back fresh (90s
+            timeout -> "still working on it, pull to refresh")
                   │
                   ▼
             Edge Function `trigger-daily-engine` (requires a signed-in
@@ -145,11 +143,16 @@ render it   show "Building today's program…", call
    - call `triggerDailyEngine()` once per "provisional" state (a ref guard
      prevents re-firing while a trigger is already in flight or already
      fired for this provisional state),
-   - subscribe to a Realtime channel on `recommendations` filtered to
-     today's date, calling `load()` again on any insert/update and then
-     unsubscribing,
-   - add a 90s timeout that stops waiting and surfaces a "still working on
-     it — pull to refresh" affordance instead of spinning indefinitely,
+   - poll `load()` again every 4s (a plain `setInterval`, not a Realtime
+     subscription — simpler, no new database publication needed, and the
+     UX difference against a few-second-granularity push is imperceptible
+     for a single-user app) until the result comes back non-provisional,
+     clearing the interval as soon as it does,
+   - add a 90s timeout that stops polling and surfaces a "still working on
+     it — pull to refresh" affordance instead of polling indefinitely,
+   - add a pull-to-refresh control on the screen's `ScrollView` (there
+     isn't one today) so the timeout's fallback message is actually
+     actionable,
    - add an `AppState` foreground listener that re-runs `load()` (mirrors
      the existing pattern already in `app/_layout.tsx` for HealthKit sync)
      so reopening the app after syncing Oura re-checks without restarting
@@ -186,9 +189,10 @@ render it   show "Building today's program…", call
   second Edge Function call while one is already pending for the current
   provisional state, keeping it to at most one GitHub Actions run + one
   Claude call per real state transition.
-- **Realtime subscription never fires** (connection drop, backgrounded
-  too long): 90s timeout surfaces a manual retry affordance rather than an
-  indefinite spinner.
+- **The triggered run never lands within 90s** (GitHub Actions queueing
+  delay, Oura/Claude slowness): the poll loop's timeout stops polling and
+  surfaces a manual pull-to-refresh affordance rather than polling
+  forever.
 - **Claude call fails inside the triggered run**: unchanged existing
   behavior — `program_builder.py` already falls back to the deterministic
   template; the on-demand path degrades exactly like the cron always has.
