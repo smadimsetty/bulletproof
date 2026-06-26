@@ -96,7 +96,14 @@ def build_public_rationale(breakdown):
         reason = "today follows a different movement pattern than yesterday"
 
     pretty_name = top_type.replace("_", " ")
-    sentence = f"Today's pick is {pretty_name} -- {reason}."
+    # Date-neutral phrasing ("Recommended:", not "Today's pick is") --
+    # this exact string is persisted to recommendations.public_rationale
+    # and later re-displayed verbatim by both clients under whichever
+    # date header it's under ("Today's Program" the day it's generated,
+    # "Yesterday" the day after) -- a "Today's..." lead-in would read as
+    # wrong once it's shown as history. See CLAUDE.md/build log's
+    # 2026-06-26 post-on-device-review entry.
+    sentence = f"Recommended: {pretty_name} -- {reason}."
 
     if len(candidates) > 1:
         runner_up_pretty = candidates[1]["type"].replace("_", " ")

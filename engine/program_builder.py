@@ -198,7 +198,9 @@ def _build_fallback_blocks(gated_blocks, catalog_excerpt):
 def _fallback_rationale(gated_blocks):
     blocks_text = ", ".join(gated_blocks)
     internal = f"Fallback template program used (Claude unavailable or response invalid). Blocks: {blocks_text}."
-    public = f"Today's program covers: {blocks_text}."
+    # Date-neutral phrasing -- see rationale.py's build_public_rationale
+    # for why "Today's..." can't be baked into this persisted string.
+    public = f"Recommended blocks: {blocks_text}."
     return internal, public
 
 
