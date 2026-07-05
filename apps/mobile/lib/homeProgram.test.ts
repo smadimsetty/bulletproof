@@ -1,5 +1,5 @@
 // apps/mobile/lib/homeProgram.test.ts
-import { fetchHomeData } from './homeProgram';
+import { fetchHomeData, shouldAttemptFreshRecommendation, type HomeData } from './homeProgram';
 
 // supabase-js's query builder is chainable; this mock provides a minimal
 // per-table chain matching exactly the calls fetchHomeData makes, mirroring
@@ -265,5 +265,53 @@ describe('fetchHomeData', () => {
     const result = await fetchHomeData(TODAY);
 
     expect(result.today!.isProvisional).toBe(false);
+  });
+});
+
+describe('shouldAttemptFreshRecommendation', () => {
+  const provisionalToday: HomeData = {
+    today: { ...todayFixtureAsProvisional() },
+    yesterdayRationale: null,
+  };
+  const freshToday: HomeData = {
+    today: { ...todayFixtureAsProvisional(), isProvisional: false },
+    yesterdayRationale: null,
+  };
+  const noToday: HomeData = { today: null, yesterdayRationale: null };
+
+  function todayFixtureAsProvisional() {
+    return {
+      recommendationId: 'rec-1',
+      date: '2026-07-05',
+      topPick: 'rest' as const,
+      runnerUp: 'mobility' as const,
+      publicRationale: 'Recommended blocks: rest.',
+      isProvisional: true,
+      blocks: [],
+    };
+  }
+
+  test('attempts when there is no row yet and nothing was attempted today', () => {
+    expect(shouldAttemptFreshRecommendation(noToday, '2026-07-05', null)).toBe(true);
+  });
+
+  test('attempts when provisional and nothing was attempted today', () => {
+    expect(shouldAttemptFreshRecommendation(provisionalToday, '2026-07-05', null)).toBe(true);
+  });
+
+  test('does not re-attempt provisional data already attempted today', () => {
+    expect(shouldAttemptFreshRecommendation(provisionalToday, '2026-07-05', '2026-07-05')).toBe(false);
+  });
+
+  test('does not re-attempt a missing row already attempted today', () => {
+    expect(shouldAttemptFreshRecommendation(noToday, '2026-07-05', '2026-07-05')).toBe(false);
+  });
+
+  test('attempts again once the calendar day has moved on', () => {
+    expect(shouldAttemptFreshRecommendation(provisionalToday, '2026-07-06', '2026-07-05')).toBe(true);
+  });
+
+  test('never attempts once today is no longer provisional', () => {
+    expect(shouldAttemptFreshRecommendation(freshToday, '2026-07-05', null)).toBe(false);
   });
 });

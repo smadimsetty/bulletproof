@@ -32,12 +32,21 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, RADII, SPACING, sharedStyles, TYPE } from '../../lib/theme';
-import { fetchHomeData, type BlockExercise, type HomeData, type ProgramBlock } from '../../lib/homeProgram';
+import {
+  fetchHomeData,
+  shouldAttemptFreshRecommendation,
+  type BlockExercise,
+  type HomeData,
+  type ProgramBlock,
+} from '../../lib/homeProgram';
+import { localDateString } from '../../lib/healthkitMapping';
 import { formatSetsReps } from '../../lib/programDisplay';
 import { submitDailyFeedback } from '../../lib/dailyFeedback';
-import { fetchSwapOptions, type SwapOptionGroup } from '../../lib/swapOptions';
+import { fetchSwapOptions, type SwapOption, type SwapOptionGroup } from '../../lib/swapOptions';
+import type { SessionType } from '../../lib/recommendations';
 import { labelForSessionType } from '../../lib/sessionTypeLabels';
 import { triggerDailyEngine } from '../../lib/engineTrigger';
+import { triggerSwapActivity } from '../../lib/swapTrigger';
 
 export default function Home() {
   const router = useRouter();
@@ -60,6 +69,10 @@ export default function Home() {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appStateRef = useRef(AppState.currentState);
+  const lastAttemptedIsoRef = useRef<string | null>(null);
+  const swapInFlightRef = useRef(false);
+  const swapPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const swapPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -73,6 +86,18 @@ export default function Home() {
     triggerInFlightRef.current = false;
   }, []);
 
+  const stopSwapPolling = useCallback(() => {
+    if (swapPollIntervalRef.current) {
+      clearInterval(swapPollIntervalRef.current);
+      swapPollIntervalRef.current = null;
+    }
+    if (swapPollTimeoutRef.current) {
+      clearTimeout(swapPollTimeoutRef.current);
+      swapPollTimeoutRef.current = null;
+    }
+    swapInFlightRef.current = false;
+  }, []);
+
   const refetchHomeData = useCallback(async (): Promise<HomeData | null> => {
     try {
       const data = await fetchHomeData(new Date());
@@ -83,6 +108,27 @@ export default function Home() {
       return null;
     }
   }, []);
+
+  const beginSwapPoll = useCallback((activity: SessionType, label: string) => {
+    if (swapInFlightRef.current) {
+      return;
+    }
+    swapInFlightRef.current = true;
+
+    swapPollIntervalRef.current = setInterval(async () => {
+      const data = await refetchHomeData();
+      if (data?.today?.topPick === activity) {
+        stopSwapPolling();
+        setSwapMessage(null);
+        setSwapSheetOpen(false);
+      }
+    }, 4000);
+
+    swapPollTimeoutRef.current = setTimeout(() => {
+      stopSwapPolling();
+      setSwapMessage(`Still working on swapping to ${label} — pull down to refresh.`);
+    }, 90000);
+  }, [refetchHomeData, stopSwapPolling]);
 
   const beginWaitingForFreshRecommendation = useCallback(() => {
     if (triggerInFlightRef.current) {
@@ -115,7 +161,9 @@ export default function Home() {
       setHomeData(data);
       setSwapGroups(groups);
       setLoadError(null);
-      if (!data.today || data.today.isProvisional) {
+      const todayIso = localDateString(new Date());
+      if (shouldAttemptFreshRecommendation(data, todayIso, lastAttemptedIsoRef.current)) {
+        lastAttemptedIsoRef.current = todayIso;
         beginWaitingForFreshRecommendation();
       } else {
         stopPolling();
@@ -144,14 +192,18 @@ export default function Home() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    lastAttemptedIsoRef.current = null;
     await softReload();
     setRefreshing(false);
   }, [softReload]);
 
   useEffect(() => {
     load();
-    return () => stopPolling();
-  }, [load, stopPolling]);
+    return () => {
+      stopPolling();
+      stopSwapPolling();
+    };
+  }, [load, stopPolling, stopSwapPolling]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -172,8 +224,20 @@ export default function Home() {
     setSwapSheetOpen(true);
   }
 
-  function handleSelectSwapOption() {
-    setSwapMessage("Swapping isn't available yet — this is coming in a future update.");
+  async function handleSelectSwapOption(option: SwapOption) {
+    if (swapInFlightRef.current) {
+      return;
+    }
+    stopPolling();
+    setWaitingMessage(null);
+    setSwapMessage(`Swapping to ${option.label}…`);
+
+    const started = await triggerSwapActivity(localDateString(new Date()), option.id);
+    if (!started) {
+      setSwapMessage("Couldn't start the swap — try again in a moment.");
+      return;
+    }
+    beginSwapPoll(option.id, option.label);
   }
 
   async function handleSaveFeedback() {
@@ -308,7 +372,7 @@ export default function Home() {
         visible={swapSheetOpen}
         groups={swapGroups}
         message={swapMessage}
-        onSelect={handleSelectSwapOption}
+        onSelect={(option) => handleSelectSwapOption(option)}
         onClose={() => setSwapSheetOpen(false)}
       />
     </ScrollView>
@@ -346,7 +410,7 @@ function SwapActivitySheet({
   visible: boolean;
   groups: SwapOptionGroup[];
   message: string | null;
-  onSelect: () => void;
+  onSelect: (option: SwapOption) => void;
   onClose: () => void;
 }) {
   return (
@@ -362,7 +426,7 @@ function SwapActivitySheet({
                   <Text style={styles.groupLabel}>{group.label}</Text>
                 )}
                 {group.options.map((option) => (
-                  <Pressable key={option.id} style={styles.optionRow} onPress={onSelect}>
+                  <Pressable key={option.id} style={styles.optionRow} onPress={() => onSelect(option)}>
                     <Text style={TYPE.body}>{option.label}</Text>
                   </Pressable>
                 ))}

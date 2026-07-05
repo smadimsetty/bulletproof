@@ -183,3 +183,23 @@ export async function fetchHomeData(today: Date): Promise<HomeData> {
     yesterdayRationale: yesterdayRow?.public_rationale ?? null,
   };
 }
+
+/**
+ * Whether the Home screen should fire the on-demand engine trigger and poll
+ * for a fresher recommendation. `isProvisional` (no real Oura readiness yet)
+ * is not the same as "not ready" -- a fallback_template row with null
+ * readiness can be permanently null (e.g. the ring never synced that day),
+ * so gating this on isProvisional alone would retrigger on every foreground
+ * forever with no way to ever resolve. Bounding it to one attempt per local
+ * calendar date (reset by an explicit pull-to-refresh) keeps the "try to
+ * get something fresher right after opening the app" behavior without the
+ * unbounded retry loop.
+ */
+export function shouldAttemptFreshRecommendation(
+  data: HomeData,
+  todayIso: string,
+  lastAttemptedIso: string | null
+): boolean {
+  const needsFresh = !data.today || data.today.isProvisional;
+  return needsFresh && lastAttemptedIso !== todayIso;
+}

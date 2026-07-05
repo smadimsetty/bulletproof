@@ -1,0 +1,42 @@
+name: Swap Activity
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "YYYY-MM-DD to swap (the caller's local calendar date)"
+        required: true
+      activity:
+        description: "One of: upper, lower, pickleball, run, mobility, rest"
+        required: true
+
+jobs:
+  swap-activity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install engine dependencies
+        run: pip install -e ./engine
+
+      - name: Write .env from repository secrets
+        # See daily-cron.yml's identical step for why this file (never
+        # committed, discarded when the job ends) is required -- engine/
+        # env_loader.py reads a literal .env file, not process env vars.
+        run: |
+          cat <<EOF > "$GITHUB_WORKSPACE/.env"
+          OURA_PERSONAL_ACCESS_TOKEN=${{ secrets.OURA_PERSONAL_ACCESS_TOKEN }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ENGINE_OWNER_ID=${{ secrets.ENGINE_OWNER_ID }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          EOF
+
+      - name: Run the swap
+        run: python -m engine.swap_activity --date "${{ inputs.date }}" --activity "${{ inputs.activity }}"

@@ -78,3 +78,19 @@ pytest
   write `recommendations` + `recommendation_blocks` +
   `recommendation_block_exercises`. No interactive input; non-zero exit on
   failure.
+- `swap_activity.py` -- forces a given day's recommendation to a specific
+  activity (backs the mobile app's "swap activity" feature). Reuses
+  `program_builder.build_daily_program()` and `run_daily.py`'s row-shaping
+  helpers rather than duplicating them; re-derives the program for the
+  forced activity but reuses the day's already-known readiness (from the
+  existing `recommendations` row, if any) instead of re-pulling Oura.
+  Deletes and re-inserts that day's `recommendation_blocks` (cascades to
+  `recommendation_block_exercises`) so a repeated swap doesn't accumulate
+  duplicate blocks. Run as:
+  ```bash
+  python -m engine.swap_activity --date 2026-07-05 --activity lower
+  ```
+  (from the repo root; `--activity` must be one of `upper`, `lower`,
+  `pickleball`, `run`, `mobility`, `rest` -- the session types
+  `program_builder`/`scoring` actually know how to build a program for,
+  a stricter set than the app-facing `activity_taxonomy` table).

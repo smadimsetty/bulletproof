@@ -49,3 +49,12 @@ def insert(table, rows):
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     with urllib.request.urlopen(req) as resp:
         resp.read()
+
+
+def delete(table, params):
+    """Deletes rows matching params (PostgREST filter query params, e.g.
+    {"recommendation_id": "eq.<uuid>"}). No response body needed by callers."""
+    url = os.environ["SUPABASE_URL"] + f"/rest/v1/{table}?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers=_headers(), method="DELETE")
+    with urllib.request.urlopen(req) as resp:
+        resp.read()
