@@ -330,3 +330,70 @@ export async function syncHealthKitDailyMetrics(): Promise<DailyMetricsSyncSumma
     mostRecentRestingHeartRateBpm: restingHeartRateSamples[0]?.quantity ?? null,
   };
 }
+
+/**
+ * Live, read-only, single-day HealthKit sleep query -- used only as a
+ * fallback by yesterdaySummary.ts when `recovery` (Oura) has no
+ * `sleep_hrs` for a given date. Unlike syncHealthKitDailyMetrics(), this
+ * queries a single night's window and returns a plain hours number rather
+ * than persisting anything: this is a display-only feature (see CLAUDE.md
+ * -- `recovery.source`'s check constraint only allows 'oura'/'manual', and
+ * adding a 'healthkit' value would need a migration this feature
+ * deliberately avoids).
+ *
+ * The query window runs from noon the day before `date` through noon of
+ * `date` itself, not `date`'s own midnight-to-midnight range -- a full
+ * night's sleep typically starts the evening before and ends the morning
+ * of the date it's "for" (matching Oura's own day-attribution
+ * convention), and sumSleepMinutesByLocalDate buckets by each sample's
+ * *start* time, so a midnight-to-midnight window would clip off the start
+ * of the night. Summing every bucket the noon-to-noon window produces
+ * (rather than looking up one specific date key) sidesteps that edge
+ * case entirely, since the window is narrow enough to contain at most one
+ * night's sleep.
+ *
+ * Same fail-soft contract as the other HealthKit functions in this file:
+ * unavailable HealthKit, denied permission, or a query error all return
+ * null rather than throwing, since this is read-augmentation for a
+ * summary card, never a gate on app usability.
+ */
+export async function fetchHealthKitSleepHoursForDate(date: Date): Promise<number | null> {
+  const available = await HealthKit.isHealthDataAvailable();
+  if (!available) {
+    return null;
+  }
+
+  try {
+    await HealthKit.requestAuthorization({ toRead: READ_PERMISSIONS });
+  } catch (err) {
+    console.warn('HealthKit authorization request failed or was denied:', err);
+    return null;
+  }
+
+  const windowStart = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1, 12, 0, 0, 0);
+  const windowEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+
+  let sleepSamples: readonly { startDate: Date; endDate: Date; value: CategoryValueSleepAnalysis }[] = [];
+  try {
+    sleepSamples = await queryCategorySamples('HKCategoryTypeIdentifierSleepAnalysis', {
+      filter: { date: { startDate: windowStart, endDate: windowEnd } },
+      limit: 0,
+      ascending: true,
+    });
+  } catch (err) {
+    console.warn('HealthKit single-day sleep query failed:', err);
+    return null;
+  }
+
+  if (sleepSamples.length === 0) {
+    return null;
+  }
+
+  const minutesByDay = sumSleepMinutesByLocalDate(sleepSamples.map(toMinimalSleepSample));
+  let totalMinutes = 0;
+  for (const minutes of minutesByDay.values()) {
+    totalMinutes += minutes;
+  }
+
+  return totalMinutes > 0 ? totalMinutes / 60 : null;
+}

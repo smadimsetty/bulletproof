@@ -14,7 +14,6 @@ import { supabase } from './supabase';
 
 const TODAY = new Date(2026, 5, 24, 12, 0, 0); // 2026-06-24 local noon
 const TODAY_ISO = '2026-06-24';
-const YESTERDAY_ISO = '2026-06-23';
 
 const todayRecommendationRow = {
   id: 'rec-today-1',
@@ -23,14 +22,6 @@ const todayRecommendationRow = {
   runner_up: 'upper',
   public_rationale: "Today's program covers: mobility.",
   score_breakdown: { readiness: 7 },
-};
-
-const yesterdayRecommendationRow = {
-  id: 'rec-yesterday-1',
-  date: YESTERDAY_ISO,
-  top_pick: 'mobility',
-  runner_up: 'upper',
-  public_rationale: "Today's pick is mobility -- a mobility session was overdue. Runner-up: upper a.",
 };
 
 const blocksWithExercisesRow = [
@@ -76,43 +67,15 @@ const blocksWithExercisesRow = [
   },
 ];
 
-function mockTable(table: string, response: { data: unknown; error: unknown }) {
-  return [table, response] as const;
-}
-
-function installSupabaseMock(responses: ReadonlyArray<readonly [string, { data: unknown; error: unknown }]>) {
-  const byTable = new Map(responses);
-  (supabase.from as jest.Mock).mockImplementation((table: string) => {
-    const response = byTable.get(table) ?? { data: null, error: null };
-    const chain: any = {
-      select: jest.fn(() => chain),
-      eq: jest.fn(() => chain),
-      order: jest.fn(() => chain),
-      maybeSingle: jest.fn(() => Promise.resolve(response)),
-      then: (resolve: any) => Promise.resolve(response).then(resolve),
-    };
-    return chain;
-  });
-}
-
 describe('fetchHomeData', () => {
-  test('returns today\'s program with blocks/exercises and yesterday\'s rationale', async () => {
-    installSupabaseMock([
-      mockTable('recommendations', { data: todayRecommendationRow, error: null }),
-    ]);
-    // Two sequential calls to 'recommendations' (today, then yesterday) and
-    // one to 'recommendation_blocks' can't share one static mock keyed only
-    // by table name, so this test drives the real call sequence explicitly.
+  test('returns today\'s program with blocks/exercises', async () => {
     const fromMock = supabase.from as jest.Mock;
-    let recommendationsCallCount = 0;
     fromMock.mockImplementation((table: string) => {
       if (table === 'recommendations') {
-        recommendationsCallCount += 1;
-        const row = recommendationsCallCount === 1 ? todayRecommendationRow : yesterdayRecommendationRow;
         const chain: any = {
           select: jest.fn(() => chain),
           eq: jest.fn(() => chain),
-          maybeSingle: jest.fn(() => Promise.resolve({ data: row, error: null })),
+          maybeSingle: jest.fn(() => Promise.resolve({ data: todayRecommendationRow, error: null })),
         };
         return chain;
       }
@@ -140,10 +103,9 @@ describe('fetchHomeData', () => {
     expect(result.today!.blocks[0].exercises[1].demoVideoUrl).toBe(
       'https://www.youtube.com/watch?v=Hm_Iu72bJJg'
     );
-    expect(result.yesterdayRationale).toBe(yesterdayRecommendationRow.public_rationale);
   });
 
-  test('returns nulls when today has no recommendation row yet', async () => {
+  test('returns a null today when there is no recommendation row yet', async () => {
     const fromMock = supabase.from as jest.Mock;
     fromMock.mockImplementation((table: string) => {
       if (table === 'recommendations') {
@@ -160,20 +122,16 @@ describe('fetchHomeData', () => {
     const result = await fetchHomeData(TODAY);
 
     expect(result.today).toBeNull();
-    expect(result.yesterdayRationale).toBeNull();
   });
 
   test('today recommendation with zero blocks returns an empty blocks array, not an error', async () => {
     const fromMock = supabase.from as jest.Mock;
-    let recommendationsCallCount = 0;
     fromMock.mockImplementation((table: string) => {
       if (table === 'recommendations') {
-        recommendationsCallCount += 1;
-        const row = recommendationsCallCount === 1 ? todayRecommendationRow : null;
         const chain: any = {
           select: jest.fn(() => chain),
           eq: jest.fn(() => chain),
-          maybeSingle: jest.fn(() => Promise.resolve({ data: row, error: null })),
+          maybeSingle: jest.fn(() => Promise.resolve({ data: todayRecommendationRow, error: null })),
         };
         return chain;
       }
@@ -271,13 +229,11 @@ describe('fetchHomeData', () => {
 describe('shouldAttemptFreshRecommendation', () => {
   const provisionalToday: HomeData = {
     today: { ...todayFixtureAsProvisional() },
-    yesterdayRationale: null,
   };
   const freshToday: HomeData = {
     today: { ...todayFixtureAsProvisional(), isProvisional: false },
-    yesterdayRationale: null,
   };
-  const noToday: HomeData = { today: null, yesterdayRationale: null };
+  const noToday: HomeData = { today: null };
 
   function todayFixtureAsProvisional() {
     return {

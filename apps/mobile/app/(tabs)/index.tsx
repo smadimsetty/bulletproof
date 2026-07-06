@@ -1,9 +1,10 @@
 // apps/mobile/app/(tabs)/index.tsx
 //
-// Home screen (Phase 5): Yesterday's summary (reading the already-
-// generated recommendations.public_rationale column -- no client-side
-// Claude call of any kind, see CLAUDE.md and design spec Non-goals),
-// Today's full multi-block program (recommendation_blocks +
+// Home screen (Phase 5): Yesterday's summary (what actually happened --
+// real sleep + logged/detected activity via yesterdaySummary.ts, not
+// yesterday's forecasted recommendation text; see CLAUDE.md's 2026-07-05
+// entry for why that changed), Today's full multi-block program
+// (recommendation_blocks +
 // recommendation_block_exercises, tappable into the logger), a
 // "Swap activity" picker shell that visibly states swapping isn't
 // available yet (no real backend exists for it -- build_program_for_
@@ -39,6 +40,7 @@ import {
   type HomeData,
   type ProgramBlock,
 } from '../../lib/homeProgram';
+import { fetchYesterdaySummaryMessage } from '../../lib/yesterdaySummary';
 import { localDateString } from '../../lib/healthkitMapping';
 import { formatSetsReps } from '../../lib/programDisplay';
 import { submitDailyFeedback } from '../../lib/dailyFeedback';
@@ -54,6 +56,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [homeData, setHomeData] = useState<HomeData | null>(null);
+  const [yesterdaySummary, setYesterdaySummary] = useState<string | null>(null);
 
   const [swapGroups, setSwapGroups] = useState<SwapOptionGroup[]>([]);
   const [swapSheetOpen, setSwapSheetOpen] = useState(false);
@@ -157,9 +160,20 @@ export default function Home() {
       setLoading(true);
     }
     try {
-      const [data, groups] = await Promise.all([fetchHomeData(new Date()), fetchSwapOptions()]);
+      const [data, groups, yesterdayMessage] = await Promise.all([
+        fetchHomeData(new Date()),
+        fetchSwapOptions(new Date()),
+        fetchYesterdaySummaryMessage(new Date()).catch((err: any) => {
+          // Fail-soft: yesterday's summary is a nice-to-have card, not the
+          // critical today's-program data below -- a failure here should
+          // never block the rest of Home from loading.
+          console.warn('Failed to fetch yesterday summary:', err.message ?? err);
+          return null;
+        }),
+      ]);
       setHomeData(data);
       setSwapGroups(groups);
+      setYesterdaySummary(yesterdayMessage);
       setLoadError(null);
       const todayIso = localDateString(new Date());
       if (shouldAttemptFreshRecommendation(data, todayIso, lastAttemptedIsoRef.current)) {
@@ -279,7 +293,6 @@ export default function Home() {
   }
 
   const today = homeData?.today ?? null;
-  const yesterdayRationale = homeData?.yesterdayRationale ?? null;
 
   return (
     <ScrollView
@@ -291,8 +304,8 @@ export default function Home() {
 
       <View style={sharedStyles.card}>
         <Text style={sharedStyles.sectionTitle}>Yesterday</Text>
-        {yesterdayRationale ? (
-          <Text style={TYPE.body}>{yesterdayRationale}</Text>
+        {yesterdaySummary ? (
+          <Text style={TYPE.body}>{yesterdaySummary}</Text>
         ) : (
           <Text style={sharedStyles.helperText}>No summary available for yesterday yet.</Text>
         )}

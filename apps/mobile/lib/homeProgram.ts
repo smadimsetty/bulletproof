@@ -2,17 +2,19 @@
 //
 // Fetches today's full multi-block program (recommendation_blocks +
 // recommendation_block_exercises, joined to exercises for display fields)
-// plus yesterday's already-generated public_rationale, for the Home
-// screen. Deliberately queries the base `recommendations` table, not
-// `recommendations_public` -- the public view excludes `id`, which
-// `recommendation_blocks.recommendation_id` needs to join against, and an
-// authenticated screen reading its own RLS-scoped row is exactly what the
-// base table's `owner_read_recommendations` policy is for. See
+// for the Home screen. Deliberately queries the base `recommendations`
+// table, not `recommendations_public` -- the public view excludes `id`,
+// which `recommendation_blocks.recommendation_id` needs to join against,
+// and an authenticated screen reading its own RLS-scoped row is exactly
+// what the base table's `owner_read_recommendations` policy is for. See
 // docs/superpowers/specs/2026-06-24-home-screen-design.md Decision 1/2/3.
 //
 // No client-side Claude call of any kind happens here or anywhere in this
-// module -- `yesterdayRationale` is read verbatim from the `recommendations`
-// row the nightly engine already wrote.
+// module. This used to also fetch yesterday's already-generated
+// public_rationale for the "Yesterday" card, but that was yesterday's
+// *forecasted recommendation text*, not what actually happened -- it's
+// been replaced by yesterdaySummary.ts's real-outcomes summary (sleep +
+// logged activity), fetched separately by the Home screen.
 import { supabase } from './supabase';
 import { localDateString } from './healthkitMapping';
 import type { SessionType } from './recommendations';
@@ -51,7 +53,6 @@ export interface TodayProgram {
 
 export interface HomeData {
   readonly today: TodayProgram | null;
-  readonly yesterdayRationale: string | null;
 }
 
 interface RawRecommendationRow {
@@ -147,28 +148,20 @@ async function fetchBlocksWithExercises(recommendationId: string): Promise<Progr
 }
 
 /**
- * Fetches everything the Home screen needs to render today's program and
- * yesterday's summary, in one call. `today` is resolved to its local
- * calendar date (matching `recommendations.ts`'s existing local-date
- * convention) -- this is a single screen-level fetch, not three independent
- * ones, per design spec Decision 2.
+ * Fetches everything the Home screen needs to render today's program.
+ * `today` is resolved to its local calendar date (matching
+ * `recommendations.ts`'s existing local-date convention).
  */
 export async function fetchHomeData(today: Date): Promise<HomeData> {
   const todayIso = localDateString(today);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayIso = localDateString(yesterday);
 
   const todayRow = await fetchRecommendationRow(todayIso);
 
   if (!todayRow) {
-    return { today: null, yesterdayRationale: null };
+    return { today: null };
   }
 
-  const [blocks, yesterdayRow] = await Promise.all([
-    fetchBlocksWithExercises(todayRow.id),
-    fetchRecommendationRow(yesterdayIso),
-  ]);
+  const blocks = await fetchBlocksWithExercises(todayRow.id);
 
   return {
     today: {
@@ -180,7 +173,6 @@ export async function fetchHomeData(today: Date): Promise<HomeData> {
       isProvisional: todayRow.score_breakdown?.readiness == null,
       blocks,
     },
-    yesterdayRationale: yesterdayRow?.public_rationale ?? null,
   };
 }
 
