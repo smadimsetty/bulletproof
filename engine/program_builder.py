@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -7,7 +6,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import exercise_catalog_repo
 from program_prompt import SYSTEM_PROMPT, render_catalog_excerpt, render_profile_slice, render_recent_signals
 
-CLAUDE_MODEL = "claude-sonnet-4-6"
+# claude-sonnet-4-6 does not support structured outputs (output_config.format)
+# -- Claude answered every request correctly, but since the API never
+# actually enforced/returned the schema, the SDK's client.messages.parse()
+# had nothing to populate parsed_output from (the JSON came back as a plain
+# text block instead of a structured one), so every call fell back to the
+# template regardless of whether the API key worked. claude-sonnet-5 is the
+# same price tier and is confirmed to support structured outputs.
+CLAUDE_MODEL = "claude-sonnet-5"
 MAX_STRENGTH_EXERCISES_FALLBACK = 4
 MAX_MOBILITY_EXERCISES_FALLBACK = 5
 
@@ -128,7 +134,14 @@ def _call_claude(system, messages, schema):
     client = anthropic.Anthropic()
     return client.messages.parse(
         model=CLAUDE_MODEL,
-        max_tokens=4096,
+        max_tokens=8192,
+        # Explicit disable, not omitted: on claude-sonnet-5, omitting `thinking`
+        # runs adaptive thinking by default (unlike claude-sonnet-4-6, which ran
+        # thinking-off by default) -- adaptive thinking would eat into this same
+        # max_tokens budget before the JSON response is written, risking
+        # truncation. This is a constrained catalog-selection task, not one
+        # that benefits from extended reasoning.
+        thinking={"type": "disabled"},
         system=system,
         messages=messages,
         output_config={"format": {"type": "json_schema", "schema": schema}},
@@ -223,13 +236,6 @@ def build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback
     try:
         response = _call_claude(system, messages, schema)
         parsed = response.parsed_output
-        print(f"TEMP DEBUG parsed_output: {json.dumps(parsed)}", file=sys.stderr)  # TODO remove
-        print(f"TEMP DEBUG gated_blocks: {gated_blocks}", file=sys.stderr)  # TODO remove
-        print(f"TEMP DEBUG stop_reason: {response.stop_reason}", file=sys.stderr)  # TODO remove
-        print(f"TEMP DEBUG model: {response.model}", file=sys.stderr)  # TODO remove
-        for block in response.content:
-            block_text = getattr(block, "text", None)
-            print(f"TEMP DEBUG content_block type={block.type} text={block_text!r}", file=sys.stderr)  # TODO remove
         if parsed is None or not _validate_response(parsed, catalog_excerpt, gated_blocks):
             raise ValueError("Claude response failed the exercise-id/block-type invariant check")
 
