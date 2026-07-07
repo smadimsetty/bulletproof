@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -6,13 +7,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import exercise_catalog_repo
 from program_prompt import SYSTEM_PROMPT, render_catalog_excerpt, render_profile_slice, render_recent_signals
 
-# claude-sonnet-4-6 does not support structured outputs (output_config.format)
-# -- Claude answered every request correctly, but since the API never
-# actually enforced/returned the schema, the SDK's client.messages.parse()
-# had nothing to populate parsed_output from (the JSON came back as a plain
-# text block instead of a structured one), so every call fell back to the
-# template regardless of whether the API key worked. claude-sonnet-5 is the
-# same price tier and is confirmed to support structured outputs.
 CLAUDE_MODEL = "claude-sonnet-5"
 MAX_STRENGTH_EXERCISES_FALLBACK = 4
 MAX_MOBILITY_EXERCISES_FALLBACK = 5
@@ -26,11 +20,7 @@ EXERCISE_BEARING_BLOCK_TYPES = {"upper", "lower", "mobility"}
 
 def _nullable(json_type):
     """Anthropic's structured-outputs schema support documents `anyOf` for
-    unions/nullability, not a bare `"type": [X, "null"]` array -- using the
-    array form silently fails to be enforced as structured output at all
-    (confirmed live: Claude answered correctly every time, but
-    client.messages.parse() never populated parsed_output, for every
-    field using this form)."""
+    unions/nullability, not a bare `"type": [X, "null"]` array."""
     return {"anyOf": [{"type": json_type}, {"type": "null"}]}
 
 
@@ -65,9 +55,11 @@ def _build_exercise_id_enum(catalog_excerpt):
 def _build_output_schema(catalog_excerpt, gated_blocks):
     """Builds the per-request JSON schema for output_config.format.
     exercise_id is constrained to a literal enum of this day's actual
-    catalog-excerpt ids -- a hallucinated id becomes a schema-validation
-    failure inside client.messages.parse() itself, not a silent bad write
-    (design spec Decision 6, anti-hallucination layer 1). block_type gets
+    catalog-excerpt ids -- a hallucinated id becomes a schema violation
+    Claude itself is constrained against at generation time, not a silent
+    bad write (design spec Decision 6, anti-hallucination layer 1; see
+    _validate_response for anti-hallucination layer 2, the independent
+    re-check on the client side). block_type gets
     the same treatment, constrained to today's actual gated_blocks list --
     without this, Claude could return a block_type the deterministic gate
     never decided on (or omit/duplicate one), which would flow straight
@@ -138,11 +130,26 @@ def _call_claude(system, messages, schema):
     importable (and every other function in it testable) even in an
     environment where the package isn't installed yet -- matching this
     codebase's existing pattern of narrow, mockable network boundaries
-    (oura_client.fetch, supabase_client.get/upsert)."""
+    (oura_client.fetch, supabase_client.get/upsert).
+
+    Uses plain messages.create(), not messages.parse(): .parse()'s
+    parsed_output is populated by re-validating the response text against a
+    Python type passed as its own `output_format` argument (e.g. a Pydantic
+    model) -- a completely separate mechanism from `output_config.format`'s
+    raw JSON-schema dict, which only shapes what Claude itself generates.
+    This code was calling .parse() without ever passing output_format, so
+    parsed_output was unconditionally None regardless of whether Claude's
+    response was correct (confirmed by reading anthropic.lib._parse._response
+    .parse_text's source: it returns None whenever output_format is not
+    given). Since the schema passed via output_config already constrains
+    Claude's actual output, and build_daily_program's own _validate_response
+    already independently re-checks it, there is nothing left for SDK-side
+    Pydantic parsing to add -- plain create() + a manual json.loads() of the
+    response text is simpler and correct."""
     import anthropic
 
     client = anthropic.Anthropic()
-    return client.messages.parse(
+    return client.messages.create(
         model=CLAUDE_MODEL,
         max_tokens=8192,
         # Explicit disable, not omitted: on claude-sonnet-5, omitting `thinking`
@@ -219,6 +226,23 @@ def _build_fallback_blocks(gated_blocks, catalog_excerpt):
     return blocks
 
 
+def _extract_parsed_output(response):
+    """Reads Claude's structured-output JSON out of the response ourselves,
+    since messages.create() (unlike messages.parse()) does no client-side
+    deserialization at all. Returns None (treated identically to a parse
+    failure by the caller) if there's no text block or its content isn't
+    valid JSON -- the API-level schema in output_config.format already
+    constrains what Claude generates, so a well-behaved response's first
+    text block is the whole JSON object."""
+    for block in response.content:
+        if block.type == "text":
+            try:
+                return json.loads(block.text)
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
 def _fallback_rationale(gated_blocks):
     blocks_text = ", ".join(gated_blocks)
     internal = f"Fallback template program used (Claude unavailable or response invalid). Blocks: {blocks_text}."
@@ -245,15 +269,7 @@ def build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback
 
     try:
         response = _call_claude(system, messages, schema)
-        parsed = response.parsed_output
-        import json as _json  # TODO remove
-        print(f"TEMP DEBUG2 parsed_output: {_json.dumps(parsed)}", file=sys.stderr)  # TODO remove
-        print(f"TEMP DEBUG2 gated_blocks: {gated_blocks}", file=sys.stderr)  # TODO remove
-        print(f"TEMP DEBUG2 stop_reason: {response.stop_reason}", file=sys.stderr)  # TODO remove
-        print(f"TEMP DEBUG2 model: {response.model}", file=sys.stderr)  # TODO remove
-        for _block in response.content:
-            _block_text = getattr(_block, "text", None)
-            print(f"TEMP DEBUG2 content_block type={_block.type} text={_block_text!r}", file=sys.stderr)  # TODO remove
+        parsed = _extract_parsed_output(response)
         if parsed is None or not _validate_response(parsed, catalog_excerpt, gated_blocks):
             raise ValueError("Claude response failed the exercise-id/block-type invariant check")
 

@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from datetime import date
@@ -8,9 +9,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from program_builder import (
     _build_exercise_id_enum,
     _build_fallback_blocks,
+    _extract_parsed_output,
     _validate_response,
     build_daily_program,
 )
+
+
+def _fake_claude_response(parsed, model="claude-sonnet-5"):
+    """Builds a fake messages.create() response whose content matches what
+    _extract_parsed_output expects: a single text block holding the JSON
+    string, not a `.parsed_output` attribute (that's messages.parse()-only,
+    and unused by this codebase -- see program_builder._call_claude)."""
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = json.dumps(parsed)
+    response = MagicMock()
+    response.content = [text_block]
+    response.model = model
+    return response
 
 PROFILE = {
     "owner_id": "00000000-0000-0000-0000-000000000000",
@@ -194,9 +210,7 @@ def test_build_daily_program_falls_back_on_invalid_exercise_id():
         ],
         "rationale_internal": "x", "rationale_public": "x",
     }
-    fake_response = MagicMock()
-    fake_response.parsed_output = fake_parsed
-    fake_response.model = "claude-sonnet-4-6"
+    fake_response = _fake_claude_response(fake_parsed)
     fake_response.usage.input_tokens = 100
     fake_response.usage.output_tokens = 50
     fake_response.usage.cache_creation_input_tokens = 0
@@ -222,9 +236,7 @@ def test_build_daily_program_uses_claude_result_on_success():
         ],
         "rationale_internal": "internal", "rationale_public": "public",
     }
-    fake_response = MagicMock()
-    fake_response.parsed_output = fake_parsed
-    fake_response.model = "claude-sonnet-4-6"
+    fake_response = _fake_claude_response(fake_parsed)
     fake_response.usage.input_tokens = 7000
     fake_response.usage.output_tokens = 800
     fake_response.usage.cache_creation_input_tokens = 6000
@@ -238,7 +250,7 @@ def test_build_daily_program_uses_claude_result_on_success():
         )
 
     assert result["program_generated_by"] == "claude"
-    assert result["claude_model"] == "claude-sonnet-4-6"
+    assert result["claude_model"] == "claude-sonnet-5"
     assert result["claude_usage"]["input_tokens"] == 7000
     assert result["blocks"][0]["exercises"][0]["exercise_id"] == "11111111-1111-1111-1111-111111111111"
     assert "Bryan Johnson" not in result["public_rationale"]
@@ -249,9 +261,7 @@ def test_build_daily_program_public_rationale_never_names_grounding_experts():
         "blocks": [], "rationale_internal": "internal",
         "rationale_public": "Today is a lower body day focused on resilience.",
     }
-    fake_response = MagicMock()
-    fake_response.parsed_output = fake_parsed
-    fake_response.model = "claude-sonnet-4-6"
+    fake_response = _fake_claude_response(fake_parsed)
     fake_response.usage.input_tokens = 1
     fake_response.usage.output_tokens = 1
     fake_response.usage.cache_creation_input_tokens = 0
@@ -266,3 +276,28 @@ def test_build_daily_program_public_rationale_never_names_grounding_experts():
 
     for name in ["Bryan Johnson", "Jeff Cavaliere", "Mike Mentzer", "Jeff Nippard", "Andrew Huberman"]:
         assert name not in result["public_rationale"]
+
+
+def test_extract_parsed_output_reads_the_text_block():
+    parsed = {"blocks": [], "rationale_internal": "x", "rationale_public": "y"}
+    response = _fake_claude_response(parsed)
+    assert _extract_parsed_output(response) == parsed
+
+
+def test_extract_parsed_output_returns_none_for_invalid_json():
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "not valid json {"
+    response = MagicMock()
+    response.content = [text_block]
+
+    assert _extract_parsed_output(response) is None
+
+
+def test_extract_parsed_output_returns_none_when_no_text_block():
+    non_text_block = MagicMock()
+    non_text_block.type = "thinking"
+    response = MagicMock()
+    response.content = [non_text_block]
+
+    assert _extract_parsed_output(response) is None
