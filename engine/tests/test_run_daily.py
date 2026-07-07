@@ -170,6 +170,16 @@ def test_recommendation_already_fresh_false_when_readiness_null():
         assert run_daily.recommendation_already_fresh(date(2026, 6, 26)) is False
 
 
+def test_recommendation_already_fresh_true_when_manual_swap_even_with_null_readiness():
+    import run_daily
+
+    with patch(
+        "run_daily.supabase_client.get",
+        return_value=[{"score_breakdown": {"readiness": None, "manual_swap": True}}],
+    ):
+        assert run_daily.recommendation_already_fresh(date(2026, 6, 26)) is True
+
+
 def test_recommendation_already_fresh_queries_correct_table_and_filter():
     import run_daily
 

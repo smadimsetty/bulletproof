@@ -9,20 +9,32 @@
 // activity exists, show activity; if both, show both; if neither, say so
 // honestly -- see CLAUDE.md's most recent status entries for the full ask.
 //
-// Sleep prefers `recovery` (Oura, written server-side by the nightly
-// engine) and falls back to a live, read-only single-day HealthKit query
-// only when Oura has no sleep_hrs for the date -- nothing is written to
-// `recovery` here (its `source` check constraint only allows
-// 'oura'/'manual', not 'healthkit', and this is a display-only feature
-// that doesn't warrant a migration). Activity prefers a logged `sessions`
-// row (richer signal: has a type and felt_rating) and falls back to a
-// HealthKit-detected workout from the `activity` table, which is already
-// kept in sync by existing app logic.
+// Sleep prefers a live, read-only single-day HealthKit query (gated on the
+// user's healthkit_sync_enabled toggle) and falls back to `recovery`
+// (Oura, written server-side by the nightly engine) only when HealthKit
+// has nothing -- HealthKit is queried fresh every time this card loads,
+// while the engine's Oura pull happens once at a fixed time and never
+// retries, so it can be permanently null for a date even after Oura
+// syncs later that day. Nothing is written to `recovery` here (its
+// `source` check constraint only allows 'oura'/'manual', not 'healthkit',
+// and this is a display-only feature that doesn't warrant a migration).
+// Activity prefers a logged `sessions` row (richer signal: has a type and
+// felt_rating) and falls back to a HealthKit-detected workout from the
+// `activity` table, which is already kept in sync by existing app logic
+// (and is already HealthKit-only -- the engine never writes to `activity`
+// from Oura).
 import { supabase } from './supabase';
 import { localDateString } from './healthkitMapping';
-import { fetchHealthKitSleepHoursForDate } from './healthkitSync';
+import { fetchHealthKitSleepHoursForDate, isHealthKitSyncEnabled } from './healthkitSync';
 import { labelForSessionType } from './sessionTypeLabels';
 import type { SessionType } from './recommendations';
+
+/** Sleep hours at/above this count alongside no logged/detected activity
+ * yesterday reads as "well rested, light day" -- a good day to push hard. */
+const GOOD_SLEEP_HOURS_THRESHOLD = 7;
+/** Sleep hours below this reads as short enough to call out regardless of
+ * yesterday's activity. */
+const LOW_SLEEP_HOURS_THRESHOLD = 6;
 
 export interface YesterdaySleep {
   readonly hours: number | null;
@@ -51,10 +63,32 @@ function capitalize(word: string): string {
 }
 
 /**
+ * Rules-based, deterministic (no Claude call) observation about yesterday,
+ * shown as a second line on the Yesterday card. Deliberately conservative:
+ * silent unless sleep crosses a clear threshold, since this is an
+ * observation sitting alongside today's actual engine-decided program, not
+ * a second recommendation competing with it.
+ */
+export function buildYesterdayInsightLine(
+  sleep: YesterdaySleep,
+  activity: YesterdayActivity
+): string | null {
+  if (sleep.hours == null) {
+    return null;
+  }
+  if (sleep.hours < LOW_SLEEP_HOURS_THRESHOLD) {
+    return 'Short on sleep last night — consider easing up today.';
+  }
+  if (sleep.hours >= GOOD_SLEEP_HOURS_THRESHOLD && activity.description == null) {
+    return 'Well rested with a light day yesterday — good day to push hard.';
+  }
+  return null;
+}
+
+/**
  * Pure composition of the final "Yesterday" card message from already-
  * resolved sleep/activity data. Exported and tested directly so the
- * four-way branching logic doesn't need a supabase or HealthKit mock to
- * verify.
+ * branching logic doesn't need a supabase or HealthKit mock to verify.
  */
 export function buildYesterdaySummaryMessage(
   sleep: YesterdaySleep,
@@ -67,20 +101,22 @@ export function buildYesterdaySummaryMessage(
         }.`
       : null;
   const activityPart = activity.description ? `You did ${activity.description} yesterday.` : null;
+  const insightPart = buildYesterdayInsightLine(sleep, activity);
 
-  if (sleepPart && activityPart) {
-    return `${sleepPart} ${activityPart}`;
-  }
-  if (sleepPart) {
-    return sleepPart;
-  }
-  if (activityPart) {
-    return activityPart;
-  }
-  return 'No data from yesterday.';
+  const parts = [sleepPart, activityPart, insightPart].filter(
+    (part): part is string => part != null
+  );
+  return parts.length > 0 ? parts.join(' ') : 'No data from yesterday.';
 }
 
 async function fetchYesterdaySleep(dateIso: string, dateForHealthKit: Date): Promise<YesterdaySleep> {
+  if (await isHealthKitSyncEnabled()) {
+    const healthKitHours = await fetchHealthKitSleepHoursForDate(dateForHealthKit);
+    if (healthKitHours != null) {
+      return { hours: healthKitHours, source: 'healthkit' };
+    }
+  }
+
   const { data, error } = await supabase
     .from('recovery')
     .select('sleep_hrs')
@@ -94,11 +130,6 @@ async function fetchYesterdaySleep(dateIso: string, dateForHealthKit: Date): Pro
   const ouraSleepHrs = (data as RawRecoveryRow | null)?.sleep_hrs ?? null;
   if (ouraSleepHrs != null) {
     return { hours: ouraSleepHrs, source: 'oura' };
-  }
-
-  const healthKitHours = await fetchHealthKitSleepHoursForDate(dateForHealthKit);
-  if (healthKitHours != null) {
-    return { hours: healthKitHours, source: 'healthkit' };
   }
 
   return { hours: null, source: null };

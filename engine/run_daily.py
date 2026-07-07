@@ -95,17 +95,25 @@ def build_block_exercise_rows(block_ids, blocks):
 
 def recommendation_already_fresh(today):
     """True if today's recommendations row already reflects real (non-null)
-    Oura readiness -- meaning an earlier run today (cron or on-demand)
-    already did the real work and this run should be a no-op. A missing
-    row, or a row whose score_breakdown.readiness is still null (an
-    earlier run before Oura had synced), is not considered fresh."""
+    Oura readiness, OR was written by a manual swap (swap_activity.py) --
+    either means an earlier run today already did the real work and this
+    run should be a no-op. A missing row, or a row whose
+    score_breakdown.readiness is still null and wasn't a manual swap (an
+    earlier run before Oura had synced), is not considered fresh.
+
+    The manual_swap check matters because readiness is very often null
+    (no Anthropic key/Oura sync yet) -- without it, a swap always looks
+    "not fresh" to this guard, so a later on-demand trigger (e.g. a
+    pull-to-refresh) would silently rerun the full scoring pipeline and
+    overwrite the user's manual swap."""
     existing = supabase_client.get(
         "recommendations",
         {"select": "score_breakdown", "date": f"eq.{today.isoformat()}"},
     )
     if not existing:
         return False
-    return (existing[0].get("score_breakdown") or {}).get("readiness") is not None
+    breakdown = existing[0].get("score_breakdown") or {}
+    return breakdown.get("readiness") is not None or breakdown.get("manual_swap") is True
 
 
 def main():

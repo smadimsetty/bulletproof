@@ -21,6 +21,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          # Quick latency win: caches pip's download/build cache keyed on
+          # engine/pyproject.toml's hash, so `pip install -e ./engine`
+          # doesn't redownload anthropic + its transitive deps on every
+          # swap. Doesn't touch the bigger latency source (GitHub Actions
+          # dispatch + runner boot), just trims the install step.
+          cache: "pip"
+          cache-dependency-path: engine/pyproject.toml
 
       - name: Install engine dependencies
         run: pip install -e ./engine

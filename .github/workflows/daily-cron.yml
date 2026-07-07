@@ -19,6 +19,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: engine/pyproject.toml
 
       - name: Install engine dependencies
         # Engine v2 added a real runtime dependency (the `anthropic` SDK,
