@@ -9,20 +9,31 @@
 // activity exists, show activity; if both, show both; if neither, say so
 // honestly -- see CLAUDE.md's most recent status entries for the full ask.
 //
-// Sleep prefers a live, read-only single-day HealthKit query (gated on the
-// user's healthkit_sync_enabled toggle) and falls back to `recovery`
-// (Oura, written server-side by the nightly engine) only when HealthKit
-// has nothing -- HealthKit is queried fresh every time this card loads,
-// while the engine's Oura pull happens once at a fixed time and never
-// retries, so it can be permanently null for a date even after Oura
-// syncs later that day. Nothing is written to `recovery` here (its
-// `source` check constraint only allows 'oura'/'manual', not 'healthkit',
-// and this is a display-only feature that doesn't warrant a migration).
-// Activity prefers a logged `sessions` row (richer signal: has a type and
+// Sleep comes exclusively from a live, read-only HealthKit query (gated on
+// the user's healthkit_sync_enabled toggle) for *last night* -- the night
+// ending this morning, not the night ending yesterday morning. Oura is not
+// consulted for sleep at all: Oura already writes into HealthKit, and the
+// engine's own once-daily Oura API pull happens at a fixed time and never
+// retries, so it can miss a date's readiness/sleep entirely even after
+// Oura's cloud has it (confirmed live 2026-07-06 -- Oura's own app showed
+// a night's sleep the engine's `recovery` row for that date never
+// captured, and HealthKit hadn't backfilled it either). Nothing is
+// written to `recovery` here regardless -- this is a display-only feature.
+//
+// Getting "last night" right requires passing `today` (not `yesterday`)
+// into fetchHealthKitSleepHoursForDate: that function's window is
+// [date-1 noon, date noon], i.e. "the night ending on the morning of
+// `date`" -- so `date=today` yields the night of yesterday evening
+// through this morning, which is what "last night" means when this card
+// is viewed today. Passing `yesterday` (the original, wrong version of
+// this file) instead surfaced the night ending *yesterday* morning --
+// one full night too early, and effectively unrecoverable if that older
+// night was never synced.
+//
+// Activity stays attributed to yesterday's calendar day (unchanged):
+// prefers a logged `sessions` row (richer signal: has a type and
 // felt_rating) and falls back to a HealthKit-detected workout from the
-// `activity` table, which is already kept in sync by existing app logic
-// (and is already HealthKit-only -- the engine never writes to `activity`
-// from Oura).
+// `activity` table, which is already kept in sync by existing app logic.
 import { supabase } from './supabase';
 import { localDateString } from './healthkitMapping';
 import { fetchHealthKitSleepHoursForDate, isHealthKitSyncEnabled } from './healthkitSync';
@@ -38,15 +49,10 @@ const LOW_SLEEP_HOURS_THRESHOLD = 6;
 
 export interface YesterdaySleep {
   readonly hours: number | null;
-  readonly source: 'oura' | 'healthkit' | null;
 }
 
 export interface YesterdayActivity {
   readonly description: string | null;
-}
-
-interface RawRecoveryRow {
-  sleep_hrs: number | null;
 }
 
 interface RawSessionRow {
@@ -63,11 +69,12 @@ function capitalize(word: string): string {
 }
 
 /**
- * Rules-based, deterministic (no Claude call) observation about yesterday,
- * shown as a second line on the Yesterday card. Deliberately conservative:
- * silent unless sleep crosses a clear threshold, since this is an
- * observation sitting alongside today's actual engine-decided program, not
- * a second recommendation competing with it.
+ * Rules-based, deterministic (no Claude call) observation about last
+ * night/yesterday, shown as a second line on the Yesterday card.
+ * Deliberately conservative: silent unless sleep crosses a clear
+ * threshold, since this is an observation sitting alongside today's
+ * actual engine-decided program, not a second recommendation competing
+ * with it.
  */
 export function buildYesterdayInsightLine(
   sleep: YesterdaySleep,
@@ -95,11 +102,7 @@ export function buildYesterdaySummaryMessage(
   activity: YesterdayActivity
 ): string {
   const sleepPart =
-    sleep.hours != null
-      ? `Slept ${sleep.hours.toFixed(1)}h last night${
-          sleep.source === 'healthkit' ? ' (via Apple Health)' : ''
-        }.`
-      : null;
+    sleep.hours != null ? `Slept ${sleep.hours.toFixed(1)}h last night (via Apple Health).` : null;
   const activityPart = activity.description ? `You did ${activity.description} yesterday.` : null;
   const insightPart = buildYesterdayInsightLine(sleep, activity);
 
@@ -109,30 +112,18 @@ export function buildYesterdaySummaryMessage(
   return parts.length > 0 ? parts.join(' ') : 'No data from yesterday.';
 }
 
-async function fetchYesterdaySleep(dateIso: string, dateForHealthKit: Date): Promise<YesterdaySleep> {
-  if (await isHealthKitSyncEnabled()) {
-    const healthKitHours = await fetchHealthKitSleepHoursForDate(dateForHealthKit);
-    if (healthKitHours != null) {
-      return { hours: healthKitHours, source: 'healthkit' };
-    }
+/**
+ * `today` (not `yesterday`) is deliberate -- see this module's header
+ * comment. fetchHealthKitSleepHoursForDate's window is "the night ending
+ * on the morning of the given date", so passing today's date is what
+ * yields last night's sleep.
+ */
+async function fetchLastNightSleep(today: Date): Promise<YesterdaySleep> {
+  if (!(await isHealthKitSyncEnabled())) {
+    return { hours: null };
   }
-
-  const { data, error } = await supabase
-    .from('recovery')
-    .select('sleep_hrs')
-    .eq('date', dateIso)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const ouraSleepHrs = (data as RawRecoveryRow | null)?.sleep_hrs ?? null;
-  if (ouraSleepHrs != null) {
-    return { hours: ouraSleepHrs, source: 'oura' };
-  }
-
-  return { hours: null, source: null };
+  const hours = await fetchHealthKitSleepHoursForDate(today);
+  return { hours };
 }
 
 async function fetchYesterdayActivity(dateIso: string): Promise<YesterdayActivity> {
@@ -163,10 +154,11 @@ async function fetchYesterdayActivity(dateIso: string): Promise<YesterdayActivit
 }
 
 /**
- * Fetches yesterday's real sleep + activity outcomes and composes the
- * final "Yesterday" card message. `today` is resolved to its local
- * calendar date and stepped back one day, matching homeProgram.ts's
- * existing local-date convention.
+ * Fetches last night's sleep + yesterday's activity outcomes and composes
+ * the final "Yesterday" card message. `today` is resolved to its local
+ * calendar date; activity looks at the calendar day before it, sleep
+ * looks at the night ending this morning (see header comment for why
+ * these are deliberately different dates).
  */
 export async function fetchYesterdaySummaryMessage(today: Date): Promise<string> {
   const yesterday = new Date(today);
@@ -174,7 +166,7 @@ export async function fetchYesterdaySummaryMessage(today: Date): Promise<string>
   const yesterdayIso = localDateString(yesterday);
 
   const [sleep, activity] = await Promise.all([
-    fetchYesterdaySleep(yesterdayIso, yesterday),
+    fetchLastNightSleep(today),
     fetchYesterdayActivity(yesterdayIso),
   ]);
 

@@ -12,59 +12,54 @@ describe('buildYesterdayInsightLine', () => {
   const hadActivity: YesterdayActivity = { description: 'Pickleball' };
 
   test('no sleep data -> no insight', () => {
-    expect(buildYesterdayInsightLine({ hours: null, source: null }, noActivity)).toBeNull();
+    expect(buildYesterdayInsightLine({ hours: null }, noActivity)).toBeNull();
   });
 
   test('good sleep + no activity -> push-hard insight', () => {
-    const sleep: YesterdaySleep = { hours: 7.5, source: 'healthkit' };
+    const sleep: YesterdaySleep = { hours: 7.5 };
     expect(buildYesterdayInsightLine(sleep, noActivity)).toBe(
       'Well rested with a light day yesterday — good day to push hard.'
     );
   });
 
   test('good sleep + had activity -> no push-hard insight (already an active day)', () => {
-    const sleep: YesterdaySleep = { hours: 7.5, source: 'healthkit' };
+    const sleep: YesterdaySleep = { hours: 7.5 };
     expect(buildYesterdayInsightLine(sleep, hadActivity)).toBeNull();
   });
 
   test('low sleep -> ease-up insight regardless of activity', () => {
-    const sleep: YesterdaySleep = { hours: 5.5, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 5.5 };
     expect(buildYesterdayInsightLine(sleep, hadActivity)).toBe(
       'Short on sleep last night — consider easing up today.'
     );
   });
 
   test('sleep exactly at the low threshold does not trigger the ease-up insight', () => {
-    const sleep: YesterdaySleep = { hours: 6, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 6 };
     expect(buildYesterdayInsightLine(sleep, noActivity)).toBeNull();
   });
 
   test('sleep exactly at the good threshold with no activity triggers push-hard', () => {
-    const sleep: YesterdaySleep = { hours: 7, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 7 };
     expect(buildYesterdayInsightLine(sleep, noActivity)).toBe(
       'Well rested with a light day yesterday — good day to push hard.'
     );
   });
 
   test('mid-range sleep with no activity -> no insight either way', () => {
-    const sleep: YesterdaySleep = { hours: 6.5, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 6.5 };
     expect(buildYesterdayInsightLine(sleep, noActivity)).toBeNull();
   });
 });
 
 describe('buildYesterdaySummaryMessage', () => {
-  const noSleep: YesterdaySleep = { hours: null, source: null };
+  const noSleep: YesterdaySleep = { hours: null };
   const noActivity: YesterdayActivity = { description: null };
 
-  test('sleep only (oura), mid-range hours -> describes sleep with no source qualifier, no insight', () => {
-    const sleep: YesterdaySleep = { hours: 6.5, source: 'oura' };
-    expect(buildYesterdaySummaryMessage(sleep, noActivity)).toBe('Slept 6.5h last night.');
-  });
-
-  test('sleep only (healthkit), mid-range hours -> describes sleep with an Apple Health qualifier', () => {
-    const sleep: YesterdaySleep = { hours: 6.8, source: 'healthkit' };
+  test('sleep only, mid-range hours -> describes sleep with no insight', () => {
+    const sleep: YesterdaySleep = { hours: 6.5 };
     expect(buildYesterdaySummaryMessage(sleep, noActivity)).toBe(
-      'Slept 6.8h last night (via Apple Health).'
+      'Slept 6.5h last night (via Apple Health).'
     );
   });
 
@@ -74,18 +69,10 @@ describe('buildYesterdaySummaryMessage', () => {
   });
 
   test('both sleep and activity, mid-range hours -> combines both into one message', () => {
-    const sleep: YesterdaySleep = { hours: 6.5, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 6.5 };
     const activity: YesterdayActivity = { description: 'Lower Body' };
     expect(buildYesterdaySummaryMessage(sleep, activity)).toBe(
-      'Slept 6.5h last night. You did Lower Body yesterday.'
-    );
-  });
-
-  test('both, with a healthkit sleep source -> qualifier included alongside activity', () => {
-    const sleep: YesterdaySleep = { hours: 6.8, source: 'healthkit' };
-    const activity: YesterdayActivity = { description: 'Run' };
-    expect(buildYesterdaySummaryMessage(sleep, activity)).toBe(
-      'Slept 6.8h last night (via Apple Health). You did Run yesterday.'
+      'Slept 6.5h last night (via Apple Health). You did Lower Body yesterday.'
     );
   });
 
@@ -94,22 +81,24 @@ describe('buildYesterdaySummaryMessage', () => {
   });
 
   test('good sleep + no activity -> sleep sentence plus push-hard insight', () => {
-    const sleep: YesterdaySleep = { hours: 7.2, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 7.2 };
     expect(buildYesterdaySummaryMessage(sleep, noActivity)).toBe(
-      'Slept 7.2h last night. Well rested with a light day yesterday — good day to push hard.'
+      'Slept 7.2h last night (via Apple Health). Well rested with a light day yesterday — good day to push hard.'
     );
   });
 
   test('sleep hours of exactly 0 still counts as real sleep data and triggers the ease-up insight', () => {
-    const sleep: YesterdaySleep = { hours: 0, source: 'oura' };
+    const sleep: YesterdaySleep = { hours: 0 };
     expect(buildYesterdaySummaryMessage(sleep, noActivity)).toBe(
-      'Slept 0.0h last night. Short on sleep last night — consider easing up today.'
+      'Slept 0.0h last night (via Apple Health). Short on sleep last night — consider easing up today.'
     );
   });
 
   test('rounds sleep hours to one decimal place', () => {
-    const sleep: YesterdaySleep = { hours: 6.166666, source: 'oura' };
-    expect(buildYesterdaySummaryMessage(sleep, noActivity)).toBe('Slept 6.2h last night.');
+    const sleep: YesterdaySleep = { hours: 6.166666 };
+    expect(buildYesterdaySummaryMessage(sleep, noActivity)).toBe(
+      'Slept 6.2h last night (via Apple Health).'
+    );
   });
 });
 
@@ -133,20 +122,10 @@ const TODAY = new Date(2026, 5, 24, 12, 0, 0); // 2026-06-24 local noon
 const YESTERDAY_ISO = '2026-06-23';
 
 function installSupabaseMock(config: {
-  recovery?: { data: unknown; error: unknown };
   sessions?: { data: unknown; error: unknown };
   activity?: { data: unknown; error: unknown };
 }) {
   (supabase.from as jest.Mock).mockImplementation((table: string) => {
-    if (table === 'recovery') {
-      const response = config.recovery ?? { data: null, error: null };
-      const chain: any = {
-        select: jest.fn(() => chain),
-        eq: jest.fn(() => chain),
-        maybeSingle: jest.fn(() => Promise.resolve(response)),
-      };
-      return chain;
-    }
     if (table === 'sessions') {
       const response = config.sessions ?? { data: [], error: null };
       const chain: any = {
@@ -171,17 +150,13 @@ function installSupabaseMock(config: {
 describe('fetchYesterdaySummaryMessage', () => {
   beforeEach(() => {
     (fetchHealthKitSleepHoursForDate as jest.Mock).mockReset();
-    // Default: HealthKit sync off, so tests not focused on the HealthKit
-    // path exercise the Oura fallback exactly like before this feature.
-    (isHealthKitSyncEnabled as jest.Mock).mockReset().mockResolvedValue(false);
+    (isHealthKitSyncEnabled as jest.Mock).mockReset().mockResolvedValue(true);
   });
 
-  test('prefers HealthKit sleep over Oura when sync is enabled and HealthKit has data', async () => {
+  test('queries HealthKit for last night using TODAY (not yesterday), since the window is "night ending on this date"', async () => {
     installSupabaseMock({
-      recovery: { data: { sleep_hrs: 8 }, error: null },
       sessions: { data: [{ type: 'lower', felt_rating: 4 }], error: null },
     });
-    (isHealthKitSyncEnabled as jest.Mock).mockResolvedValue(true);
     (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(6.5);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
@@ -191,43 +166,27 @@ describe('fetchYesterdaySummaryMessage', () => {
     const calledWith = (fetchHealthKitSleepHoursForDate as jest.Mock).mock.calls[0][0] as Date;
     expect(calledWith.getFullYear()).toBe(2026);
     expect(calledWith.getMonth()).toBe(5);
-    expect(calledWith.getDate()).toBe(23);
+    expect(calledWith.getDate()).toBe(24); // TODAY's date, not YESTERDAY's
   });
 
-  test('falls back to Oura sleep_hrs when HealthKit sync is disabled', async () => {
+  test('returns no sleep data (and never queries HealthKit) when healthkit_sync_enabled is off', async () => {
     installSupabaseMock({
-      recovery: { data: { sleep_hrs: 6.5 }, error: null },
       sessions: { data: [], error: null },
       activity: { data: null, error: null },
     });
+    (isHealthKitSyncEnabled as jest.Mock).mockResolvedValue(false);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
 
-    expect(message).toBe('Slept 6.5h last night.');
+    expect(message).toBe('No data from yesterday.');
     expect(fetchHealthKitSleepHoursForDate).not.toHaveBeenCalled();
   });
 
-  test('falls back to Oura sleep_hrs when HealthKit sync is enabled but returns no data', async () => {
+  test('returns no sleep data when HealthKit sync is enabled but has nothing for that night', async () => {
     installSupabaseMock({
-      recovery: { data: { sleep_hrs: 6.5 }, error: null },
       sessions: { data: [], error: null },
       activity: { data: null, error: null },
     });
-    (isHealthKitSyncEnabled as jest.Mock).mockResolvedValue(true);
-    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
-
-    const message = await fetchYesterdaySummaryMessage(TODAY);
-
-    expect(message).toBe('Slept 6.5h last night.');
-  });
-
-  test('returns no sleep data when HealthKit sync is enabled but both HealthKit and Oura have nothing', async () => {
-    installSupabaseMock({
-      recovery: { data: null, error: null },
-      sessions: { data: [], error: null },
-      activity: { data: null, error: null },
-    });
-    (isHealthKitSyncEnabled as jest.Mock).mockResolvedValue(true);
     (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
@@ -237,13 +196,13 @@ describe('fetchYesterdaySummaryMessage', () => {
 
   test('describes a HealthKit-detected workout from the activity table when no session was logged', async () => {
     installSupabaseMock({
-      recovery: { data: null, error: null },
       sessions: { data: [], error: null },
       activity: {
         data: { workout_count: 1, workouts: [{ activity: 'pickleball' }] },
         error: null,
       },
     });
+    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
 
@@ -252,13 +211,13 @@ describe('fetchYesterdaySummaryMessage', () => {
 
   test('prefers the logged session over the activity table when both exist', async () => {
     installSupabaseMock({
-      recovery: { data: null, error: null },
       sessions: { data: [{ type: 'run', felt_rating: null }], error: null },
       activity: {
         data: { workout_count: 1, workouts: [{ activity: 'pickleball' }] },
         error: null,
       },
     });
+    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
 
@@ -267,10 +226,10 @@ describe('fetchYesterdaySummaryMessage', () => {
 
   test('says there is no data when neither sleep nor activity is available', async () => {
     installSupabaseMock({
-      recovery: { data: null, error: null },
       sessions: { data: [], error: null },
       activity: { data: null, error: null },
     });
+    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
 
@@ -279,30 +238,44 @@ describe('fetchYesterdaySummaryMessage', () => {
 
   test('an activity row with workout_count of 0 does not count as activity', async () => {
     installSupabaseMock({
-      recovery: { data: null, error: null },
       sessions: { data: [], error: null },
       activity: { data: { workout_count: 0, workouts: [] }, error: null },
     });
+    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
 
     const message = await fetchYesterdaySummaryMessage(TODAY);
 
     expect(message).toBe('No data from yesterday.');
   });
 
-  test('throws if the recovery query returns an error', async () => {
-    installSupabaseMock({
-      recovery: { data: null, error: { message: 'network down' } },
-    });
-
-    await expect(fetchYesterdaySummaryMessage(TODAY)).rejects.toThrow('network down');
-  });
-
   test('throws if the sessions query returns an error', async () => {
     installSupabaseMock({
-      recovery: { data: null, error: null },
       sessions: { data: null, error: { message: 'sessions query failed' } },
     });
+    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
 
     await expect(fetchYesterdaySummaryMessage(TODAY)).rejects.toThrow('sessions query failed');
+  });
+
+  test('activity is still attributed to the calendar day before today (yesterday), unlike sleep', async () => {
+    const sessionsEq = jest.fn(() => Promise.resolve({ data: [{ type: 'mobility', felt_rating: 3 }], error: null }));
+    const activityEq = jest.fn(() => activityChain);
+    const activityChain: any = { select: jest.fn(() => activityChain), eq: activityEq, maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })) };
+    (supabase.from as jest.Mock).mockImplementation((table: string) => {
+      if (table === 'sessions') {
+        const chain: any = { select: jest.fn(() => chain), eq: sessionsEq };
+        return chain;
+      }
+      if (table === 'activity') {
+        return activityChain;
+      }
+      throw new Error(`unexpected table in test: ${table}`);
+    });
+    (fetchHealthKitSleepHoursForDate as jest.Mock).mockResolvedValue(null);
+
+    await fetchYesterdaySummaryMessage(TODAY);
+
+    expect(sessionsEq).toHaveBeenCalledWith('date', YESTERDAY_ISO);
+    expect(activityEq).toHaveBeenCalledWith('date', YESTERDAY_ISO);
   });
 });
