@@ -236,6 +236,14 @@ def build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback
     try:
         response = _call_claude(system, messages, schema)
         parsed = response.parsed_output
+        import json as _json  # TODO remove
+        print(f"TEMP DEBUG2 parsed_output: {_json.dumps(parsed)}", file=sys.stderr)  # TODO remove
+        print(f"TEMP DEBUG2 gated_blocks: {gated_blocks}", file=sys.stderr)  # TODO remove
+        print(f"TEMP DEBUG2 stop_reason: {response.stop_reason}", file=sys.stderr)  # TODO remove
+        print(f"TEMP DEBUG2 model: {response.model}", file=sys.stderr)  # TODO remove
+        for _block in response.content:
+            _block_text = getattr(_block, "text", None)
+            print(f"TEMP DEBUG2 content_block type={_block.type} text={_block_text!r}", file=sys.stderr)  # TODO remove
         if parsed is None or not _validate_response(parsed, catalog_excerpt, gated_blocks):
             raise ValueError("Claude response failed the exercise-id/block-type invariant check")
 
