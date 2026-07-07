@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -222,6 +223,8 @@ def build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback
     try:
         response = _call_claude(system, messages, schema)
         parsed = response.parsed_output
+        print(f"TEMP DEBUG parsed_output: {json.dumps(parsed)}", file=sys.stderr)  # TODO remove
+        print(f"TEMP DEBUG gated_blocks: {gated_blocks}", file=sys.stderr)  # TODO remove
         if parsed is None or not _validate_response(parsed, catalog_excerpt, gated_blocks):
             raise ValueError("Claude response failed the exercise-id/block-type invariant check")
 
