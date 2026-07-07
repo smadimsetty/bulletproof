@@ -24,16 +24,26 @@ MAX_MOBILITY_EXERCISES_FALLBACK = 5
 EXERCISE_BEARING_BLOCK_TYPES = {"upper", "lower", "mobility"}
 
 
+def _nullable(json_type):
+    """Anthropic's structured-outputs schema support documents `anyOf` for
+    unions/nullability, not a bare `"type": [X, "null"]` array -- using the
+    array form silently fails to be enforced as structured output at all
+    (confirmed live: Claude answered correctly every time, but
+    client.messages.parse() never populated parsed_output, for every
+    field using this form)."""
+    return {"anyOf": [{"type": json_type}, {"type": "null"}]}
+
+
 def _exercise_output_schema():
     return {
         "type": "object",
         "properties": {
             "exercise_id": {"type": "string"},
-            "sets": {"type": ["integer", "null"]},
-            "reps": {"type": ["string", "null"]},
-            "weight_note": {"type": ["string", "null"]},
+            "sets": _nullable("integer"),
+            "reps": _nullable("string"),
+            "weight_note": _nullable("string"),
             "unilateral_left_first": {"type": "boolean"},
-            "notes": {"type": ["string", "null"]},
+            "notes": _nullable("string"),
         },
         "required": ["exercise_id", "sets", "reps", "weight_note", "unilateral_left_first", "notes"],
         "additionalProperties": False,
@@ -78,7 +88,7 @@ def _build_output_schema(catalog_excerpt, gated_blocks):
                     "properties": {
                         "block_type": {"type": "string", "enum": list(gated_blocks)},
                         "title": {"type": "string"},
-                        "estimated_minutes": {"type": ["integer", "null"]},
+                        "estimated_minutes": _nullable("integer"),
                         "exercises": {"type": "array", "items": exercise_schema},
                     },
                     "required": ["block_type", "title", "estimated_minutes", "exercises"],
