@@ -225,6 +225,11 @@ def build_daily_program(today, gated_blocks, profile, breakdown, recent_feedback
         parsed = response.parsed_output
         print(f"TEMP DEBUG parsed_output: {json.dumps(parsed)}", file=sys.stderr)  # TODO remove
         print(f"TEMP DEBUG gated_blocks: {gated_blocks}", file=sys.stderr)  # TODO remove
+        print(f"TEMP DEBUG stop_reason: {response.stop_reason}", file=sys.stderr)  # TODO remove
+        print(f"TEMP DEBUG model: {response.model}", file=sys.stderr)  # TODO remove
+        for block in response.content:
+            block_text = getattr(block, "text", None)
+            print(f"TEMP DEBUG content_block type={block.type} text={block_text!r}", file=sys.stderr)  # TODO remove
         if parsed is None or not _validate_response(parsed, catalog_excerpt, gated_blocks):
             raise ValueError("Claude response failed the exercise-id/block-type invariant check")
 
