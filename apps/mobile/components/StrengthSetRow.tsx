@@ -14,19 +14,22 @@
 // never renumbers the rest, so a mid-list delete can't silently
 // reassign a different set's saved log to a new number.
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
 import { deleteExerciseLog, upsertExerciseLog } from '../lib/exerciseLogs';
+import { displayUnitToKg, formatWeightForDisplay } from '../lib/units';
 import SwipeToDelete from './SwipeToDelete';
 import type { LoggerExercise } from '../lib/loggerBlock';
 import type { ExerciseLogRow } from '../lib/exerciseLogs';
 import type { SessionType } from '../lib/recommendations';
+import type { WeightUnit } from '../lib/units';
 
 export interface StrengthSetRowProps {
   readonly exercise: LoggerExercise;
   readonly blockType: SessionType;
   readonly existingLogs: readonly ExerciseLogRow[];
+  readonly weightUnit: WeightUnit;
   readonly onSwap: () => void;
   readonly onRemove: () => void;
 }
@@ -39,7 +42,11 @@ interface SetState {
   saveError: string | null;
 }
 
-function buildInitialSets(exercise: LoggerExercise, existingLogs: readonly ExerciseLogRow[]): SetState[] {
+function buildInitialSets(
+  exercise: LoggerExercise,
+  existingLogs: readonly ExerciseLogRow[],
+  weightUnit: WeightUnit
+): SetState[] {
   const byNumber = new Map(existingLogs.filter((l) => l.setNumber != null).map((l) => [l.setNumber as number, l]));
   const count = Math.max(exercise.prescribedSets ?? 1, byNumber.size, 1);
 
@@ -49,28 +56,40 @@ function buildInitialSets(exercise: LoggerExercise, existingLogs: readonly Exerc
     return {
       setNumber,
       reps: existing?.repsCompleted != null ? String(existing.repsCompleted) : '',
-      weight: existing?.weightKg != null ? String(existing.weightKg) : '',
+      weight: formatWeightForDisplay(existing?.weightKg ?? null, weightUnit),
       completed: existing?.completed ?? false,
       saveError: null,
     };
   });
 }
 
-async function saveSet(exercise: LoggerExercise, blockType: SessionType, set: SetState): Promise<void> {
+async function saveSet(
+  exercise: LoggerExercise,
+  blockType: SessionType,
+  set: SetState,
+  weightUnit: WeightUnit
+): Promise<void> {
   await upsertExerciseLog({
     date: new Date(),
-    recommendationBlockExerciseId: exercise.id,
+    recommendationBlockExerciseId: exercise.recommendationBlockExerciseId,
     exerciseId: exercise.exerciseId,
     blockType,
     setNumber: set.setNumber,
     completed: set.completed,
     repsCompleted: set.reps.trim() === '' ? null : Number(set.reps),
-    weightKg: set.weight.trim() === '' ? null : Number(set.weight),
+    weightKg: set.weight.trim() === '' ? null : displayUnitToKg(Number(set.weight), weightUnit),
   });
 }
 
-export default function StrengthSetRow({ exercise, blockType, existingLogs, onSwap, onRemove }: StrengthSetRowProps) {
-  const [sets, setSets] = useState<SetState[]>(() => buildInitialSets(exercise, existingLogs));
+export default function StrengthSetRow({
+  exercise,
+  blockType,
+  existingLogs,
+  weightUnit,
+  onSwap,
+  onRemove,
+}: StrengthSetRowProps) {
+  const [sets, setSets] = useState<SetState[]>(() => buildInitialSets(exercise, existingLogs, weightUnit));
 
   function updateSet(index: number, patch: Partial<SetState>) {
     setSets((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
@@ -78,7 +97,7 @@ export default function StrengthSetRow({ exercise, blockType, existingLogs, onSw
 
   async function handleBlur(index: number) {
     updateSet(index, { saveError: null });
-    await saveSet(exercise, blockType, sets[index]).catch((err: Error) => {
+    await saveSet(exercise, blockType, sets[index], weightUnit).catch((err: Error) => {
       updateSet(index, { saveError: err.message ?? 'Could not save this set.' });
     });
   }
@@ -93,7 +112,7 @@ export default function StrengthSetRow({ exercise, blockType, existingLogs, onSw
       // See design spec Decision 8 -- never block the log write.
     }
 
-    await saveSet(exercise, blockType, { ...sets[index], completed: next }).catch((err: Error) => {
+    await saveSet(exercise, blockType, { ...sets[index], completed: next }, weightUnit).catch((err: Error) => {
       updateSet(index, { completed: !next, saveError: err.message ?? 'Could not save this set.' });
     });
   }
@@ -106,7 +125,7 @@ export default function StrengthSetRow({ exercise, blockType, existingLogs, onSw
   async function handleDeleteSet(index: number) {
     const removed = sets[index];
     setSets((prev) => prev.filter((_, i) => i !== index));
-    await deleteExerciseLog(exercise.id, removed.setNumber).catch(() => {
+    await deleteExerciseLog(exercise.recommendationBlockExerciseId, exercise.exerciseId, removed.setNumber).catch(() => {
       // The set is already gone from local state -- a failed delete here
       // means a stale logged row may remain server-side, but re-adding a
       // set picks a fresh setNumber (see handleAddSet), so it can't
@@ -119,6 +138,11 @@ export default function StrengthSetRow({ exercise, blockType, existingLogs, onSw
       <Text style={TYPE.body}>{exercise.name}</Text>
       {exercise.prescribedReps && (
         <Text style={sharedStyles.helperText}>Target: {exercise.prescribedReps}</Text>
+      )}
+      {exercise.demoVideoUrl && (
+        <Pressable onPress={() => Linking.openURL(exercise.demoVideoUrl!).catch(() => {})}>
+          <Text style={styles.demoLink}>Watch demo</Text>
+        </Pressable>
       )}
 
       {sets.map((set, index) => (
@@ -136,7 +160,7 @@ export default function StrengthSetRow({ exercise, blockType, existingLogs, onSw
             <TextInput
               style={[sharedStyles.textInput, styles.input]}
               keyboardType="decimal-pad"
-              placeholder="kg"
+              placeholder={weightUnit}
               value={set.weight}
               onChangeText={(text) => updateSet(index, { weight: text })}
               onBlur={() => handleBlur(index)}
@@ -185,6 +209,7 @@ const styles = StyleSheet.create({
   },
   checkboxChecked: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   checkmark: { color: COLORS.card, fontWeight: '700' },
+  demoLink: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
   addSetText: { color: COLORS.accent, fontWeight: '600' },
   actionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: SPACING.md },
   actionText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },

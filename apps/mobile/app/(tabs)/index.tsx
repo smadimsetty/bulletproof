@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   AppState,
   Linking,
   Modal,
@@ -49,6 +50,9 @@ import type { SessionType } from '../../lib/recommendations';
 import { labelForSessionType } from '../../lib/sessionTypeLabels';
 import { triggerDailyEngine } from '../../lib/engineTrigger';
 import { triggerSwapActivity } from '../../lib/swapTrigger';
+import { discardActiveSession, fetchActiveSession, startSession } from '../../lib/sessionLifecycle';
+
+const NEW_WORKOUT_TYPES: readonly SessionType[] = ['upper', 'lower', 'pickleball', 'run', 'mobility'];
 
 export default function Home() {
   const router = useRouter();
@@ -61,6 +65,8 @@ export default function Home() {
   const [swapGroups, setSwapGroups] = useState<SwapOptionGroup[]>([]);
   const [swapSheetOpen, setSwapSheetOpen] = useState(false);
   const [swapMessage, setSwapMessage] = useState<string | null>(null);
+
+  const [newWorkoutSheetOpen, setNewWorkoutSheetOpen] = useState(false);
 
   const [feedbackDraft, setFeedbackDraft] = useState('');
   const [feedbackStatus, setFeedbackStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -233,6 +239,78 @@ export default function Home() {
     router.push(`/logger/${block.id}`);
   }
 
+  async function handleStartBlock(block: ProgramBlock) {
+    const result = await startSession(block.blockType);
+    if (result.ok) {
+      router.push(`/logger/${block.id}`);
+      return;
+    }
+
+    // Conflict: a session is already active (possibly for a different
+    // block/ad-hoc workout) -- same resume/discard prompt Logger's own
+    // handleStartWorkout uses, so Home's Start button collapses "open
+    // Logger, then tap Start" into one tap without losing that safety net.
+    const existing = await fetchActiveSession();
+    Alert.alert(
+      'You already have an active session',
+      existing ? `Started at ${new Date(existing.startedAt ?? '').toLocaleTimeString()}.` : undefined,
+      [
+        { text: 'Resume it', onPress: () => router.push(`/logger/${block.id}`) },
+        {
+          text: 'Discard it',
+          style: 'destructive',
+          onPress: async () => {
+            if (existing) {
+              await discardActiveSession(existing.id);
+            }
+            const retry = await startSession(block.blockType);
+            if (retry.ok) {
+              router.push(`/logger/${block.id}`);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }
+
+  function handleOpenNewWorkoutSheet() {
+    setNewWorkoutSheetOpen(true);
+  }
+
+  async function handleSelectNewWorkoutType(type: SessionType) {
+    setNewWorkoutSheetOpen(false);
+    const result = await startSession(type);
+    if (result.ok) {
+      router.push(`/logger/adhoc/${result.session.id}`);
+      return;
+    }
+
+    const existing = await fetchActiveSession();
+    Alert.alert(
+      'You already have an active session',
+      existing
+        ? `Started at ${new Date(existing.startedAt ?? '').toLocaleTimeString()}. Resume it from the banner above, or discard it to start a new one.`
+        : undefined,
+      [
+        {
+          text: 'Discard it',
+          style: 'destructive',
+          onPress: async () => {
+            if (existing) {
+              await discardActiveSession(existing.id);
+            }
+            const retry = await startSession(type);
+            if (retry.ok) {
+              router.push(`/logger/adhoc/${retry.session.id}`);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }
+
   function handleOpenSwapSheet() {
     setSwapMessage(null);
     setSwapSheetOpen(true);
@@ -314,9 +392,14 @@ export default function Home() {
       <View style={sharedStyles.card}>
         <View style={styles.programHeaderRow}>
           <Text style={sharedStyles.sectionTitle}>Today's Program</Text>
-          <Pressable onPress={handleOpenSwapSheet}>
-            <Text style={styles.swapLink}>Swap activity</Text>
-          </Pressable>
+          <View style={styles.programHeaderActions}>
+            <Pressable onPress={handleOpenSwapSheet}>
+              <Text style={styles.swapLink}>Swap activity</Text>
+            </Pressable>
+            <Pressable onPress={handleOpenNewWorkoutSheet} accessibilityLabel="Log a new workout">
+              <Text style={styles.newWorkoutLink}>{'+'} New workout</Text>
+            </Pressable>
+          </View>
         </View>
 
         {!today && (
@@ -341,9 +424,21 @@ export default function Home() {
                   <Text style={TYPE.label}>
                     {block.title || labelForSessionType(block.blockType)}
                   </Text>
-                  {block.estimatedMinutes != null && (
-                    <Text style={sharedStyles.helperText}>{block.estimatedMinutes} min</Text>
-                  )}
+                  <View style={styles.blockHeaderActions}>
+                    {block.estimatedMinutes != null && (
+                      <Text style={sharedStyles.helperText}>{block.estimatedMinutes} min</Text>
+                    )}
+                    <Pressable
+                      style={styles.startButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleStartBlock(block);
+                      }}
+                      accessibilityLabel={`Start ${block.title || labelForSessionType(block.blockType)}`}
+                    >
+                      <Text style={styles.startButtonText}>Start</Text>
+                    </Pressable>
+                  </View>
                 </View>
                 {block.exercises.map((exercise) => (
                   <ExerciseRow key={exercise.id} exercise={exercise} onOpenDemo={handleOpenDemoVideo} />
@@ -388,6 +483,12 @@ export default function Home() {
         onSelect={(option) => handleSelectSwapOption(option)}
         onClose={() => setSwapSheetOpen(false)}
       />
+
+      <NewWorkoutTypeSheet
+        visible={newWorkoutSheetOpen}
+        onSelect={handleSelectNewWorkoutType}
+        onClose={() => setNewWorkoutSheetOpen(false)}
+      />
     </ScrollView>
   );
 }
@@ -410,6 +511,33 @@ function ExerciseRow({
         </Pressable>
       )}
     </View>
+  );
+}
+
+function NewWorkoutTypeSheet({
+  visible,
+  onSelect,
+  onClose,
+}: {
+  visible: boolean;
+  onSelect: (type: SessionType) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <View style={styles.modalSheet}>
+          <Text style={sharedStyles.sectionTitle}>Log a new workout</Text>
+          <ScrollView>
+            {NEW_WORKOUT_TYPES.map((type) => (
+              <Pressable key={type} style={styles.optionRow} onPress={() => onSelect(type)}>
+                <Text style={TYPE.body}>{labelForSessionType(type)}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -463,6 +591,15 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
     fontWeight: '600',
   },
+  programHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  newWorkoutLink: {
+    color: COLORS.accent,
+    fontWeight: '600',
+  },
   blockRow: {
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
@@ -474,6 +611,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  blockHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  startButton: {
+    backgroundColor: COLORS.accent,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: SPACING.sm,
+  },
+  startButtonText: {
+    color: COLORS.card,
+    fontWeight: '600',
+    fontSize: 13,
   },
   exerciseRow: {
     paddingVertical: SPACING.xs,

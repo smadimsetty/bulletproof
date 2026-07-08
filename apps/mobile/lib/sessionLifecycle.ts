@@ -17,9 +17,42 @@
 // PostgrestError surfaces the underlying Postgres error code on `.code`
 // and message wording is not a stable contract to match against. See
 // docs/superpowers/specs/2026-06-24-logger-design.md Decision 5.
+//
+// notifyActiveSessionChange/subscribeToActiveSessionChanges close a real
+// gap found while root-causing the "persistent banner doesn't reliably
+// show a just-started/just-ended session" report: app/_layout.tsx's
+// activeSession state was only ever refreshed by its own AppState
+// foreground-transition listener (or the initial mount fetch) -- no code
+// path connected startSession/endSession/discardActiveSession, called
+// from Logger, Home's Start button, and the ad-hoc workout flow, back to
+// that state. A session started or ended without an intervening
+// background->foreground cycle left the banner stale until one happened
+// to occur. This is a tiny in-process pub/sub (not Supabase Realtime --
+// no new infra, no websocket-reconnect edge cases to reason about) so
+// every mutation site notifies _layout.tsx immediately, while the
+// existing foreground refetch stays as a reconciliation fallback (e.g.
+// after backgrounding for a long time, or a session changed from another
+// device).
 import { supabase } from './supabase';
 import { localDateString } from './healthkitMapping';
 import type { SessionType } from './recommendations';
+
+type ActiveSessionListener = (session: ActiveSessionRow | null) => void;
+
+const activeSessionListeners = new Set<ActiveSessionListener>();
+
+export function subscribeToActiveSessionChanges(listener: ActiveSessionListener): () => void {
+  activeSessionListeners.add(listener);
+  return () => {
+    activeSessionListeners.delete(listener);
+  };
+}
+
+function notifyActiveSessionChange(session: ActiveSessionRow | null): void {
+  for (const listener of activeSessionListeners) {
+    listener(session);
+  }
+}
 
 export interface ActiveSessionRow {
   readonly id: string;
@@ -98,7 +131,9 @@ export async function startSession(
     throw new Error(error.message);
   }
 
-  return { ok: true, session: toActiveSessionRow(data as RawSessionRow) };
+  const session = toActiveSessionRow(data as RawSessionRow);
+  notifyActiveSessionChange(session);
+  return { ok: true, session };
 }
 
 export async function endSession(sessionId: string): Promise<ActiveSessionRow> {
@@ -113,7 +148,9 @@ export async function endSession(sessionId: string): Promise<ActiveSessionRow> {
     throw new Error(error.message);
   }
 
-  return toActiveSessionRow(data as RawSessionRow);
+  const ended = toActiveSessionRow(data as RawSessionRow);
+  notifyActiveSessionChange(null);
+  return ended;
 }
 
 /**
@@ -132,6 +169,8 @@ export async function discardActiveSession(sessionId: string): Promise<void> {
   if (error) {
     throw new Error(error.message);
   }
+
+  notifyActiveSessionChange(null);
 }
 
 export async function submitFeltRating(sessionId: string, feltRating: number): Promise<void> {

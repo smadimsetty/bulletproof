@@ -1,5 +1,5 @@
 // apps/mobile/lib/exerciseLogs.test.ts
-import { deleteExerciseLog, fetchTodaysExerciseLogs, upsertExerciseLog } from './exerciseLogs';
+import { deleteExerciseLog, fetchTodaysAdhocExerciseLogs, fetchTodaysExerciseLogs, upsertExerciseLog } from './exerciseLogs';
 
 jest.mock('./supabase', () => ({
   supabase: {
@@ -243,17 +243,19 @@ describe('deleteExerciseLog', () => {
   function mockDeleteChain(result: { error: { message: string } | null }) {
     const eqSetNumberFn = jest.fn().mockResolvedValue(result);
     const isSetNumberFn = jest.fn().mockResolvedValue(result);
+    const eqExerciseIdFn = jest.fn(() => ({ eq: eqSetNumberFn, is: isSetNumberFn }));
+    const isBlockExerciseFn = jest.fn(() => ({ eq: eqExerciseIdFn }));
     const eqBlockExerciseFn = jest.fn(() => ({ eq: eqSetNumberFn, is: isSetNumberFn }));
-    const eqDateFn = jest.fn(() => ({ eq: eqBlockExerciseFn }));
+    const eqDateFn = jest.fn(() => ({ eq: eqBlockExerciseFn, is: isBlockExerciseFn }));
     const deleteFn = jest.fn(() => ({ eq: eqDateFn }));
     (supabase.from as jest.Mock).mockReturnValue({ delete: deleteFn });
-    return { eqDateFn, eqBlockExerciseFn, eqSetNumberFn, isSetNumberFn };
+    return { eqDateFn, eqBlockExerciseFn, eqSetNumberFn, isSetNumberFn, isBlockExerciseFn, eqExerciseIdFn };
   }
 
   test('deletes the row matching the block-exercise id and set number', async () => {
     const { eqBlockExerciseFn, eqSetNumberFn } = mockDeleteChain({ error: null });
 
-    await deleteExerciseLog('bex-1', 2);
+    await deleteExerciseLog('bex-1', 'ex-1', 2);
 
     expect(supabase.from).toHaveBeenCalledWith('exercise_logs');
     expect(eqBlockExerciseFn).toHaveBeenCalledWith('recommendation_block_exercise_id', 'bex-1');
@@ -263,14 +265,75 @@ describe('deleteExerciseLog', () => {
   test('uses an IS NULL match for a mobility checklist item (setNumber null)', async () => {
     const { isSetNumberFn } = mockDeleteChain({ error: null });
 
-    await deleteExerciseLog('bex-2', null);
+    await deleteExerciseLog('bex-2', 'ex-2', null);
 
     expect(isSetNumberFn).toHaveBeenCalledWith('set_number', null);
+  });
+
+  test('an ad-hoc exercise (no recommendationBlockExerciseId) deletes by exercise_id instead', async () => {
+    const { isBlockExerciseFn, eqExerciseIdFn, eqSetNumberFn } = mockDeleteChain({ error: null });
+
+    await deleteExerciseLog(null, 'ex-9', 1);
+
+    expect(isBlockExerciseFn).toHaveBeenCalledWith('recommendation_block_exercise_id', null);
+    expect(eqExerciseIdFn).toHaveBeenCalledWith('exercise_id', 'ex-9');
+    expect(eqSetNumberFn).toHaveBeenCalledWith('set_number', 1);
   });
 
   test('throws if the delete returns an error', async () => {
     mockDeleteChain({ error: { message: 'delete failed' } });
 
-    await expect(deleteExerciseLog('bex-1', 1)).rejects.toThrow('delete failed');
+    await expect(deleteExerciseLog('bex-1', 'ex-1', 1)).rejects.toThrow('delete failed');
+  });
+});
+
+describe('fetchTodaysAdhocExerciseLogs', () => {
+  test('queries exercise_logs filtered to today, null block-exercise id, and the given exercise ids', async () => {
+    const rows = [
+      {
+        id: 'log-9',
+        recommendation_block_exercise_id: null,
+        exercise_id: 'ex-9',
+        block_type: 'upper',
+        completed: true,
+        set_number: 1,
+        reps_completed: 8,
+        weight_kg: 40,
+        logged_at: '2026-06-24T18:00:00Z',
+        notes: null,
+      },
+    ];
+    const inFn = jest.fn().mockResolvedValue({ data: rows, error: null });
+    const isFn = jest.fn(() => ({ in: inFn }));
+    const eqFn = jest.fn(() => ({ is: isFn }));
+    const selectFn = jest.fn(() => ({ eq: eqFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ select: selectFn });
+
+    const result = await fetchTodaysAdhocExerciseLogs(['ex-9']);
+
+    expect(isFn).toHaveBeenCalledWith('recommendation_block_exercise_id', null);
+    expect(inFn).toHaveBeenCalledWith('exercise_id', ['ex-9']);
+    expect(result).toHaveLength(1);
+    expect(result[0].exerciseId).toBe('ex-9');
+  });
+
+  test('returns an empty array when exerciseIds is empty, without querying', async () => {
+    const fromMock = supabase.from as jest.Mock;
+    fromMock.mockClear();
+
+    const result = await fetchTodaysAdhocExerciseLogs([]);
+
+    expect(result).toEqual([]);
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  test('throws if the query returns an error', async () => {
+    const inFn = jest.fn().mockResolvedValue({ data: null, error: { message: 'network down' } });
+    const isFn = jest.fn(() => ({ in: inFn }));
+    const eqFn = jest.fn(() => ({ is: isFn }));
+    const selectFn = jest.fn(() => ({ eq: eqFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ select: selectFn });
+
+    await expect(fetchTodaysAdhocExerciseLogs(['ex-9'])).rejects.toThrow('network down');
   });
 });

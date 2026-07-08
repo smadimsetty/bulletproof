@@ -17,6 +17,7 @@ import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import DropdownAddSection, { type DropdownOption } from '../../components/DropdownAddSection';
 import PainEntryRow, { type PainEntry } from '../../components/PainEntryRow';
 import HealthKitSection from '../../components/HealthKitSection';
+import { displayUnitToKg, formatWeightForDisplay, type WeightUnit } from '../../lib/units';
 
 interface SplitTaxonomyRow {
   id: string;
@@ -53,6 +54,7 @@ interface UserProfileRow {
   training_frequency_manual: { targets: Record<string, number> } | null;
   diet_preference: string | null;
   weight_kg: number | null;
+  weight_unit: WeightUnit;
   birth_date: string | null;
   location: { lat: number; lon: number; label: string; timezone: string } | null;
   healthkit_sync_enabled: boolean;
@@ -113,7 +115,7 @@ export default function Settings() {
   useEffect(() => {
     if (!profile) return;
     setDietDraft(profile.diet_preference ?? '');
-    setWeightDraft(profile.weight_kg != null ? String(profile.weight_kg) : '');
+    setWeightDraft(formatWeightForDisplay(profile.weight_kg, profile.weight_unit));
     setBirthDateDraft(profile.birth_date ?? '');
     setLocationLabelDraft(profile.location?.label ?? '');
     const targets = profile.training_frequency_manual?.targets ?? {};
@@ -230,18 +232,24 @@ export default function Settings() {
 
   async function handleSaveWeightAndBirthDate() {
     const parsedWeight = Number(weightDraft);
+    const weightKg =
+      weightDraft.trim() === '' || Number.isNaN(parsedWeight)
+        ? null
+        : displayUnitToKg(parsedWeight, profile?.weight_unit ?? 'lbs');
     // Both fields share one Save button -- await both before confirming,
     // rather than firing them and forgetting, so "Saved." only appears
     // once both columns actually landed (these are two separate UPDATE
     // statements since saveProfileFields always targets the fields it's
     // given; that's fine here since each touches a distinct column).
     const [weightOk, birthDateOk] = await Promise.all([
-      saveProfileFields({
-        weight_kg: weightDraft.trim() === '' || Number.isNaN(parsedWeight) ? null : parsedWeight,
-      }),
+      saveProfileFields({ weight_kg: weightKg }),
       saveProfileFields({ birth_date: birthDateDraft.trim() === '' ? null : birthDateDraft.trim() }),
     ]);
     if (weightOk && birthDateOk) setSavedSection('weight');
+  }
+
+  function handleSetWeightUnit(unit: WeightUnit) {
+    saveProfileFields({ weight_unit: unit });
   }
 
   async function handleSaveLocationLabel() {
@@ -435,7 +443,21 @@ export default function Settings() {
 
       <View style={sharedStyles.card}>
         <Text style={sharedStyles.sectionTitle}>Weight & Birth Date</Text>
-        <Text style={sharedStyles.helperText}>Weight (kg)</Text>
+        <View style={styles.modeRow}>
+          <Pressable
+            style={[styles.modeButton, profile.weight_unit === 'lbs' && styles.modeButtonActive]}
+            onPress={() => handleSetWeightUnit('lbs')}
+          >
+            <Text style={profile.weight_unit === 'lbs' ? styles.modeTextActive : styles.modeText}>lbs</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.modeButton, profile.weight_unit === 'kg' && styles.modeButtonActive]}
+            onPress={() => handleSetWeightUnit('kg')}
+          >
+            <Text style={profile.weight_unit === 'kg' ? styles.modeTextActive : styles.modeText}>kg</Text>
+          </Pressable>
+        </View>
+        <Text style={sharedStyles.helperText}>Weight ({profile.weight_unit})</Text>
         <TextInput
           style={sharedStyles.textInput}
           value={weightDraft}

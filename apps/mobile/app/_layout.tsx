@@ -25,8 +25,9 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { isHealthKitSyncEnabled, syncHealthKitWorkouts, syncHealthKitDailyMetrics } from '../lib/healthkitSync';
 import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommendations';
-import { fetchActiveSession } from '../lib/sessionLifecycle';
+import { fetchActiveSession, subscribeToActiveSessionChanges } from '../lib/sessionLifecycle';
 import type { ActiveSessionRow } from '../lib/sessionLifecycle';
+import { syncWorkoutLiveActivity } from '../lib/workoutActivityBridge';
 import ActiveSessionBanner from '../components/ActiveSessionBanner';
 
 type RecommendationsState = {
@@ -59,6 +60,17 @@ export default function RootLayout() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Immediate cross-screen sync: startSession/endSession/discardActiveSession
+  // (called from Logger, Home's Start button, and the ad-hoc workout flow)
+  // notify this subscription the instant they write, so the banner never
+  // depends solely on the next AppState foreground transition to catch up.
+  useEffect(() => {
+    return subscribeToActiveSessionChanges((next) => {
+      setActiveSession(next);
+      syncWorkoutLiveActivity(next);
+    });
+  }, []);
+
   const loadRecommendations = useCallback(async () => {
     try {
       const result = await fetchRecommendations(new Date());
@@ -81,6 +93,7 @@ export default function RootLayout() {
     try {
       const result = await fetchActiveSession();
       setActiveSession(result);
+      syncWorkoutLiveActivity(result);
     } catch (err) {
       console.warn('Active session fetch failed:', err);
     }

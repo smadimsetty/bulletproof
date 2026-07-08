@@ -162,24 +162,40 @@ navigation mount and the fetch resolving, a stale closure over
 `activeSession` state, or the foreground-transition listener not firing
 reliably) — not something to resolve at design time.
 
-**Live Activity (lock-screen/cross-app banner).** Confirmed approach from
-current (2026) ecosystem research: `expo-live-activity` (software-mansion-labs)
-+ `expo-apple-targets`/`@bacons/apple-targets` for the widget-extension
-config plugin — the standard current path for Live Activities in a managed
-Expo app. Concrete steps:
-1. Add the `expo-live-activity` and `expo-apple-targets` packages plus
-   their config plugin entries in `app.json`.
-2. Raise `ios.deploymentTarget` to 16.2+ in `app.json`.
-3. Run `expo prebuild` to generate the native `ios/` project and the
+**Live Activity (lock-screen/cross-app banner).** Original research (during
+brainstorming) pointed at `expo-live-activity` (software-mansion-labs) +
+`expo-apple-targets`. Re-checked immediately before implementation and
+found `expo-live-activity` is now marked **deprecated** by its own
+maintainers, pointing at `expo-widgets` as the replacement — which turns
+out to be the correct call anyway: `expo-widgets` is Expo's own
+first-party module, promoted to **stable in Expo SDK 56** (the exact SDK
+this project is on), so no third-party config-plugin/widget-extension
+scaffolding is needed at all. Concrete steps:
+1. Add the `expo-widgets` and `@expo/ui` packages (the latter provides the
+   `@expo/ui/swift-ui` primitives — `Text`, `VStack`, `Image`, style
+   modifiers — that a Live Activity's layout is built from) plus
+   `expo-widgets`'s config plugin entry in `app.json`.
+2. Raise the iOS deployment target to 16.2+ via the `expo-build-properties`
+   plugin (`{ "ios": { "deploymentTarget": "16.2" } }`) — Expo's own docs
+   route this through `expo-build-properties`, not a bare `ios.deploymentTarget`
+   field in `app.json`.
+3. Define the Live Activity as its own component module using the
+   `'widget'` directive and `createLiveActivity`, per Expo's documented
+   pattern — this compiles to a native SwiftUI view, not a regular RN
+   screen.
+4. Run `expo prebuild` to generate the native `ios/` project and the
    widget extension target (this project has never had a native `ios/`
    dir before — first time this repo goes through prebuild).
-4. Produce a real `development`-profile EAS build (the profile already
+5. Produce a real `development`-profile EAS build (the profile already
    exists in `eas.json`, unused until now) and install it directly on
    device — Live Activities cannot run in Expo Go.
-5. Wire `expo-live-activity`'s start/update/end calls into
+6. Wire the Live Activity's `.start()`/`.end()` calls into
    `sessionLifecycle.ts` alongside the existing `sessions.started_at`/`ended_at`
-   writes, so the Live Activity's lifecycle always tracks the real
-   session's lifecycle.
+   writes, so its lifecycle always tracks the real session's lifecycle.
+   Scoped to static content (session type, start time) updated only at
+   start/end — not a live per-second ticking counter, since that needs a
+   native SwiftUI timer-text API this pass didn't confirm is exposed
+   through `@expo/ui/swift-ui`'s `Text`.
 
 Sohan's explicit call: **no timebox** — see this through to completion
 even if it's the long pole of item 1's 3-day window. Flagged as the

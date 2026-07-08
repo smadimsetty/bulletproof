@@ -26,6 +26,8 @@ import {
 } from '../../lib/sessionLifecycle';
 import { swapBlockExercise, removeBlockExercise, addBlockExercise } from '../../lib/blockExerciseActions';
 import { fetchExerciseCatalog, buildSwapFilter, buildAddFilter, type CatalogExercise } from '../../lib/exerciseCatalog';
+import { fetchWeightUnit } from '../../lib/userPreferences';
+import type { WeightUnit } from '../../lib/units';
 import MobilityChecklistRow from '../../components/MobilityChecklistRow';
 import StrengthSetRow from '../../components/StrengthSetRow';
 import ExercisePickerSheet from '../../components/ExercisePickerSheet';
@@ -47,6 +49,7 @@ export default function Logger() {
   const [logsByBlockExerciseId, setLogsByBlockExerciseId] = useState<Map<string, ExerciseLogRow[]>>(new Map());
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [session, setSession] = useState<ActiveSessionRow | null>(null);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs');
 
   const [pickerTarget, setPickerTarget] = useState<{ mode: 'swap'; row: LoggerExercise } | { mode: 'add' } | null>(
     null
@@ -61,14 +64,16 @@ export default function Logger() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [blockResult, activeSession, catalogResult] = await Promise.all([
+      const [blockResult, activeSession, catalogResult, weightUnitResult] = await Promise.all([
         fetchLoggerBlock(blockId),
         fetchActiveSession(),
         fetchExerciseCatalog(),
+        fetchWeightUnit(),
       ]);
       setBlock(blockResult);
       setSession(activeSession);
       setCatalog(catalogResult);
+      setWeightUnit(weightUnitResult);
 
       if (blockResult) {
         const logs = await fetchTodaysExerciseLogs(blockResult.exercises.map((e) => e.id));
@@ -198,6 +203,7 @@ export default function Logger() {
       );
       const newRow: LoggerExercise = {
         id: created.id,
+        recommendationBlockExerciseId: created.id,
         order: block.exercises.length === 0 ? 0 : Math.max(...block.exercises.map((e) => e.order)) + 1,
         exerciseId: picked.id,
         name: picked.name,
@@ -280,9 +286,7 @@ export default function Logger() {
             key={exercise.id}
             exercise={exercise}
             blockType={block.blockType}
-            initiallyCompleted={
-              logsByBlockExerciseId.get(exercise.id)?.some((l) => l.completed) ?? false
-            }
+            existingLogs={logsByBlockExerciseId.get(exercise.id) ?? []}
             onSwap={() => handleOpenSwap(exercise)}
             onRemove={() => handleRemove(exercise)}
           />
@@ -292,6 +296,7 @@ export default function Logger() {
             exercise={exercise}
             blockType={block.blockType}
             existingLogs={logsByBlockExerciseId.get(exercise.id) ?? []}
+            weightUnit={weightUnit}
             onSwap={() => handleOpenSwap(exercise)}
             onRemove={() => handleRemove(exercise)}
           />

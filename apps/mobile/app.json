@@ -37,6 +37,27 @@
           "NSHealthUpdateUsageDescription": "Bulletproof does not write any data to Apple Health.",
           "background": false
         }
+      ],
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "WorkoutActivity",
+              "displayName": "Workout",
+              "description": "Shows the current in-progress workout on the lock screen / Dynamic Island.",
+              "supportedFamilies": ["systemSmall", "systemMedium"]
+            }
+          ]
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4"
+          }
+        }
       ]
     ],
     "extra": {

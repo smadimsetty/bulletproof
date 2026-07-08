@@ -6,6 +6,7 @@ import {
   endSession,
   discardActiveSession,
   submitFeltRating,
+  subscribeToActiveSessionChanges,
 } from './sessionLifecycle';
 
 jest.mock('./supabase', () => ({
@@ -136,6 +137,84 @@ describe('discardActiveSession', () => {
     (supabase.from as jest.Mock).mockReturnValue({ update: updateFn });
 
     await expect(discardActiveSession('sess-1')).rejects.toThrow('network down');
+  });
+});
+
+describe('subscribeToActiveSessionChanges', () => {
+  test('startSession notifies subscribers with the new session on success', async () => {
+    const singleFn = jest.fn().mockResolvedValue({ data: activeRow, error: null });
+    const selectFn = jest.fn(() => ({ single: singleFn }));
+    const insertFn = jest.fn(() => ({ select: selectFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ insert: insertFn });
+
+    const listener = jest.fn();
+    const unsubscribe = subscribeToActiveSessionChanges(listener);
+
+    await startSession('lower');
+
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ id: 'sess-1' }));
+    unsubscribe();
+  });
+
+  test('startSession does not notify subscribers on a conflict', async () => {
+    const singleFn = jest.fn().mockResolvedValue({ data: null, error: { code: '23505', message: 'conflict' } });
+    const selectFn = jest.fn(() => ({ single: singleFn }));
+    const insertFn = jest.fn(() => ({ select: selectFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ insert: insertFn });
+
+    const listener = jest.fn();
+    const unsubscribe = subscribeToActiveSessionChanges(listener);
+
+    await startSession('lower');
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  test('endSession notifies subscribers with null', async () => {
+    const endedRow = { ...activeRow, ended_at: '2026-06-24T18:45:00Z' };
+    const singleFn = jest.fn().mockResolvedValue({ data: endedRow, error: null });
+    const selectFn = jest.fn(() => ({ single: singleFn }));
+    const eqFn = jest.fn(() => ({ select: selectFn }));
+    const updateFn = jest.fn(() => ({ eq: eqFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ update: updateFn });
+
+    const listener = jest.fn();
+    const unsubscribe = subscribeToActiveSessionChanges(listener);
+
+    await endSession('sess-1');
+
+    expect(listener).toHaveBeenCalledWith(null);
+    unsubscribe();
+  });
+
+  test('discardActiveSession notifies subscribers with null', async () => {
+    const eqFn = jest.fn().mockResolvedValue({ error: null });
+    const updateFn = jest.fn(() => ({ eq: eqFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ update: updateFn });
+
+    const listener = jest.fn();
+    const unsubscribe = subscribeToActiveSessionChanges(listener);
+
+    await discardActiveSession('sess-1');
+
+    expect(listener).toHaveBeenCalledWith(null);
+    unsubscribe();
+  });
+
+  test('unsubscribe stops further notifications', async () => {
+    const singleFn = jest.fn().mockResolvedValue({ data: activeRow, error: null });
+    const selectFn = jest.fn(() => ({ single: singleFn }));
+    const insertFn = jest.fn(() => ({ select: selectFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ insert: insertFn });
+
+    const listener = jest.fn();
+    const unsubscribe = subscribeToActiveSessionChanges(listener);
+    unsubscribe();
+
+    await startSession('lower');
+
+    expect(listener).not.toHaveBeenCalled();
   });
 });
 

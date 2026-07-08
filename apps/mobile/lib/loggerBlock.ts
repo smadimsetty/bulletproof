@@ -15,6 +15,7 @@ import type { SessionType } from './recommendations';
 
 export interface LoggerExercise {
   readonly id: string;
+  readonly recommendationBlockExerciseId: string | null;
   readonly order: number;
   readonly exerciseId: string;
   readonly name: string;
@@ -100,6 +101,7 @@ export async function fetchLoggerBlock(blockId: string): Promise<LoggerBlock | n
       .sort((a, b) => a.exercise_order - b.exercise_order)
       .map((exercise) => ({
         id: exercise.id,
+        recommendationBlockExerciseId: exercise.id,
         order: exercise.exercise_order,
         exerciseId: exercise.exercises?.id ?? '',
         name: exercise.exercises?.name ?? 'Unknown exercise',

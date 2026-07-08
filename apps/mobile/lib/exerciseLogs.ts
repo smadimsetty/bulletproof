@@ -171,19 +171,24 @@ export async function upsertExerciseLog(input: UpsertExerciseLogInput): Promise<
 /**
  * Deletes today's logged row for one set (or one mobility checklist item,
  * with setNumber null), if one exists. A no-op, not an error, when no
- * matching row exists -- the swipe-to-delete affordance in StrengthSetRow
- * calls this for sets the user added locally but never blurred/saved yet,
- * same as for ones that were.
+ * matching row exists -- the swipe-to-delete affordance in StrengthSetRow/
+ * MobilityChecklistRow calls this for sets the user added locally but
+ * never blurred/saved yet, same as for ones that were. Same nullable-
+ * recommendationBlockExerciseId branching as findExistingLogId, since an
+ * ad-hoc exercise (no prescribed block-exercise row) has to be matched by
+ * exercise_id instead.
  */
 export async function deleteExerciseLog(
-  recommendationBlockExerciseId: string,
+  recommendationBlockExerciseId: string | null,
+  exerciseId: string,
   setNumber: number | null
 ): Promise<void> {
-  let query = supabase
-    .from('exercise_logs')
-    .delete()
-    .eq('date', localDateString(new Date()))
-    .eq('recommendation_block_exercise_id', recommendationBlockExerciseId);
+  let query = supabase.from('exercise_logs').delete().eq('date', localDateString(new Date()));
+
+  query =
+    recommendationBlockExerciseId != null
+      ? query.eq('recommendation_block_exercise_id', recommendationBlockExerciseId)
+      : query.is('recommendation_block_exercise_id', null).eq('exercise_id', exerciseId);
 
   query = setNumber != null ? query.eq('set_number', setNumber) : query.is('set_number', null);
 
@@ -191,4 +196,31 @@ export async function deleteExerciseLog(
   if (error) {
     throw new Error(error.message);
   }
+}
+
+/**
+ * Fetches today's already-logged ad-hoc rows (recommendation_block_exercise_id
+ * is null) for a set of exercise_ids -- the ad-hoc-session equivalent of
+ * fetchTodaysExerciseLogs, keyed by exercise_id instead of block-exercise
+ * id since ad-hoc exercises have no block-exercise row to key on.
+ */
+export async function fetchTodaysAdhocExerciseLogs(exerciseIds: readonly string[]): Promise<ExerciseLogRow[]> {
+  if (exerciseIds.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('exercise_logs')
+    .select(
+      'id, recommendation_block_exercise_id, exercise_id, block_type, completed, set_number, reps_completed, weight_kg, logged_at, notes'
+    )
+    .eq('date', localDateString(new Date()))
+    .is('recommendation_block_exercise_id', null)
+    .in('exercise_id', [...exerciseIds]);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as unknown as RawExerciseLogRow[]).map(toExerciseLogRow);
 }
