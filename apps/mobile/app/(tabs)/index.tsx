@@ -50,7 +50,12 @@ import type { SessionType } from '../../lib/recommendations';
 import { labelForSessionType } from '../../lib/sessionTypeLabels';
 import { triggerDailyEngine } from '../../lib/engineTrigger';
 import { triggerSwapActivity } from '../../lib/swapTrigger';
-import { discardActiveSession, fetchActiveSession, startSession } from '../../lib/sessionLifecycle';
+import {
+  discardActiveSession,
+  fetchActiveSession,
+  resumeRouteForSession,
+  startSession,
+} from '../../lib/sessionLifecycle';
 
 const NEW_WORKOUT_TYPES: readonly SessionType[] = ['upper', 'lower', 'pickleball', 'run', 'mobility'];
 
@@ -250,12 +255,18 @@ export default function Home() {
     // block/ad-hoc workout) -- same resume/discard prompt Logger's own
     // handleStartWorkout uses, so Home's Start button collapses "open
     // Logger, then tap Start" into one tap without losing that safety net.
+    // "Resume it" routes via resumeRouteForSession rather than always
+    // pushing this block's own route, since the active session might
+    // actually be a different (ad-hoc) workout than the one just tapped.
     const existing = await fetchActiveSession();
     Alert.alert(
       'You already have an active session',
       existing ? `Started at ${new Date(existing.startedAt ?? '').toLocaleTimeString()}.` : undefined,
       [
-        { text: 'Resume it', onPress: () => router.push(`/logger/${block.id}`) },
+        {
+          text: 'Resume it',
+          onPress: () => router.push(existing ? resumeRouteForSession(existing) : `/logger/${block.id}`),
+        },
         {
           text: 'Discard it',
           style: 'destructive',
@@ -280,7 +291,7 @@ export default function Home() {
 
   async function handleSelectNewWorkoutType(type: SessionType) {
     setNewWorkoutSheetOpen(false);
-    const result = await startSession(type);
+    const result = await startSession(type, { adhoc: true });
     if (result.ok) {
       router.push(`/logger/adhoc/${result.session.id}`);
       return;
@@ -289,10 +300,16 @@ export default function Home() {
     const existing = await fetchActiveSession();
     Alert.alert(
       'You already have an active session',
-      existing
-        ? `Started at ${new Date(existing.startedAt ?? '').toLocaleTimeString()}. Resume it from the banner above, or discard it to start a new one.`
-        : undefined,
+      existing ? `Started at ${new Date(existing.startedAt ?? '').toLocaleTimeString()}.` : undefined,
       [
+        {
+          text: 'Resume it',
+          onPress: () => {
+            if (existing) {
+              router.push(resumeRouteForSession(existing));
+            }
+          },
+        },
         {
           text: 'Discard it',
           style: 'destructive',
@@ -300,7 +317,7 @@ export default function Home() {
             if (existing) {
               await discardActiveSession(existing.id);
             }
-            const retry = await startSession(type);
+            const retry = await startSession(type, { adhoc: true });
             if (retry.ok) {
               router.push(`/logger/adhoc/${retry.session.id}`);
             }

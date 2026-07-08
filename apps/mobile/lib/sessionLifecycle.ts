@@ -61,6 +61,7 @@ export interface ActiveSessionRow {
   readonly startedAt: string | null;
   readonly endedAt: string | null;
   readonly feltRating: number | null;
+  readonly isAdhoc: boolean;
 }
 
 interface RawSessionRow {
@@ -70,6 +71,7 @@ interface RawSessionRow {
   started_at: string | null;
   ended_at: string | null;
   felt_rating: number | null;
+  ad_hoc_exercise_ids: string[] | null;
 }
 
 function toActiveSessionRow(row: RawSessionRow): ActiveSessionRow {
@@ -80,7 +82,25 @@ function toActiveSessionRow(row: RawSessionRow): ActiveSessionRow {
     startedAt: row.started_at,
     endedAt: row.ended_at,
     feltRating: row.felt_rating,
+    // ad_hoc_exercise_ids is null for a block-based session (startSession
+    // never sets it) and a real array (possibly empty) for one started via
+    // the ad-hoc "+" flow -- see migration 20260707110000. Loose `!= null`
+    // so `undefined` (a row read before that migration existed) also reads
+    // as non-ad-hoc rather than throwing the banner into the wrong route.
+    isAdhoc: row.ad_hoc_exercise_ids != null,
   };
+}
+
+/**
+ * Where tapping the persistent active-session banner should take the user.
+ * An ad-hoc session has a dedicated resume route (its own sessionId); a
+ * block-based session doesn't record which blockId it belongs to (a
+ * session can span multiple blocks -- design spec Decision 6's Non-goal),
+ * so the best a banner tap can do is drop them on Home to re-pick the
+ * block, per Decision 7.
+ */
+export function resumeRouteForSession(session: ActiveSessionRow): string {
+  return session.isAdhoc ? `/logger/adhoc/${session.id}` : '/(tabs)';
 }
 
 /**
@@ -93,7 +113,7 @@ export function isActiveSessionConflict(error: { code?: string } | null | undefi
   return error?.code === '23505';
 }
 
-const SESSION_SELECT = 'id, date, type, started_at, ended_at, felt_rating';
+const SESSION_SELECT = 'id, date, type, started_at, ended_at, felt_rating, ad_hoc_exercise_ids';
 
 export async function fetchActiveSession(): Promise<ActiveSessionRow | null> {
   const { data, error } = await supabase
@@ -110,7 +130,8 @@ export async function fetchActiveSession(): Promise<ActiveSessionRow | null> {
 }
 
 export async function startSession(
-  blockType: SessionType
+  blockType: SessionType,
+  options?: { readonly adhoc?: boolean }
 ): Promise<{ ok: true; session: ActiveSessionRow } | { ok: false; conflict: true }> {
   const now = new Date();
   const { data, error } = await supabase
@@ -120,6 +141,10 @@ export async function startSession(
       type: blockType,
       started_at: now.toISOString(),
       ended_at: null,
+      // Only the ad-hoc "+" flow sets this explicitly; a block-based start
+      // leaves it out entirely so it lands NULL (see migration
+      // 20260707110000), which is what marks a session as non-ad-hoc.
+      ...(options?.adhoc ? { ad_hoc_exercise_ids: [] } : {}),
     })
     .select(SESSION_SELECT)
     .single();

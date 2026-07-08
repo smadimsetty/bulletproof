@@ -7,6 +7,7 @@ import {
   discardActiveSession,
   submitFeltRating,
   subscribeToActiveSessionChanges,
+  resumeRouteForSession,
 } from './sessionLifecycle';
 
 jest.mock('./supabase', () => ({
@@ -42,6 +43,7 @@ const activeRow = {
   started_at: '2026-06-24T18:00:00Z',
   ended_at: null,
   felt_rating: null,
+  ad_hoc_exercise_ids: null,
 };
 
 describe('fetchActiveSession', () => {
@@ -63,6 +65,27 @@ describe('fetchActiveSession', () => {
     (supabase.from as jest.Mock).mockReturnValue(chain);
 
     expect(await fetchActiveSession()).toBeNull();
+  });
+
+  test('isAdhoc is false when ad_hoc_exercise_ids is null (block-based session)', async () => {
+    const maybeSingleFn = jest.fn().mockResolvedValue({ data: activeRow, error: null });
+    const chain: any = { select: jest.fn(() => chain), is: jest.fn(() => chain), maybeSingle: maybeSingleFn };
+    (supabase.from as jest.Mock).mockReturnValue(chain);
+
+    const result = await fetchActiveSession();
+
+    expect(result?.isAdhoc).toBe(false);
+  });
+
+  test('isAdhoc is true when ad_hoc_exercise_ids is a real array (ad-hoc session)', async () => {
+    const adhocRow = { ...activeRow, ad_hoc_exercise_ids: [] };
+    const maybeSingleFn = jest.fn().mockResolvedValue({ data: adhocRow, error: null });
+    const chain: any = { select: jest.fn(() => chain), is: jest.fn(() => chain), maybeSingle: maybeSingleFn };
+    (supabase.from as jest.Mock).mockReturnValue(chain);
+
+    const result = await fetchActiveSession();
+
+    expect(result?.isAdhoc).toBe(true);
   });
 });
 
@@ -99,6 +122,50 @@ describe('startSession', () => {
     (supabase.from as jest.Mock).mockReturnValue({ insert: insertFn });
 
     await expect(startSession('lower')).rejects.toThrow('connection failure');
+  });
+
+  test('a block-based start (no options) omits ad_hoc_exercise_ids so it lands NULL', async () => {
+    const singleFn = jest.fn().mockResolvedValue({ data: activeRow, error: null });
+    const selectFn = jest.fn(() => ({ single: singleFn }));
+    const insertFn = jest.fn(() => ({ select: selectFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ insert: insertFn });
+
+    await startSession('lower');
+
+    const insertedPayload = (insertFn.mock.calls[0] as any[])[0];
+    expect(insertedPayload).not.toHaveProperty('ad_hoc_exercise_ids');
+  });
+
+  test('an ad-hoc start ({ adhoc: true }) sets ad_hoc_exercise_ids to an empty array', async () => {
+    const adhocRow = { ...activeRow, ad_hoc_exercise_ids: [] };
+    const singleFn = jest.fn().mockResolvedValue({ data: adhocRow, error: null });
+    const selectFn = jest.fn(() => ({ single: singleFn }));
+    const insertFn = jest.fn(() => ({ select: selectFn }));
+    (supabase.from as jest.Mock).mockReturnValue({ insert: insertFn });
+
+    const result = await startSession('lower', { adhoc: true });
+
+    expect(insertFn).toHaveBeenCalledWith(expect.objectContaining({ ad_hoc_exercise_ids: [] }));
+    expect(result).toEqual({ ok: true, session: expect.objectContaining({ isAdhoc: true }) });
+  });
+});
+
+describe('resumeRouteForSession', () => {
+  const baseSession = {
+    id: 'sess-1',
+    date: '2026-06-24',
+    type: 'lower' as const,
+    startedAt: '2026-06-24T18:00:00Z',
+    endedAt: null,
+    feltRating: null,
+  };
+
+  test('routes an ad-hoc session to its dedicated logger route', () => {
+    expect(resumeRouteForSession({ ...baseSession, isAdhoc: true })).toBe('/logger/adhoc/sess-1');
+  });
+
+  test('routes a block-based session to Home (no blockId is recorded on a session)', () => {
+    expect(resumeRouteForSession({ ...baseSession, isAdhoc: false })).toBe('/(tabs)');
   });
 });
 
