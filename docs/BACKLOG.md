@@ -4,6 +4,15 @@ Living backlog of known bugs and features, in priority order. Check items off as
 
 Last reordered: 2026-07-06.
 
+## Roadmap item 1 — Workout Logger fixes (in progress, started 2026-07-07)
+
+Full 6-item roadmap and design context: `docs/superpowers/specs/2026-07-07-logger-fixes-design.md`. Target: items 1-5 done within 3 days of 2026-07-07; item 6 (RAG-based recommendation engine) explicitly allowed to slip.
+
+- [x] Build 18 (the original workout logger overhaul + iOS Live Activity, `afc6be5`) shipped to TestFlight for the first time 2026-07-07.
+- [x] **Bug found on-device same day, fixed same day (build 19):** active-session banner rendered under the status bar/notch, couldn't reopen an in-progress "+ New workout" (ad-hoc) session, no direct way to cancel one. Root cause and fix: see `docs/superpowers/reports/autonomous-build-log.md`'s 2026-07-07 entry.
+- [ ] **Needs Sohan:** on-device confirmation that build 19's fix actually looks/feels right (banner position, resume, discard, live timer) — not verifiable from a bundle export alone.
+- [x] The design spec's "Background" section lists unit (kg/lbs) toggle, demo-video links in the Logger, and per-set mobility logging as gaps — checked the current code 2026-07-07: `afc6be5` already shipped all three (`StrengthSetRow`'s `weightUnit`/`displayUnitToKg`, `demoVideoUrl` rendered in both `StrengthSetRow` and `MobilityChecklistRow`, `MobilityChecklistRow`'s per-`setNumber` add/delete). Spec was written before that commit landed; nothing left to do here.
+
 ## Claude engine — now actually running (fixed 2026-07-06)
 
 - [x] **The Claude-driven program builder had never worked since it was built in v2** — every recommendation ever generated was the deterministic fallback template. Two independent causes, both fixed: (1) `ANTHROPIC_API_KEY` was never configured as a GitHub secret until today; (2) `program_builder.py` called the SDK's `messages.parse()` without its required `output_format` argument, so `parsed_output` was unconditionally `None` regardless of whether Claude's response was correct. Fixed by switching to plain `messages.create()` + manual JSON parsing (`_extract_parsed_output`). Also bumped the model to `claude-sonnet-5` (current-gen, same price as the old `claude-sonnet-4-6`) and explicitly disabled thinking (Sonnet 5 runs adaptive-by-default when omitted, which would eat into the response token budget for this JSON-only task). **Live-verified**: a real swap rebuild now shows `program_generated_by: "claude"`, `claude_model: "claude-sonnet-5"`, real token usage, and correctly-written exercise blocks. See `CLAUDE.md`'s 2026-07-06 status entry and `docs/superpowers/reports/autonomous-build-log.md` for the full debugging story.
