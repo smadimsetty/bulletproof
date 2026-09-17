@@ -96,10 +96,13 @@ export async function submitAssessment(
     .upsert(resultRows, { onConflict: 'sprint_assessment_id,test_key' });
   if (resultsError) throw new Error(resultsError.message);
 
-  if (phase === 'baseline') {
-    const { error: activateError } = await supabase.from('sprints').update({ status: 'active' }).eq('id', sprintId);
-    if (activateError) throw new Error(activateError.message);
-  } else {
+  // Note the asymmetry: the baseline phase deliberately does NOT flip the
+  // sprint to 'active' here. activateSprintAfterBaseline owns that, after
+  // its 14-day generation loop succeeds -- flipping it first left a failed
+  // generation as an 'active' sprint with missing days, which the Home
+  // screen has no way out of. The reassessment phase has no analogous
+  // follow-up step, so completing here is correct.
+  if (phase === 'reassessment') {
     const { error: completeError } = await supabase.from('sprints').update({ status: 'completed' }).eq('id', sprintId);
     if (completeError) throw new Error(completeError.message);
   }

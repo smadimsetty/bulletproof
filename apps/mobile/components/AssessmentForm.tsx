@@ -1,8 +1,19 @@
 // apps/mobile/components/AssessmentForm.tsx
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, RADII, SPACING, sharedStyles, TYPE } from '../lib/theme';
 import { isAssessmentComplete, type AssessmentDefinition, type AssessmentResultInput } from '../lib/sprintAssessment';
+
+// Two seeded definitions (rounded_shoulders' wall_overhead_reach and
+// pushup_plus_control) are scored pass/fail, not measured. They still
+// store a number so the schema and AssessmentResultInput stay uniform --
+// 1 for pass, 0 for fail -- but a numeric keyboard is unanswerable for
+// them, which left Submit permanently disabled.
+const PASS_FAIL_UNIT = 'pass/fail';
+const PASS_FAIL_OPTIONS = [
+  { label: 'Pass', value: 1 },
+  { label: 'Fail', value: 0 },
+] as const;
 
 export default function AssessmentForm({
   title,
@@ -17,14 +28,18 @@ export default function AssessmentForm({
 }) {
   const [draft, setDraft] = useState<Map<string, AssessmentResultInput>>(new Map());
 
-  function updateField(testKey: string, field: 'valueLeft' | 'valueRight' | 'valueSingle', text: string) {
-    const parsed = text.trim() === '' ? undefined : Number(text);
+  function setField(testKey: string, field: 'valueLeft' | 'valueRight' | 'valueSingle', value: number | undefined) {
     setDraft((prev) => {
       const next = new Map(prev);
       const existing = next.get(testKey) ?? { testKey };
-      next.set(testKey, { ...existing, [field]: Number.isNaN(parsed as number) ? undefined : parsed });
+      next.set(testKey, { ...existing, [field]: value });
       return next;
     });
+  }
+
+  function updateField(testKey: string, field: 'valueLeft' | 'valueRight' | 'valueSingle', text: string) {
+    const parsed = text.trim() === '' ? undefined : Number(text);
+    setField(testKey, field, Number.isNaN(parsed as number) ? undefined : parsed);
   }
 
   const complete = isAssessmentComplete(definitions, draft);
@@ -57,6 +72,21 @@ export default function AssessmentForm({
                 onChangeText={(t) => updateField(def.testKey, 'valueRight', t)}
               />
             </View>
+          ) : def.unit === PASS_FAIL_UNIT ? (
+            <View style={styles.row}>
+              {PASS_FAIL_OPTIONS.map((option) => {
+                const selected = draft.get(def.testKey)?.valueSingle === option.value;
+                return (
+                  <Pressable
+                    key={option.label}
+                    style={[styles.choice, selected && styles.choiceSelected]}
+                    onPress={() => setField(def.testKey, 'valueSingle', option.value)}
+                  >
+                    <Text style={[TYPE.body, selected && styles.choiceTextSelected]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : (
             <TextInput
               style={sharedStyles.textInput}
@@ -81,4 +111,15 @@ export default function AssessmentForm({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: SPACING.sm },
   numberInput: { flex: 1 },
+  choice: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: RADII.button,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  choiceSelected: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  choiceTextSelected: { color: COLORS.card, fontWeight: '600' },
 });

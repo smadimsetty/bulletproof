@@ -94,6 +94,21 @@ export async function fetchPainPoints(): Promise<PainPoint[]> {
   }));
 }
 
+/**
+ * A sprint's 14 days run from started_on (day 1) through started_on + 13
+ * days (day 14). Once the local calendar has moved past that window the
+ * sprint is due for reassessment regardless of whether day 14 was ever
+ * ticked off: per the design spec (section 5) missing a day only leaves
+ * that day's completed_at null, and "day 15 still triggers reassessment".
+ * Without this, completeDay's dayNumber === 14 branch is the only path out
+ * of 'active', so missing the last day strands the sprint forever.
+ */
+export function isSprintPastFinalDay(startedOn: string, now: Date = new Date()): boolean {
+  const finalDay = new Date(`${startedOn}T00:00:00`);
+  finalDay.setDate(finalDay.getDate() + 13);
+  return localDateString(now) > localDateString(finalDay);
+}
+
 export async function fetchInFlightSprint(): Promise<Sprint | null> {
   const { data, error } = await supabase
     .from('sprints')
@@ -104,7 +119,18 @@ export async function fetchInFlightSprint(): Promise<Sprint | null> {
   if (error) {
     throw new Error(error.message);
   }
-  return data ? toSprint(data) : null;
+  if (!data) return null;
+
+  const sprint = toSprint(data);
+  if (sprint.status === 'active' && isSprintPastFinalDay(sprint.startedOn)) {
+    const { error: reassessError } = await supabase
+      .from('sprints')
+      .update({ status: 'pending_reassessment' })
+      .eq('id', sprint.id);
+    if (reassessError) throw new Error(reassessError.message);
+    return { ...sprint, status: 'pending_reassessment' };
+  }
+  return sprint;
 }
 
 export async function beginSprint(painPointId: string): Promise<Sprint> {
@@ -205,16 +231,55 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
 
   const startedOn = new Date(`${sprint.startedOn}T00:00:00`);
 
+  // Retry-safety, part one: which days (if any) a previous, interrupted
+  // activation already filled in. sprint_day_exercises has no natural
+  // unique key to upsert on (see
+  // 20260916130500_create_sprint_days_and_exercises.sql), so an already
+  // populated day is skipped outright -- that preserves its completed_at
+  // and swap history instead of duplicating rows. Resolved in two queries
+  // up front rather than a per-iteration check, so the ordinary
+  // fresh-sprint path costs one extra round trip, not fourteen.
+  const { data: existingDayRows, error: existingDaysError } = await supabase
+    .from('sprint_days')
+    .select('id')
+    .eq('sprint_id', sprint.id);
+  if (existingDaysError) throw new Error(existingDaysError.message);
+
+  const existingDayIds = ((existingDayRows ?? []) as any[]).map((r) => r.id);
+  const daysAlreadyPopulated = new Set<string>();
+  if (existingDayIds.length > 0) {
+    const { data: existingExercises, error: existingExercisesError } = await supabase
+      .from('sprint_day_exercises')
+      .select('sprint_day_id')
+      .in('sprint_day_id', existingDayIds);
+    if (existingExercisesError) throw new Error(existingExercisesError.message);
+    for (const row of (existingExercises ?? []) as any[]) {
+      daysAlreadyPopulated.add(row.sprint_day_id);
+    }
+  }
+
   for (let dayNumber = 1; dayNumber <= 14; dayNumber++) {
     const dayDate = new Date(startedOn);
     dayDate.setDate(dayDate.getDate() + dayNumber - 1);
 
+    // Retry-safety, part two: upsert, not insert. If a previous activation
+    // attempt died partway through this 14-iteration loop (a dropped
+    // request on a phone), a plain insert would trip sprint_days'
+    // unique(sprint_id, day_number) on the days that did get written, and
+    // the sprint could never be recovered.
     const { data: dayRow, error: dayError } = await supabase
       .from('sprint_days')
-      .insert({ sprint_id: sprint.id, day_number: dayNumber, date: localDateString(dayDate) })
+      .upsert(
+        { sprint_id: sprint.id, day_number: dayNumber, date: localDateString(dayDate) },
+        { onConflict: 'sprint_id,day_number' }
+      )
       .select('id')
       .single();
     if (dayError) throw new Error(dayError.message);
+
+    if (daysAlreadyPopulated.has((dayRow as any).id)) {
+      continue;
+    }
 
     const daySlots = slotsForDay(template, dayNumber);
     const exerciseRows = daySlots.map((slot) => {
@@ -242,6 +307,10 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
     }
   }
 
+  // The single place a sprint becomes 'active', and only once all 14 days
+  // exist. submitAssessment deliberately no longer does this for the
+  // baseline phase -- an 'active' sprint with missing days is the same
+  // dead end as a sprint stuck past day 14.
   const { error: activateError } = await supabase.from('sprints').update({ status: 'active' }).eq('id', sprint.id);
   if (activateError) throw new Error(activateError.message);
 }
@@ -301,14 +370,21 @@ export async function completeDay(sprintDayId: string, dayNumber: number, sprint
   }
 }
 
+export interface SwapCandidate {
+  readonly exerciseId: string;
+  readonly name: string;
+  readonly prescribedSets: number | null;
+  readonly prescribedRepsOrDuration: string | null;
+}
+
 export async function fetchSwapCandidates(
   painPointId: string,
   slotKey: string,
   excludingExerciseId: string
-): Promise<ReadonlyArray<{ exerciseId: string; name: string }>> {
+): Promise<ReadonlyArray<SwapCandidate>> {
   const { data, error } = await supabase
     .from('sprint_exercise_pool')
-    .select('exercise_id, exercises ( name )')
+    .select('exercise_id, prescribed_sets, prescribed_reps_or_duration, exercises ( name )')
     .eq('pain_point_id', painPointId)
     .eq('slot_key', slotKey)
     .neq('exercise_id', excludingExerciseId);
@@ -317,17 +393,31 @@ export async function fetchSwapCandidates(
   return ((data ?? []) as any[]).map((row) => ({
     exerciseId: row.exercise_id,
     name: row.exercises?.name ?? 'Unknown exercise',
+    prescribedSets: row.prescribed_sets ?? null,
+    prescribedRepsOrDuration: row.prescribed_reps_or_duration ?? null,
   }));
 }
 
+/**
+ * Same-slot candidates genuinely differ in dosage (heel raises 2x15 reps vs.
+ * toe/heel walks 1x20m), so the new exercise's own prescription has to move
+ * with it -- otherwise the row shows the new name under the old sets/reps.
+ */
 export async function swapExercise(
   sprintDayExerciseId: string,
   currentExerciseId: string,
-  newExerciseId: string
+  newExerciseId: string,
+  prescribedSets: number | null,
+  prescribedRepsOrDuration: string | null
 ): Promise<void> {
   const { error } = await supabase
     .from('sprint_day_exercises')
-    .update({ exercise_id: newExerciseId, swapped_from_exercise_id: currentExerciseId })
+    .update({
+      exercise_id: newExerciseId,
+      swapped_from_exercise_id: currentExerciseId,
+      prescribed_sets: prescribedSets,
+      prescribed_reps_or_duration: prescribedRepsOrDuration,
+    })
     .eq('id', sprintDayExerciseId);
   if (error) throw new Error(error.message);
 }

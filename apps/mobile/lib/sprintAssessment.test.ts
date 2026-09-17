@@ -139,3 +139,59 @@ describe('fetchAssessmentResults', () => {
     expect(result).toEqual([{ testKey: 'knee_to_wall', valueLeft: 8, valueRight: undefined, valueSingle: undefined, notes: undefined }]);
   });
 });
+
+import { submitAssessment } from './sprintAssessment';
+
+describe('submitAssessment', () => {
+  function mockChain(overrides: Record<string, any>) {
+    const chain: any = {};
+    for (const method of ['select', 'update', 'upsert', 'eq', 'single']) {
+      chain[method] = overrides[method] ?? jest.fn(() => chain);
+    }
+    return chain;
+  }
+
+  function mockAssessmentUpsert() {
+    return mockChain({
+      upsert: jest.fn(() =>
+        mockChain({ select: jest.fn(() => mockChain({ single: jest.fn(() => Promise.resolve({ data: { id: 'a-1' }, error: null })) })) })
+      ),
+    });
+  }
+
+  beforeEach(() => {
+    (supabase.from as jest.Mock).mockReset();
+  });
+
+  // The baseline phase deliberately leaves the sprint in pending_baseline:
+  // activateSprintAfterBaseline flips it to 'active' only once all 14 days
+  // exist, so a failed generation can be retried instead of stranding an
+  // 'active' sprint with missing days.
+  test('the baseline phase does NOT flip the sprint to active', async () => {
+    const updateSpy = jest.fn(() => mockChain({ eq: jest.fn(() => Promise.resolve({ error: null })) }));
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(mockAssessmentUpsert())
+      .mockReturnValueOnce(mockChain({ upsert: jest.fn(() => Promise.resolve({ error: null })) }))
+      .mockReturnValue(mockChain({ update: updateSpy }));
+
+    await submitAssessment('sprint-1', 'baseline', [{ testKey: 'knee_to_wall', valueLeft: 8, valueRight: 9 }]);
+
+    expect(supabase.from).toHaveBeenCalledWith('sprint_assessments');
+    expect(supabase.from).toHaveBeenCalledWith('sprint_assessment_results');
+    expect(supabase.from).not.toHaveBeenCalledWith('sprints');
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  test('the reassessment phase still completes the sprint', async () => {
+    const updateSpy = jest.fn(() => mockChain({ eq: jest.fn(() => Promise.resolve({ error: null })) }));
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(mockAssessmentUpsert())
+      .mockReturnValueOnce(mockChain({ upsert: jest.fn(() => Promise.resolve({ error: null })) }))
+      .mockReturnValue(mockChain({ update: updateSpy }));
+
+    await submitAssessment('sprint-1', 'reassessment', [{ testKey: 'knee_to_wall', valueLeft: 10, valueRight: 10 }]);
+
+    expect(supabase.from).toHaveBeenCalledWith('sprints');
+    expect(updateSpy).toHaveBeenCalledWith({ status: 'completed' });
+  });
+});
