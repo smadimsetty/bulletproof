@@ -90,3 +90,52 @@ describe('buildBeforeAfterComparison', () => {
     expect(comparison[0].reassessment).toBeNull();
   });
 });
+
+import { fetchAssessmentResults } from './sprintAssessment';
+
+jest.mock('./supabase', () => ({ supabase: { from: jest.fn() } }));
+import { supabase } from './supabase';
+
+describe('fetchAssessmentResults', () => {
+  function mockChain(overrides: Record<string, any>) {
+    const chain: any = {};
+    for (const method of ['select', 'eq', 'maybeSingle']) {
+      chain[method] = overrides[method] ?? jest.fn(() => chain);
+    }
+    return chain;
+  }
+
+  test('returns an empty array when no assessment exists for that phase yet', async () => {
+    (supabase.from as jest.Mock).mockReturnValue(
+      mockChain({
+        select: jest.fn(() =>
+          mockChain({ eq: jest.fn(() => mockChain({ eq: jest.fn(() => mockChain({ maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })) })) })) })
+        ),
+      })
+    );
+
+    const result = await fetchAssessmentResults('sprint-1', 'reassessment');
+    expect(result).toEqual([]);
+  });
+
+  test('maps result rows to AssessmentResultInput, undefined for unset fields', async () => {
+    (supabase.from as jest.Mock)
+      .mockReturnValueOnce(
+        mockChain({
+          select: jest.fn(() =>
+            mockChain({ eq: jest.fn(() => mockChain({ eq: jest.fn(() => mockChain({ maybeSingle: jest.fn(() => Promise.resolve({ data: { id: 'assessment-1' }, error: null })) })) })) })
+          ),
+        })
+      )
+      .mockReturnValueOnce(
+        mockChain({
+          select: jest.fn(() =>
+            mockChain({ eq: jest.fn(() => Promise.resolve({ data: [{ test_key: 'knee_to_wall', value_left: 8, value_right: null, value_single: null, notes: null }], error: null })) })
+          ),
+        })
+      );
+
+    const result = await fetchAssessmentResults('sprint-1', 'baseline');
+    expect(result).toEqual([{ testKey: 'knee_to_wall', valueLeft: 8, valueRight: undefined, valueSingle: undefined, notes: undefined }]);
+  });
+});

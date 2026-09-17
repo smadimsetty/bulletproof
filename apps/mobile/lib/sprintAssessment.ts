@@ -142,3 +142,31 @@ export function buildBeforeAfterComparison(
     reassessment: toComparisonValue(reassessmentByKey.get(def.testKey)),
   }));
 }
+
+export async function fetchAssessmentResults(
+  sprintId: string,
+  phase: 'baseline' | 'reassessment'
+): Promise<AssessmentResultInput[]> {
+  const { data: assessment, error: assessmentError } = await supabase
+    .from('sprint_assessments')
+    .select('id')
+    .eq('sprint_id', sprintId)
+    .eq('phase', phase)
+    .maybeSingle();
+  if (assessmentError) throw new Error(assessmentError.message);
+  if (!assessment) return [];
+
+  const { data: results, error: resultsError } = await supabase
+    .from('sprint_assessment_results')
+    .select('test_key, value_left, value_right, value_single, notes')
+    .eq('sprint_assessment_id', (assessment as any).id);
+  if (resultsError) throw new Error(resultsError.message);
+
+  return ((results ?? []) as any[]).map((row) => ({
+    testKey: row.test_key,
+    valueLeft: row.value_left ?? undefined,
+    valueRight: row.value_right ?? undefined,
+    valueSingle: row.value_single ?? undefined,
+    notes: row.notes ?? undefined,
+  }));
+}
