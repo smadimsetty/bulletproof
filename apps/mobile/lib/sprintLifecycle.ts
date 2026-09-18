@@ -316,7 +316,7 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
 }
 
 const SPRINT_DAY_EXERCISE_SELECT =
-  'id, slot_key, tier, exercise_id, prescribed_sets, prescribed_reps_or_duration, exercise_order, completed_at, exercises ( name )';
+  'id, slot_key, tier, exercise_id, prescribed_sets, prescribed_reps_or_duration, exercise_order, completed_at, exercises!exercise_id ( name )';
 
 export async function fetchTodaySprintDay(sprintId: string): Promise<SprintDay | null> {
   const todayIso = localDateString(new Date());
