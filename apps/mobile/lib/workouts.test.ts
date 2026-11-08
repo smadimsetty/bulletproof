@@ -34,8 +34,8 @@ test('buildSprintWorkoutExercises keeps order and maps prescriptions', () => {
   const day: SprintDay = {
     id: 'd1', sprintId: 's1', dayNumber: 3, date: '2026-11-07', completedAt: null,
     exercises: [
-      { id: 'x2', slotKey: 'b', tier: 2, exerciseId: 'e2', exerciseName: 'B', prescribedSets: null, prescribedRepsOrDuration: '30s each side', order: 2, completedAt: null },
-      { id: 'x1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', prescribedSets: 2, prescribedRepsOrDuration: '15 reps', order: 1, completedAt: null },
+      { id: 'x2', slotKey: 'b', tier: 2, exerciseId: 'e2', exerciseName: 'B', description: null, prescribedSets: null, prescribedRepsOrDuration: '30s each side', order: 2, completedAt: null },
+      { id: 'x1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '15 reps', order: 1, completedAt: null },
     ],
   };
   expect(buildSprintWorkoutExercises(day)).toEqual([
@@ -99,12 +99,12 @@ const sprintWorkout: Workout = {
   startedAt: '2026-11-07T10:00:00Z', endedAt: null,
   exercises: [
     {
-      id: 'we1', exerciseId: 'e1', exerciseName: 'Chin tuck', exerciseType: 'mobility_stretch', unilateral: false,
+      id: 'we1', exerciseId: 'e1', exerciseName: 'Chin tuck', exerciseType: 'mobility_stretch', unilateral: false, description: null,
       position: 1, targetText: null, measureRom: false, sprintDayExerciseId: 'sde1',
       sets: [set('s1', 1, null, 'x'), set('s2', 2, null, null)],
     },
     {
-      id: 'we2', exerciseId: 'e2', exerciseName: 'Couch stretch', exerciseType: 'mobility_stretch', unilateral: true,
+      id: 'we2', exerciseId: 'e2', exerciseName: 'Couch stretch', exerciseType: 'mobility_stretch', unilateral: true, description: null,
       position: 2, targetText: null, measureRom: false, sprintDayExerciseId: 'sde2',
       sets: [set('s3', 1, 'left', null)],
     },
@@ -184,7 +184,7 @@ describe('finishWorkout', () => {
 describe('startSprintWorkout', () => {
   const day: SprintDay = {
     id: 'd3', sprintId: 'sp1', dayNumber: 3, date: '2026-11-07', completedAt: null,
-    exercises: [{ id: 'sde1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', prescribedSets: 2, prescribedRepsOrDuration: '30s', order: 1, completedAt: null }],
+    exercises: [{ id: 'sde1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '30s', order: 1, completedAt: null }],
   };
 
   test('resumes the existing in-progress workout for that day instead of creating one', async () => {

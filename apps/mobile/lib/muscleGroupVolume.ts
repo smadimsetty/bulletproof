@@ -131,7 +131,7 @@ export function rankBestLifts(rows: readonly MuscleGroupLogRow[], bodyPart: stri
 export async function fetchMuscleGroupLogs(bounds: DateRangeBounds): Promise<MuscleGroupLogRow[]> {
   const { data, error } = await supabase
     .from('exercise_logs')
-    .select('date, exercise_id, reps_completed, weight_kg, exercises:exercise_id ( name, body_parts, is_complex )')
+    .select('date, exercise_id, reps_completed, weight_kg, exercises!exercise_logs_exercise_id_fkey ( name, body_parts, is_complex )')
     .eq('completed', true)
     .gte('date', bounds.startDate)
     .lte('date', bounds.endDate);

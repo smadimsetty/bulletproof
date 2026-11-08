@@ -39,6 +39,8 @@ export interface SprintDayExercise {
   readonly tier: number;
   readonly exerciseId: string;
   readonly exerciseName: string;
+  /** exercises.evidence_rationale, shown behind the eye-icon toggle. */
+  readonly description: string | null;
   readonly prescribedSets: number | null;
   readonly prescribedRepsOrDuration: string | null;
   readonly order: number;
@@ -71,6 +73,7 @@ function toSprintDayExercise(row: any): SprintDayExercise {
     tier: row.tier,
     exerciseId: row.exercise_id,
     exerciseName: row.exercises?.name ?? 'Unknown exercise',
+    description: row.exercises?.evidence_rationale ?? null,
     prescribedSets: row.prescribed_sets,
     prescribedRepsOrDuration: row.prescribed_reps_or_duration,
     order: row.exercise_order,
@@ -316,7 +319,7 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
 }
 
 const SPRINT_DAY_EXERCISE_SELECT =
-  'id, slot_key, tier, exercise_id, prescribed_sets, prescribed_reps_or_duration, exercise_order, completed_at, exercises!exercise_id ( name )';
+  'id, slot_key, tier, exercise_id, prescribed_sets, prescribed_reps_or_duration, exercise_order, completed_at, exercises!sprint_day_exercises_exercise_id_fkey ( name, evidence_rationale )';
 
 export async function fetchTodaySprintDay(sprintId: string): Promise<SprintDay | null> {
   const todayIso = localDateString(new Date());
@@ -384,7 +387,7 @@ export async function fetchSwapCandidates(
 ): Promise<ReadonlyArray<SwapCandidate>> {
   const { data, error } = await supabase
     .from('sprint_exercise_pool')
-    .select('exercise_id, prescribed_sets, prescribed_reps_or_duration, exercises ( name )')
+    .select('exercise_id, prescribed_sets, prescribed_reps_or_duration, exercises!sprint_exercise_pool_exercise_id_fkey ( name )')
     .eq('pain_point_id', painPointId)
     .eq('slot_key', slotKey)
     .neq('exercise_id', excludingExerciseId);

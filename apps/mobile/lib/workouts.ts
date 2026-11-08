@@ -27,6 +27,7 @@ export interface WorkoutExerciseRow {
   readonly exerciseName: string;
   readonly exerciseType: string | null;
   readonly unilateral: boolean;
+  readonly description: string | null;
   readonly position: number;
   readonly targetText: string | null;
   readonly measureRom: boolean;
@@ -177,7 +178,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
     .select(
       `id, title, notes, source, sprint_day_id, started_at, ended_at,
        workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id,
-         exercises!exercise_id ( name, exercise_type, unilateral ),
+         exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, evidence_rationale ),
          workout_sets ( ${SET_COLUMNS} ) )`
     )
     .eq('id', workoutId)
@@ -200,6 +201,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
           exerciseName: e.exercises?.name ?? 'Unknown exercise',
           exerciseType: e.exercises?.exercise_type ?? null,
           unilateral: !!e.exercises?.unilateral,
+          description: e.exercises?.evidence_rationale ?? null,
           position: e.position,
           targetText: e.target_text,
           measureRom: e.measure_rom,
