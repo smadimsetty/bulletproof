@@ -1,4 +1,4 @@
-import { fieldsForExercise, defaultSetCount, defaultRestSeconds, missingRequiredField, EMPTY_SET_VALUES } from './setFields';
+import { fieldsForExercise, defaultSetCount, defaultRestSeconds, missingRequiredField, sameSetValues, EMPTY_SET_VALUES } from './setFields';
 
 describe('fieldsForExercise', () => {
   test.each([
@@ -45,5 +45,19 @@ describe('missingRequiredField', () => {
     expect(missingRequiredField('hold', EMPTY_SET_VALUES)).toBe('Enter a duration');
     expect(missingRequiredField('duration', { ...EMPTY_SET_VALUES, durationS: 0 })).toBe('Enter a duration');
     expect(missingRequiredField('hold', { ...EMPTY_SET_VALUES, durationS: 30 })).toBeNull();
+  });
+});
+
+describe('sameSetValues', () => {
+  test('equal bundles', () => {
+    expect(sameSetValues({ ...EMPTY_SET_VALUES, reps: 8, weightKg: 61.2349 }, { ...EMPTY_SET_VALUES, reps: 8, weightKg: 61.23 })).toBe(true);
+  });
+  test('any changed field differs', () => {
+    const base = { ...EMPTY_SET_VALUES, reps: 8, weightKg: 40, romValue: 10, romUnit: 'cm' as const };
+    expect(sameSetValues(base, { ...base, reps: 10 })).toBe(false);
+    expect(sameSetValues(base, { ...base, weightKg: 42.5 })).toBe(false);
+    expect(sameSetValues(base, { ...base, weightKg: null })).toBe(false);
+    expect(sameSetValues(base, { ...base, romUnit: 'deg' })).toBe(false);
+    expect(sameSetValues(base, { ...base, durationS: 30 })).toBe(false);
   });
 });

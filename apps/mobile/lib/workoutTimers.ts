@@ -87,3 +87,16 @@ export function adjustRest(rest: RestTimer, deltaS: number, now: number): RestTi
 export function restRemainingS(rest: RestTimer, now: number): number {
   return Math.max(0, Math.ceil((rest.endsAt - now) / 1000));
 }
+
+/** The row a hold timer is about to complete or start, if any. */
+export function holdTargetRowId(timer: HoldTimer): string | null {
+  switch (timer.phase) {
+    case 'lead_in':
+    case 'holding':
+      return timer.rowId;
+    case 'switching':
+      return timer.nextRowId;
+    default:
+      return null;
+  }
+}

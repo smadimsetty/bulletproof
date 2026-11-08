@@ -51,3 +51,21 @@ export function missingRequiredField(kind: SetKind, values: SetValues): string |
   }
   return values.durationS == null || values.durationS <= 0 ? 'Enter a duration' : null;
 }
+
+function sameDecimal(a: number | null, b: number | null): boolean {
+  if (a == null || b == null) return a == b;
+  // weight_kg / rom_value are numeric(6,2): a value typed in lbs comes back
+  // rounded to 2 decimals, which must not read as an unsaved edit.
+  return Math.abs(a - b) <= 0.005 + 1e-9;
+}
+
+/** True when two set value bundles would store the same row. */
+export function sameSetValues(a: SetValues, b: SetValues): boolean {
+  return (
+    a.reps === b.reps &&
+    a.durationS === b.durationS &&
+    (a.romUnit ?? null) === (b.romUnit ?? null) &&
+    sameDecimal(a.weightKg, b.weightKg) &&
+    sameDecimal(a.romValue, b.romValue)
+  );
+}

@@ -1,4 +1,6 @@
 // Pure "what does Save do" (spec section 4, Finish steps 1-4).
+import { sameSetValues, type SetValues } from './setFields';
+
 export interface FinishInputExercise {
   readonly id: string;
   readonly sprintDayExerciseId: string | null;
@@ -33,4 +35,30 @@ export function planFinish(exercises: readonly FinishInputExercise[]): FinishPla
 
   if (!anyCompleted) return { ok: false, reason: 'no_completed_sets' };
   return { ok: true, deleteSetIds, deleteExerciseIds, sprintDayExerciseIdsToComplete };
+}
+
+export interface DraftableSet extends SetValues {
+  readonly id: string;
+  readonly completedAt: string | null;
+}
+
+/**
+ * Completed sets whose local draft differs from the stored row: edits made
+ * on an already-ticked row that never reached the DB (no blur happened).
+ * Uncompleted rows are excluded -- they persist on ✓ and are deleted on
+ * Finish anyway.
+ */
+export function dirtyCompletedSets(
+  exercises: readonly { readonly sets: readonly DraftableSet[] }[],
+  drafts: Readonly<Record<string, SetValues>>
+): { id: string; values: SetValues }[] {
+  const dirty: { id: string; values: SetValues }[] = [];
+  for (const ex of exercises) {
+    for (const s of ex.sets) {
+      const draft = drafts[s.id];
+      if (!s.completedAt || !draft) continue;
+      if (!sameSetValues(draft, s)) dirty.push({ id: s.id, values: draft });
+    }
+  }
+  return dirty;
 }

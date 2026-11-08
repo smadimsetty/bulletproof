@@ -1,4 +1,4 @@
-import { plannedRows, parseTargetSeconds, previousMatch, prefillValues, type PreviousSet } from './previousValues';
+import { plannedRows, parseTargetSeconds, previousMatch, prefillValues, previousHint, type PreviousSet } from './previousValues';
 import { EMPTY_SET_VALUES } from './setFields';
 
 const prev = (setNumber: number, side: 'left' | 'right' | null, v: Partial<PreviousSet>): PreviousSet => ({
@@ -55,5 +55,19 @@ describe('prefillValues', () => {
   });
   test('reps without history is blank', () => {
     expect(prefillValues({ setNumber: 1, side: null }, [], 'reps', '2x15')).toEqual(EMPTY_SET_VALUES);
+  });
+});
+
+describe('previousHint', () => {
+  test('formats the matched previous row', () => {
+    const history = [prev(1, null, { reps: 8, weightKg: 40 })];
+    expect(previousHint({ setNumber: 1, side: null }, history, 'weight_reps', 'kg')).toBe('prev: 40 kg × 8');
+  });
+  test('falls back to the last same-side row for an extra set', () => {
+    const history = [prev(1, 'left', { durationS: 30 }), prev(2, 'left', { durationS: 45 })];
+    expect(previousHint({ setNumber: 3, side: 'left' }, history, 'hold', 'lbs')).toBe('prev: 45 s');
+  });
+  test('null without history', () => {
+    expect(previousHint({ setNumber: 1, side: null }, [], 'reps', 'lbs')).toBeNull();
   });
 });

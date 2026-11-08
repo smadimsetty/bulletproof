@@ -3,6 +3,8 @@
 // from the most recent saved workout containing the same exercise (spec
 // section 4, "Planned sets"). Pure.
 import { EMPTY_SET_VALUES, type SetKind, type SetValues, type Side } from './setFields';
+import { formatSetValue } from './setFormatting';
+import type { WeightUnit } from './units';
 
 export interface PlannedRow {
   readonly setNumber: number;
@@ -66,4 +68,16 @@ export function prefillValues(
     return { ...EMPTY_SET_VALUES, durationS: parseTargetSeconds(targetText) ?? DEFAULT_HOLD_SECONDS };
   }
   return EMPTY_SET_VALUES;
+}
+
+/** The muted "prev: …" hint for a logger row; null when there is no history. */
+export function previousHint(
+  row: PlannedRow,
+  previous: readonly PreviousSet[],
+  kind: SetKind,
+  unit: WeightUnit
+): string | null {
+  const match = previousMatch(row, previous);
+  if (!match) return null;
+  return `prev: ${formatSetValue({ ...match, setType: 'working' }, kind, unit)}`;
 }

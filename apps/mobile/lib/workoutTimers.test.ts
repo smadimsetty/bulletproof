@@ -1,6 +1,6 @@
 import {
   IDLE, startHold, startSwitch, tickHold, stopHold, holdRemainingS,
-  startRest, adjustRest, restRemainingS, LEAD_IN_MS, SWITCH_MS,
+  startRest, adjustRest, restRemainingS, holdTargetRowId, LEAD_IN_MS, SWITCH_MS,
 } from './workoutTimers';
 
 const T0 = 1_000_000;
@@ -71,5 +71,15 @@ describe('rest timer', () => {
   });
   test('remaining never negative', () => {
     expect(restRemainingS(startRest(10, T0), T0 + 99999)).toBe(0);
+  });
+});
+
+describe('holdTargetRowId', () => {
+  test('lead-in and holding target their row; switching targets the next row; idle none', () => {
+    const lead = startHold('a', 30, T0);
+    expect(holdTargetRowId(lead)).toBe('a');
+    expect(holdTargetRowId(tickHold(lead, T0 + LEAD_IN_MS).timer)).toBe('a');
+    expect(holdTargetRowId(startSwitch('b', 30, T0))).toBe('b');
+    expect(holdTargetRowId(IDLE)).toBeNull();
   });
 });

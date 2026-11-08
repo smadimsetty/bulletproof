@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { COLORS, RADII, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import type { WorkoutSetRow } from '../../lib/workouts';
 import type { RomUnit, SetKind, SetValues } from '../../lib/setFields';
+import Ticker from './Ticker';
 import { displayUnitToKg, formatWeightForDisplay, type WeightUnit } from '../../lib/units';
 
 export interface SetRowProps {
@@ -15,14 +16,18 @@ export interface SetRowProps {
   unit: WeightUnit;
   draft: SetValues;
   onChange: (next: SetValues) => void;
-  onCommitEdit: () => void;
+  /** Persist an edit on a completed row; explicit values beat the (possibly not yet rendered) draft. */
+  onCommitEdit: (values?: SetValues) => void;
   onToggleComplete: () => void;
   onToggleWarmup: () => void;
   onDelete: () => void;
-  timerLabel: string | null;
+  /** Countdown text for this row at a given time; null when no timer targets it. */
+  timerLabel: ((now: number) => string) | null;
   onStartHold: (() => void) | null;
   onStopHold: (() => void) | null;
   hint: string | null;
+  /** Muted "prev: …" from the last saved workout with this exercise. */
+  prevHint: string | null;
 }
 
 const ROM_CYCLE: Record<RomUnit, RomUnit> = { cm: 'deg', deg: 'in', in: 'cm' };
@@ -76,7 +81,8 @@ function NumField({ display, onText, onCommit, keyboardType, placeholder, width 
 }
 
 export default function SetRow(props: SetRowProps) {
-  const { set, kind, measureRom, unit, draft, onChange, onCommitEdit, timerLabel, onStartHold, onStopHold, hint } = props;
+  const { set, kind, measureRom, unit, draft, onChange, onCommitEdit, timerLabel, onStartHold, onStopHold, hint, prevHint } = props;
+  const commit = () => onCommitEdit();
   const completed = !!set.completedAt;
   const label = `${set.setType === 'warmup' ? 'W' : String(set.setNumber)}${set.side === 'left' ? 'L' : set.side === 'right' ? 'R' : ''}`;
   const romUnit: RomUnit = draft.romUnit ?? 'cm';
@@ -107,7 +113,7 @@ export default function SetRow(props: SetRowProps) {
                 const n = parseNumber(t, false);
                 onChange({ ...draft, weightKg: n == null ? null : displayUnitToKg(n, unit) });
               }}
-              onCommit={onCommitEdit}
+              onCommit={commit}
             />
             <Text style={styles.unit}>{unit}</Text>
             <Text style={styles.unit}>×</Text>
@@ -116,7 +122,7 @@ export default function SetRow(props: SetRowProps) {
               keyboardType="number-pad"
               placeholder="reps"
               onText={(t) => onChange({ ...draft, reps: parseNumber(t, true) })}
-              onCommit={onCommitEdit}
+              onCommit={commit}
             />
           </>
         )}
@@ -127,14 +133,14 @@ export default function SetRow(props: SetRowProps) {
             keyboardType="number-pad"
             placeholder="reps"
             onText={(t) => onChange({ ...draft, reps: parseNumber(t, true) })}
-            onCommit={onCommitEdit}
+            onCommit={commit}
           />
         )}
 
         {kind === 'hold' && (
           <>
             {timerLabel != null ? (
-              <Text style={styles.timer}>{timerLabel}</Text>
+              <Ticker>{(now) => <Text style={styles.timer}>{timerLabel(now)}</Text>}</Ticker>
             ) : (
               <>
                 <NumField
@@ -142,7 +148,7 @@ export default function SetRow(props: SetRowProps) {
                   keyboardType="number-pad"
                   placeholder="sec"
                   onText={(t) => onChange({ ...draft, durationS: parseNumber(t, true) })}
-                  onCommit={onCommitEdit}
+                  onCommit={commit}
                 />
                 <Text style={styles.unit}>s</Text>
               </>
@@ -167,7 +173,7 @@ export default function SetRow(props: SetRowProps) {
               placeholder="mm"
               width={48}
               onText={(t) => onChange({ ...draft, durationS: combine(t, seconds) })}
-              onCommit={onCommitEdit}
+              onCommit={commit}
             />
             <Text style={styles.unit}>:</Text>
             <NumField
@@ -176,7 +182,7 @@ export default function SetRow(props: SetRowProps) {
               placeholder="ss"
               width={48}
               onText={(t) => onChange({ ...draft, durationS: combine(minutes, t) })}
-              onCommit={onCommitEdit}
+              onCommit={commit}
             />
           </>
         )}
@@ -189,9 +195,16 @@ export default function SetRow(props: SetRowProps) {
               placeholder="ROM"
               width={52}
               onText={(t) => onChange({ ...draft, romValue: parseNumber(t, false), romUnit })}
-              onCommit={onCommitEdit}
+              onCommit={commit}
             />
-            <Pressable hitSlop={6} onPress={() => onChange({ ...draft, romUnit: ROM_CYCLE[romUnit] })}>
+            <Pressable
+              hitSlop={6}
+              onPress={() => {
+                const next = { ...draft, romUnit: ROM_CYCLE[romUnit] };
+                onChange(next);
+                onCommitEdit(next);
+              }}
+            >
               <Text style={styles.romUnit}>{romUnit}</Text>
             </Pressable>
           </>
@@ -210,6 +223,7 @@ export default function SetRow(props: SetRowProps) {
           <Text style={styles.delete}>×</Text>
         </Pressable>
       </View>
+      {prevHint ? <Text style={styles.prev}>{prevHint}</Text> : null}
       {hint ? <Text style={[sharedStyles.warningText, styles.hint]}>{hint}</Text> : null}
     </View>
   );
@@ -256,4 +270,5 @@ const styles = StyleSheet.create({
   checkTextDone: { color: COLORS.card },
   delete: { fontSize: 20, color: COLORS.muted, paddingHorizontal: 4 },
   hint: { paddingHorizontal: SPACING.sm },
+  prev: { ...TYPE.helper, fontSize: 11, color: COLORS.muted, paddingLeft: 28 + SPACING.xs * 2, marginTop: -2 },
 });

@@ -5,20 +5,33 @@
 // hold and rest timers (pure, from lib/workoutTimers.ts, ticked every 250ms).
 // Every DB write is awaited, then the workout is refetched; drafts for ids
 // that still exist are kept, new ids are seeded from the row.
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+//
+// Timer rules (fixes from the 2026-11-07 final review):
+// - holdRef/restRef are the synchronous source of truth; every change goes
+//   through applyHold/applyRest, and every hold change bumps holdGenRef.
+// - A row's completion is single-shot: inFlightRef holds the pending
+//   completion per row id, and a second completion of the same id is ignored.
+// - Manual ✓ / un-tick / × on a row first stops any hold aimed at that row.
+// - After a completion's writes resolve, switch-sides / rest only start if
+//   the hold wasn't changed in the meantime (holdGenRef unchanged), so a hold
+//   the user just started is never clobbered.
+// - Side effects (haptics, completions) run outside state updaters.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import {
-  addExercisesToWorkout, addSet, deleteSet, discardWorkout, fetchExerciseCatalog, fetchWorkout,
-  finishWorkout, removeWorkoutExercise, setMeasureRom, updateSet,
+  addExercisesToWorkout, addSet, deleteSet, discardWorkout, fetchExerciseCatalog, fetchPreviousSetsForExercises,
+  fetchWorkout, finishWorkout, removeWorkoutExercise, setMeasureRom, updateSet,
   type FinishInput, type Workout, type WorkoutExerciseRow, type WorkoutSetRow,
 } from '../../lib/workouts';
 import { defaultRestSeconds, fieldsForExercise, missingRequiredField, type SetValues } from '../../lib/setFields';
+import { dirtyCompletedSets } from '../../lib/finishPlan';
+import { previousHint, type PreviousSet } from '../../lib/previousValues';
 import {
-  IDLE, adjustRest, holdRemainingS, restRemainingS, startHold, startRest, startSwitch, stopHold, tickHold,
-  type HoldTimer, type RestTimer, type TimerEvent,
+  IDLE, adjustRest, holdRemainingS, holdTargetRowId, restRemainingS, startHold, startRest, startSwitch, stopHold,
+  tickHold, type HoldTimer, type RestTimer,
 } from '../../lib/workoutTimers';
 import { formatSeconds } from '../../lib/setFormatting';
 import { fetchWeightUnit } from '../../lib/userPreferences';
@@ -27,6 +40,7 @@ import type { CatalogExercise } from '../../lib/exerciseSearch';
 import SetRow from '../../components/logger/SetRow';
 import ExerciseCard from '../../components/logger/ExerciseCard';
 import RestBar from '../../components/logger/RestBar';
+import Ticker from '../../components/logger/Ticker';
 import ExercisePickerSheet from '../../components/logger/ExercisePickerSheet';
 import FinishSheet from '../../components/logger/FinishSheet';
 
@@ -48,7 +62,7 @@ export default function LoggerScreen() {
   const [hints, setHints] = useState<Record<string, string>>({});
   const [hold, setHold] = useState<HoldTimer>(IDLE);
   const [rest, setRest] = useState<RestTimer | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [prevByExercise, setPrevByExercise] = useState<Record<string, PreviousSet[]>>({});
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -58,9 +72,25 @@ export default function LoggerScreen() {
   workoutRef.current = workout;
   const draftsRef = useRef<Record<string, SetValues>>({});
   draftsRef.current = drafts;
+  const holdRef = useRef<HoldTimer>(IDLE);
+  const holdGenRef = useRef(0);
+  const restRef = useRef<RestTimer | null>(null);
+  const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  const prevRequestedRef = useRef<Set<string>>(new Set());
+
+  function applyHold(next: HoldTimer) {
+    holdRef.current = next;
+    holdGenRef.current += 1;
+    setHold(next);
+  }
+  function applyRest(next: RestTimer | null) {
+    restRef.current = next;
+    setRest(next);
+  }
 
   const reload = useCallback(async () => {
     const w = await fetchWorkout(workoutId);
+    workoutRef.current = w;
     setWorkout(w);
     setDrafts((prev) => {
       const next: Record<string, SetValues> = {};
@@ -90,6 +120,19 @@ export default function LoggerScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endedAt, loadedId]);
 
+  // "prev: …" hints: fetched once per exercise id, i.e. on load and when an
+  // exercise is added -- not on every reload. A failure just means no hints.
+  const exerciseIdsKey = workout ? Array.from(new Set(workout.exercises.map((e) => e.exerciseId))).sort().join(',') : '';
+  useEffect(() => {
+    if (!exerciseIdsKey) return;
+    const missing = exerciseIdsKey.split(',').filter((id) => !prevRequestedRef.current.has(id));
+    if (missing.length === 0) return;
+    missing.forEach((id) => prevRequestedRef.current.add(id));
+    fetchPreviousSetsForExercises(missing)
+      .then((byId) => setPrevByExercise((p) => ({ ...p, ...byId })))
+      .catch(() => missing.forEach((id) => prevRequestedRef.current.delete(id)));
+  }, [exerciseIdsKey]);
+
   // ---- lookups ----
   function findSet(w: Workout, setId: string): { exercise: WorkoutExerciseRow; set: WorkoutSetRow } | null {
     for (const exercise of w.exercises) {
@@ -106,40 +149,67 @@ export default function LoggerScreen() {
     if (s.side !== 'left') return null;
     return e.sets.find((x) => x.setNumber === s.setNumber && x.side === 'right' && !x.completedAt) ?? null;
   }
+  /** Stop (without completing) any hold aimed at one of these rows. */
+  function clearHoldFor(rowIds: readonly string[]) {
+    const target = holdTargetRowId(holdRef.current);
+    if (target && rowIds.includes(target)) applyHold(IDLE);
+  }
 
   // ---- completing ----
-  async function completeRow(setId: string, overrideDurationS?: number, viaTimer = false) {
+  /** Best effort: persist edits on other completed rows that never blurred. */
+  async function flushDirtyCompleted(exceptId: string | null) {
     const w = workoutRef.current;
     if (!w) return;
-    const found = findSet(w, setId);
-    if (!found) return;
+    for (const d of dirtyCompletedSets(w.exercises, draftsRef.current)) {
+      if (d.id !== exceptId) await updateSet(d.id, d.values);
+    }
+  }
+
+  function completeRow(setId: string, overrideDurationS?: number, viaTimer = false): Promise<void> {
+    const pending = inFlightRef.current.get(setId);
+    if (pending) return pending; // single-shot per row
+    const gen = holdGenRef.current;
+    const w = workoutRef.current;
+    const found = w && findSet(w, setId);
+    if (!found || found.set.completedAt) return Promise.resolve();
     const kind = kindOf(found.exercise);
     const values = { ...(draftsRef.current[setId] ?? valuesOf(found.set)), ...(overrideDurationS != null ? { durationS: overrideDurationS } : {}) };
     const missing = missingRequiredField(kind, values);
     if (missing) {
       setHints((h) => ({ ...h, [setId]: missing }));
-      return;
+      return Promise.resolve();
     }
     setHints((h) => {
       const { [setId]: _, ...rest } = h;
       return rest;
     });
-    try {
-      await updateSet(setId, { ...values, completedAt: new Date().toISOString() });
-      setDrafts((d) => ({ ...d, [setId]: values }));
-      const fresh = await reload();
-      const again = findSet(fresh, setId);
-      const partner = again ? rightPartner(again.exercise, again.set) : null;
-      if (partner && viaTimer && kind === 'hold') {
-        setRest(null);
-        setHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      } else if (!partner) {
-        setRest(startRest(defaultRestSeconds(kind), Date.now()));
+
+    const run = (async () => {
+      try {
+        await updateSet(setId, { ...values, completedAt: new Date().toISOString() });
+        setDrafts((d) => ({ ...d, [setId]: values }));
+        await flushDirtyCompleted(setId).catch(() => {}); // Finish flushes again
+        const fresh = await reload();
+        // The user touched the hold timer meanwhile (e.g. started another
+        // hold): leave their timer alone and start nothing.
+        if (holdGenRef.current !== gen) return;
+        const again = findSet(fresh, setId);
+        const partner = again ? rightPartner(again.exercise, again.set) : null;
+        if (partner && viaTimer && kind === 'hold') {
+          applyRest(null);
+          applyHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        } else if (!partner) {
+          applyRest(startRest(defaultRestSeconds(kind), Date.now()));
+        }
+      } catch (err) {
+        reportError(err, 'Could not save that set.');
+      } finally {
+        inFlightRef.current.delete(setId);
       }
-    } catch (err) {
-      reportError(err, 'Could not save that set.');
-    }
+    })();
+    inFlightRef.current.set(setId, run);
+    return run;
   }
 
   async function uncompleteRow(setId: string) {
@@ -151,45 +221,54 @@ export default function LoggerScreen() {
     }
   }
 
-  async function commitEdit(setId: string) {
+  async function commitEdit(setId: string, explicit?: SetValues) {
     const w = workoutRef.current;
     const found = w && findSet(w, setId);
     if (!found || !found.set.completedAt) return; // incomplete rows persist on ✓
+    const values = explicit ?? draftsRef.current[setId];
+    if (!values) return;
     try {
-      await updateSet(setId, draftsRef.current[setId]);
+      await updateSet(setId, values);
       await reload();
     } catch (err) {
       reportError(err, 'Could not save that edit.');
     }
   }
 
-  // ---- timers ----
-  function handleTimerEvent(event: TimerEvent) {
-    if (!event) return;
-    if (event.type === 'hold_completed') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      completeRow(event.rowId, event.durationS, true);
+  function toggleComplete(set: WorkoutSetRow) {
+    if (set.completedAt) {
+      clearHoldFor([set.id]);
+      uncompleteRow(set.id);
+      return;
     }
+    const cur = holdRef.current;
+    if (cur.phase === 'holding' && cur.rowId === set.id) {
+      // ✓ mid-hold = "I'm done": complete with the elapsed time, once.
+      stopHoldNow();
+      return;
+    }
+    clearHoldFor([set.id]);
+    completeRow(set.id);
   }
 
+  // ---- timers ----
   const timerActive = hold.phase !== 'idle' || rest !== null;
   useEffect(() => {
     if (!timerActive) return;
     const id = setInterval(() => {
       const t = Date.now();
-      setNow(t);
-      setHold((prev) => {
-        const { timer, event } = tickHold(prev, t);
-        if (event) setTimeout(() => handleTimerEvent(event), 0);
-        return timer;
-      });
-      setRest((prev) => {
-        if (prev && restRemainingS(prev, t) === 0) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-          return null;
-        }
-        return prev;
-      });
+      const cur = holdRef.current;
+      const { timer, event } = tickHold(cur, t);
+      if (timer !== cur) applyHold(timer);
+      if (event && event.type === 'hold_completed') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        completeRow(event.rowId, event.durationS, true);
+      }
+      const r = restRef.current;
+      if (r && restRemainingS(r, t) === 0) {
+        applyRest(null);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      }
     }, 250);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,26 +276,32 @@ export default function LoggerScreen() {
 
   function startHoldFor(set: WorkoutSetRow) {
     const t = Date.now();
-    // Starting a new hold finishes any running one with its elapsed time.
-    const stopped = stopHold(hold, t);
-    if (stopped.event) handleTimerEvent(stopped.event);
-    setRest(null);
-    const target = (drafts[set.id] ?? valuesOf(set)).durationS ?? 30;
-    setHold(startHold(set.id, target, t));
-    setNow(t);
+    // Starting a new hold finishes any running one with its elapsed time --
+    // a manual stop: no success haptic, no switch, and (because the hold
+    // generation changes right below) no rest either.
+    const stopped = stopHold(holdRef.current, t);
+    if (stopped.event && stopped.event.type === 'hold_completed') {
+      completeRow(stopped.event.rowId, stopped.event.durationS, false);
+    }
+    applyRest(null);
+    const target = (draftsRef.current[set.id] ?? valuesOf(set)).durationS ?? 30;
+    applyHold(startHold(set.id, target, t));
   }
 
   function stopHoldNow() {
-    const { timer, event } = stopHold(hold, Date.now());
-    setHold(timer);
+    const cur = holdRef.current;
+    if (cur.phase === 'idle') return; // the tick already completed it
+    const { event } = stopHold(cur, Date.now());
+    applyHold(IDLE);
     // Manual stop: complete with elapsed time but do NOT auto-switch sides.
     if (event && event.type === 'hold_completed') completeRow(event.rowId, event.durationS, false);
   }
 
-  function timerLabelFor(setId: string): string | null {
-    if (hold.phase === 'lead_in' && hold.rowId === setId) return `Get ready ${holdRemainingS(hold, now)}`;
-    if (hold.phase === 'holding' && hold.rowId === setId) return formatSeconds(holdRemainingS(hold, now));
-    if (hold.phase === 'switching' && hold.nextRowId === setId) return `Switch sides ${holdRemainingS(hold, now)}`;
+  function timerLabelFor(setId: string): ((now: number) => string) | null {
+    const h = hold;
+    if (h.phase === 'lead_in' && h.rowId === setId) return (n) => `Get ready ${holdRemainingS(h, n)}`;
+    if (h.phase === 'holding' && h.rowId === setId) return (n) => formatSeconds(holdRemainingS(h, n));
+    if (h.phase === 'switching' && h.nextRowId === setId) return (n) => `Switch sides ${holdRemainingS(h, n)}`;
     return null;
   }
 
@@ -250,12 +335,36 @@ export default function LoggerScreen() {
   }
 
   // ---- finish / discard ----
+  function openFinish() {
+    Keyboard.dismiss();
+    // A running hold is completed with its elapsed time rather than dropped;
+    // a lead-in or switch countdown simply stops.
+    const cur = holdRef.current;
+    if (cur.phase !== 'idle') {
+      const { event } = stopHold(cur, Date.now());
+      applyHold(IDLE);
+      if (event && event.type === 'hold_completed') completeRow(event.rowId, event.durationS, false);
+    }
+    setFinishOpen(true);
+  }
+  const openFinishRef = useRef(openFinish);
+  openFinishRef.current = openFinish;
+
   async function handleSave(input: FinishInput) {
     setSaving(true);
     try {
-      setHold(IDLE);
-      setRest(null);
-      const fresh = await reload();
+      Keyboard.dismiss();
+      // Let any ✓ still in flight land first, or its set would be deleted as
+      // "uncompleted" below.
+      await Promise.all(Array.from(inFlightRef.current.values()));
+      let fresh = await reload();
+      // Edits on completed rows that never blurred (number pads have no
+      // Return key) are only in drafts -- write them before saving.
+      const dirty = dirtyCompletedSets(fresh.exercises, draftsRef.current);
+      if (dirty.length > 0) {
+        for (const d of dirty) await updateSet(d.id, d.values);
+        fresh = await reload();
+      }
       const result = await finishWorkout(fresh, input);
       if (result === 'no_completed_sets') {
         Alert.alert('No sets completed', 'Tick at least one set, or discard this workout.', [
@@ -264,6 +373,8 @@ export default function LoggerScreen() {
         ]);
         return;
       }
+      applyHold(IDLE);
+      applyRest(null);
       setFinishOpen(false);
       router.replace(`/workout-summary/${workoutId}`);
     } catch (err) {
@@ -276,6 +387,8 @@ export default function LoggerScreen() {
   async function handleDiscardConfirmed() {
     try {
       await discardWorkout(workoutId);
+      applyHold(IDLE);
+      applyRest(null);
       setFinishOpen(false);
       router.back();
     } catch (err) {
@@ -289,6 +402,20 @@ export default function LoggerScreen() {
       { text: 'Discard', style: 'destructive', onPress: handleDiscardConfirmed },
     ]);
   }
+
+  // Stable header options: the header no longer re-renders on every tick.
+  const headerTitle = workout?.title ?? 'Workout';
+  const screenOptions = useMemo(
+    () => ({
+      title: headerTitle,
+      headerRight: () => (
+        <Pressable onPress={() => openFinishRef.current()} hitSlop={8}>
+          <Text style={styles.finish}>Finish</Text>
+        </Pressable>
+      ),
+    }),
+    [headerTitle]
+  );
 
   // ---- render ----
   if (loadError) {
@@ -315,22 +442,19 @@ export default function LoggerScreen() {
 
   return (
     <View style={sharedStyles.screen}>
-      <Stack.Screen
-        options={{
-          title: workout.title,
-          headerRight: () => (
-            <Pressable onPress={() => setFinishOpen(true)} hitSlop={8}>
-              <Text style={styles.finish}>Finish</Text>
-            </Pressable>
-          ),
-        }}
-      />
-      <ScrollView contentContainerStyle={[sharedStyles.screenContent, styles.bottomPad]} keyboardShouldPersistTaps="handled">
+      <Stack.Screen options={screenOptions} />
+      <ScrollView
+        contentContainerStyle={[sharedStyles.screenContent, styles.bottomPad]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         {workout.exercises.length === 0 && (
           <Text style={sharedStyles.helperText}>No exercises yet — add one below.</Text>
         )}
         {workout.exercises.map((exercise) => {
           const kind = kindOf(exercise);
+          const previous = prevByExercise[exercise.exerciseId] ?? [];
           return (
             <ExerciseCard
               key={exercise.id}
@@ -338,7 +462,10 @@ export default function LoggerScreen() {
               unit={unit}
               onAddSet={() => run(() => addSet(exercise), 'Could not add a set.')}
               onToggleRom={() => run(() => setMeasureRom(exercise.id, !exercise.measureRom), 'Could not update.')}
-              onRemove={() => run(() => removeWorkoutExercise(exercise.id), 'Could not remove that exercise.')}
+              onRemove={() => {
+                clearHoldFor(exercise.sets.map((s) => s.id));
+                run(() => removeWorkoutExercise(exercise.id), 'Could not remove that exercise.');
+              }}
               renderSet={(set) => {
                 const isTimerRow =
                   (hold.phase === 'lead_in' || hold.phase === 'holding') && hold.rowId === set.id;
@@ -351,16 +478,20 @@ export default function LoggerScreen() {
                     unit={unit}
                     draft={drafts[set.id] ?? valuesOf(set)}
                     onChange={(next) => setDrafts((d) => ({ ...d, [set.id]: next }))}
-                    onCommitEdit={() => commitEdit(set.id)}
-                    onToggleComplete={() => (set.completedAt ? uncompleteRow(set.id) : completeRow(set.id))}
+                    onCommitEdit={(values) => commitEdit(set.id, values)}
+                    onToggleComplete={() => toggleComplete(set)}
                     onToggleWarmup={() =>
                       run(() => updateSet(set.id, { setType: set.setType === 'warmup' ? 'working' : 'warmup' }), 'Could not update.')
                     }
-                    onDelete={() => run(() => deleteSet(set.id), 'Could not delete that set.')}
+                    onDelete={() => {
+                      clearHoldFor([set.id]);
+                      run(() => deleteSet(set.id), 'Could not delete that set.');
+                    }}
                     timerLabel={timerLabelFor(set.id)}
                     onStartHold={kind === 'hold' && !set.completedAt && !isTimerRow ? () => startHoldFor(set) : null}
                     onStopHold={isTimerRow ? stopHoldNow : null}
                     hint={hints[set.id] ?? null}
+                    prevHint={previousHint({ setNumber: set.setNumber, side: set.side }, previous, kind, unit)}
                   />
                 );
               }}
@@ -372,12 +503,16 @@ export default function LoggerScreen() {
         </Pressable>
       </ScrollView>
       {rest && (
-        <RestBar
-          remainingS={restRemainingS(rest, now)}
-          onMinus={() => setRest((r) => (r ? adjustRest(r, -15, Date.now()) : r))}
-          onPlus={() => setRest((r) => (r ? adjustRest(r, 15, Date.now()) : r))}
-          onSkip={() => setRest(null)}
-        />
+        <Ticker>
+          {(now) => (
+            <RestBar
+              remainingS={restRemainingS(rest, now)}
+              onMinus={() => restRef.current && applyRest(adjustRest(restRef.current, -15, Date.now()))}
+              onPlus={() => restRef.current && applyRest(adjustRest(restRef.current, 15, Date.now()))}
+              onSkip={() => applyRest(null)}
+            />
+          )}
+        </Ticker>
       )}
       <ExercisePickerSheet visible={pickerOpen} catalog={catalog} onPick={pickExercise} onClose={() => setPickerOpen(false)} />
       <FinishSheet

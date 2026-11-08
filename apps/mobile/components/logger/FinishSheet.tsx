@@ -39,7 +39,11 @@ export default function FinishSheet({ visible, initialTitle, isSprint, saving, o
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={TYPE.screenTitle}>Finish workout</Text>
         <TextInput
           style={sharedStyles.textInput}

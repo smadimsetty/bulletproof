@@ -1,4 +1,5 @@
-import { planFinish } from './finishPlan';
+import { dirtyCompletedSets, planFinish } from './finishPlan';
+import { EMPTY_SET_VALUES } from './setFields';
 
 test('no completed sets anywhere -> refuse', () => {
   expect(planFinish([{ id: 'e1', sprintDayExerciseId: null, sets: [{ id: 's1', completedAt: null }] }])).toEqual({
@@ -21,4 +22,15 @@ test('deletes uncompleted sets, empty exercises, completes only sprint exercises
     deleteExerciseIds: ['e2', 'e3'],
     sprintDayExerciseIdsToComplete: ['sde1'],
   });
+});
+
+test('dirtyCompletedSets returns only completed rows whose draft changed', () => {
+  const row = (id: string, completedAt: string | null, reps: number) => ({ ...EMPTY_SET_VALUES, id, completedAt, reps });
+  const exercises = [{ sets: [row('s1', 'x', 8), row('s2', 'x', 8), row('s3', null, 8), row('s4', 'x', 8)] }];
+  const drafts = {
+    s1: { ...EMPTY_SET_VALUES, reps: 10 },
+    s2: { ...EMPTY_SET_VALUES, reps: 8 },
+    s3: { ...EMPTY_SET_VALUES, reps: 12 },
+  };
+  expect(dirtyCompletedSets(exercises, drafts)).toEqual([{ id: 's1', values: { ...EMPTY_SET_VALUES, reps: 10 } }]);
 });
