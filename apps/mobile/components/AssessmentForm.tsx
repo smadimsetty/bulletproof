@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
 import { COLORS, RADII, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { DescriptionToggleButton, useToggle } from './DescriptionToggle';
 import { isAssessmentComplete, type AssessmentDefinition, type AssessmentResultInput } from '../lib/sprintAssessment';
 
 // Two seeded definitions (rounded_shoulders' wall_overhead_reach and
@@ -48,54 +49,7 @@ export default function AssessmentForm({
     <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
       <Text style={TYPE.screenTitle}>{title}</Text>
       {definitions.map((def) => (
-        <View key={def.testKey} style={sharedStyles.card}>
-          <Text style={sharedStyles.sectionTitle}>{def.name}</Text>
-          <Text style={sharedStyles.helperText}>{def.instructions}</Text>
-          <Text style={sharedStyles.helperText}>{def.targetDescription}</Text>
-          {def.isSynthesized && (
-            <Text style={sharedStyles.warningText}>
-              Not from the Mobility Bible — a standard PT screening test added to cover this gap.
-            </Text>
-          )}
-          {def.isBilateral ? (
-            <View style={styles.row}>
-              <TextInput
-                style={[sharedStyles.textInput, styles.numberInput]}
-                keyboardType="numeric"
-                placeholder={`Left (${def.unit})`}
-                onChangeText={(t) => updateField(def.testKey, 'valueLeft', t)}
-              />
-              <TextInput
-                style={[sharedStyles.textInput, styles.numberInput]}
-                keyboardType="numeric"
-                placeholder={`Right (${def.unit})`}
-                onChangeText={(t) => updateField(def.testKey, 'valueRight', t)}
-              />
-            </View>
-          ) : def.unit === PASS_FAIL_UNIT ? (
-            <View style={styles.row}>
-              {PASS_FAIL_OPTIONS.map((option) => {
-                const selected = draft.get(def.testKey)?.valueSingle === option.value;
-                return (
-                  <Pressable
-                    key={option.label}
-                    style={[styles.choice, selected && styles.choiceSelected]}
-                    onPress={() => setField(def.testKey, 'valueSingle', option.value)}
-                  >
-                    <Text style={[TYPE.body, selected && styles.choiceTextSelected]}>{option.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : (
-            <TextInput
-              style={sharedStyles.textInput}
-              keyboardType="numeric"
-              placeholder={def.unit}
-              onChangeText={(t) => updateField(def.testKey, 'valueSingle', t)}
-            />
-          )}
-        </View>
+        <AssessmentCard key={def.testKey} def={def} draft={draft} setField={setField} updateField={updateField} />
       ))}
       <Pressable
         style={sharedStyles.primaryButton}
@@ -108,7 +62,80 @@ export default function AssessmentForm({
   );
 }
 
+type Field = 'valueLeft' | 'valueRight' | 'valueSingle';
+
+// Own component so each card keeps its own open/closed state.
+function AssessmentCard({
+  def,
+  draft,
+  setField,
+  updateField,
+}: {
+  def: AssessmentDefinition;
+  draft: Map<string, AssessmentResultInput>;
+  setField: (testKey: string, field: Field, value: number | undefined) => void;
+  updateField: (testKey: string, field: Field, text: string) => void;
+}) {
+  const [open, toggle] = useToggle();
+  const hasDescription = !!def.instructions || !!def.targetDescription;
+  return (
+      <View style={sharedStyles.card}>
+        <View style={styles.titleRow}>
+          <Text style={[sharedStyles.sectionTitle, styles.titleText]}>{def.name}</Text>
+          {hasDescription && <DescriptionToggleButton open={open} onToggle={toggle} />}
+        </View>
+        {open && !!def.instructions && <Text style={sharedStyles.helperText}>{def.instructions}</Text>}
+        {open && !!def.targetDescription && <Text style={sharedStyles.helperText}>{def.targetDescription}</Text>}
+        {def.isSynthesized && (
+          <Text style={sharedStyles.warningText}>
+            Not from the Mobility Bible — a standard PT screening test added to cover this gap.
+          </Text>
+        )}
+        {def.isBilateral ? (
+          <View style={styles.row}>
+            <TextInput
+              style={[sharedStyles.textInput, styles.numberInput]}
+              keyboardType="numeric"
+              placeholder={`Left (${def.unit})`}
+              onChangeText={(t) => updateField(def.testKey, 'valueLeft', t)}
+            />
+            <TextInput
+              style={[sharedStyles.textInput, styles.numberInput]}
+              keyboardType="numeric"
+              placeholder={`Right (${def.unit})`}
+              onChangeText={(t) => updateField(def.testKey, 'valueRight', t)}
+            />
+          </View>
+        ) : def.unit === PASS_FAIL_UNIT ? (
+          <View style={styles.row}>
+            {PASS_FAIL_OPTIONS.map((option) => {
+              const selected = draft.get(def.testKey)?.valueSingle === option.value;
+              return (
+                <Pressable
+                  key={option.label}
+                  style={[styles.choice, selected && styles.choiceSelected]}
+                  onPress={() => setField(def.testKey, 'valueSingle', option.value)}
+                >
+                  <Text style={[TYPE.body, selected && styles.choiceTextSelected]}>{option.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : (
+          <TextInput
+            style={sharedStyles.textInput}
+            keyboardType="numeric"
+            placeholder={def.unit}
+            onChangeText={(t) => updateField(def.testKey, 'valueSingle', t)}
+          />
+        )}
+      </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
+  titleText: { flex: 1 },
   row: { flexDirection: 'row', gap: SPACING.sm },
   numberInput: { flex: 1 },
   choice: {

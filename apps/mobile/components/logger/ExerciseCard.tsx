@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { DescriptionToggleButton, useToggle } from '../DescriptionToggle';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import type { WorkoutExerciseRow, WorkoutSetRow } from '../../lib/workouts';
 import type { WeightUnit } from '../../lib/units';
@@ -14,6 +15,7 @@ export interface ExerciseCardProps {
 }
 
 export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRom, onRemove }: ExerciseCardProps) {
+  const [descOpen, toggleDesc] = useToggle();
   function openMenu() {
     Alert.alert(exercise.exerciseName, undefined, [
       { text: exercise.measureRom ? 'Stop measuring ROM' : 'Measure ROM', onPress: onToggleRom },
@@ -34,10 +36,12 @@ export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRo
     <View style={sharedStyles.card}>
       <View style={styles.header}>
         <Text style={[TYPE.sectionTitle, styles.title]}>{exercise.exerciseName}</Text>
+        {!!exercise.description && <DescriptionToggleButton open={descOpen} onToggle={toggleDesc} />}
         <Pressable onPress={openMenu} hitSlop={10} accessibilityLabel="Exercise options">
           <Text style={styles.menu}>⋯</Text>
         </Pressable>
       </View>
+      {descOpen && !!exercise.description ? <Text style={sharedStyles.helperText}>{exercise.description}</Text> : null}
       {exercise.targetText ? <Text style={sharedStyles.helperText}>Target: {exercise.targetText}</Text> : null}
       {exercise.sets.map(renderSet)}
       <Pressable onPress={onAddSet} hitSlop={6}>
