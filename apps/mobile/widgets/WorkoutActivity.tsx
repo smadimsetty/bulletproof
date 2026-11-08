@@ -1,7 +1,7 @@
 // The lock-screen / Dynamic Island Live Activity shown for the duration
 // of an active workout session. Content is static (session type label +
 // start time), refreshed only via explicit .start()/.end() calls from
-// sessionLifecycle.ts -- not a live per-second ticking counter, since
+// lib/workoutActivityBridge.ts -- not a live per-second ticking counter, since
 // that needs a native SwiftUI timer-text API this pass didn't confirm is
 // exposed through @expo/ui/swift-ui's Text. `'widget'` marks this
 // component as a native SwiftUI view, compiled by expo-widgets' config
