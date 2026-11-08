@@ -1,6 +1,8 @@
 import {
   isAssessmentComplete,
   buildBeforeAfterComparison,
+  prefillDraft,
+  type PastAssessment,
   type AssessmentDefinition,
   type AssessmentResultInput,
 } from './sprintAssessment';
@@ -193,5 +195,49 @@ describe('submitAssessment', () => {
 
     expect(supabase.from).toHaveBeenCalledWith('sprints');
     expect(updateSpy).toHaveBeenCalledWith({ status: 'completed' });
+  });
+});
+
+function past(results: AssessmentResultInput[]): PastAssessment {
+  return {
+    assessmentId: 'a1',
+    sprintId: 's1',
+    phase: 'baseline',
+    cycleNumber: 1,
+    completedAt: '2026-11-01T10:00:00Z',
+    results,
+  };
+}
+
+describe('prefillDraft', () => {
+  test('copies left/right for bilateral and single for others', () => {
+    const draft = prefillDraft(
+      [BILATERAL_DEF, SINGLE_DEF],
+      past([
+        { testKey: 'knee_to_wall', valueLeft: 9, valueRight: 11 },
+        { testKey: 'ccf_endurance_hold', valueSingle: 30 },
+      ])
+    );
+    expect(draft.get('knee_to_wall')).toEqual({ testKey: 'knee_to_wall', valueLeft: 9, valueRight: 11 });
+    expect(draft.get('ccf_endurance_hold')).toEqual({ testKey: 'ccf_endurance_hold', valueSingle: 30 });
+    expect(isAssessmentComplete([BILATERAL_DEF, SINGLE_DEF], draft)).toBe(true);
+  });
+
+  test('keeps a 0 (fail) value', () => {
+    const passFail: AssessmentDefinition = { ...SINGLE_DEF, testKey: 'wall_reach', unit: 'pass/fail' };
+    const draft = prefillDraft([passFail], past([{ testKey: 'wall_reach', valueSingle: 0 }]));
+    expect(draft.get('wall_reach')?.valueSingle).toBe(0);
+    expect(isAssessmentComplete([passFail], draft)).toBe(true);
+  });
+
+  test('ignores past keys not in definitions and leaves new definitions empty', () => {
+    const draft = prefillDraft([SINGLE_DEF], past([{ testKey: 'removed_test', valueSingle: 5 }]));
+    expect(draft.has('removed_test')).toBe(false);
+    expect(draft.has('ccf_endurance_hold')).toBe(false);
+    expect(isAssessmentComplete([SINGLE_DEF], draft)).toBe(false);
+  });
+
+  test('null past gives an empty map', () => {
+    expect(prefillDraft([BILATERAL_DEF], null).size).toBe(0);
   });
 });

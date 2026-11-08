@@ -39,6 +39,8 @@ import {
 import {
   fetchAssessmentDefinitions,
   fetchAssessmentResults,
+  fetchAssessmentHistory,
+  prefillDraft,
   submitAssessment,
   buildBeforeAfterComparison,
   type AssessmentDefinition,
@@ -63,6 +65,31 @@ function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
 }
 
+interface AssessmentPrefill {
+  readonly draft: Map<string, AssessmentResultInput>;
+  readonly from: string | null;
+}
+
+/**
+ * Seed for the assessment form from the user's last completed assessment of
+ * this pain point. A failure just means no prefill -- it must never block
+ * the form.
+ */
+async function loadPrefill(
+  painPointId: string,
+  sprintId: string,
+  phase: 'baseline' | 'reassessment',
+  definitions: readonly AssessmentDefinition[]
+): Promise<AssessmentPrefill> {
+  try {
+    const history = await fetchAssessmentHistory(painPointId, 1, { sprintId, phase });
+    const last = history[0] ?? null;
+    return { draft: prefillDraft(definitions, last), from: last?.completedAt ?? null };
+  } catch {
+    return { draft: new Map(), from: null };
+  }
+}
+
 export default function SprintScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -71,6 +98,7 @@ export default function SprintScreen() {
   const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [definitions, setDefinitions] = useState<AssessmentDefinition[]>([]);
+  const [prefill, setPrefill] = useState<AssessmentPrefill | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [today, setToday] = useState<SprintDay | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkoutSummary | null>(null);
@@ -98,7 +126,10 @@ export default function SprintScreen() {
       setComparisons(null);
 
       if (inFlight && (inFlight.status === 'pending_baseline' || inFlight.status === 'pending_reassessment')) {
-        setDefinitions(await fetchAssessmentDefinitions(inFlight.painPointId));
+        const defs = await fetchAssessmentDefinitions(inFlight.painPointId);
+        const phase = inFlight.status === 'pending_baseline' ? 'baseline' : 'reassessment';
+        setPrefill(await loadPrefill(inFlight.painPointId, inFlight.id, phase, defs));
+        setDefinitions(defs);
       }
       if (inFlight && inFlight.status === 'active') {
         setToday(await fetchTodaySprintDay(inFlight.id));
@@ -131,7 +162,9 @@ export default function SprintScreen() {
       const newSprint = await beginSprint(painPoint.id);
       // Definitions first: showing the baseline form with an empty test
       // battery (which reads as "complete") would be worse than staying put.
-      setDefinitions(await fetchAssessmentDefinitions(painPoint.id));
+      const defs = await fetchAssessmentDefinitions(painPoint.id);
+      setPrefill(await loadPrefill(painPoint.id, newSprint.id, 'baseline', defs));
+      setDefinitions(defs);
       setSprint(newSprint);
     } catch (err: any) {
       reportError(err, 'Could not start that sprint.');
@@ -272,7 +305,15 @@ export default function SprintScreen() {
 
   if (sprint.status === 'pending_baseline') {
     return (
-      <AssessmentForm title="Baseline assessment" definitions={definitions} submitting={submitting} onSubmit={handleSubmitBaseline} />
+      <AssessmentForm
+        key={`baseline-${sprint.id}-${prefill?.from ?? 'none'}`}
+        title="Baseline assessment"
+        definitions={definitions}
+        initialDraft={prefill?.draft}
+        prefilledFrom={prefill?.from}
+        submitting={submitting}
+        onSubmit={handleSubmitBaseline}
+      />
     );
   }
 
@@ -286,7 +327,15 @@ export default function SprintScreen() {
               reassessment". */}
           <Text style={sharedStyles.sectionTitle}>Your 14 days are up — time to reassess</Text>
         </View>
-        <AssessmentForm title="Reassessment" definitions={definitions} submitting={submitting} onSubmit={handleSubmitReassessment} />
+        <AssessmentForm
+          key={`reassessment-${sprint.id}-${prefill?.from ?? 'none'}`}
+          title="Reassessment"
+          definitions={definitions}
+          initialDraft={prefill?.draft}
+          prefilledFrom={prefill?.from}
+          submitting={submitting}
+          onSubmit={handleSubmitReassessment}
+        />
       </ScrollView>
     );
   }

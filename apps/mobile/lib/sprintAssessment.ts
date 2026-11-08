@@ -173,3 +173,92 @@ export async function fetchAssessmentResults(
     notes: row.notes ?? undefined,
   }));
 }
+
+export interface PastAssessment {
+  readonly assessmentId: string;
+  readonly sprintId: string;
+  readonly phase: 'baseline' | 'reassessment';
+  readonly cycleNumber: number;
+  readonly completedAt: string;
+  readonly results: AssessmentResultInput[];
+}
+
+/**
+ * The user's completed assessments for one pain point (across every sprint,
+ * either phase), newest first. `excludeSprintPhase` drops the assessment
+ * currently being filled in, which could otherwise be its own "last" one.
+ * RLS already restricts rows to the owner.
+ */
+export async function fetchAssessmentHistory(
+  painPointId: string,
+  limit: number,
+  excludeSprintPhase?: { sprintId: string; phase: 'baseline' | 'reassessment' }
+): Promise<PastAssessment[]> {
+  const { data, error } = await supabase
+    .from('sprint_assessments')
+    .select('id, sprint_id, phase, completed_at, sprints!inner ( pain_point_id, cycle_number )')
+    .eq('sprints.pain_point_id', painPointId)
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(limit + 1);
+  if (error) throw new Error(error.message);
+
+  const rows = ((data ?? []) as any[])
+    .filter((r) => !(excludeSprintPhase && r.sprint_id === excludeSprintPhase.sprintId && r.phase === excludeSprintPhase.phase))
+    .slice(0, limit);
+  if (rows.length === 0) return [];
+
+  const { data: resultRows, error: resultsError } = await supabase
+    .from('sprint_assessment_results')
+    .select('sprint_assessment_id, test_key, value_left, value_right, value_single, notes')
+    .in('sprint_assessment_id', rows.map((r) => r.id));
+  if (resultsError) throw new Error(resultsError.message);
+
+  return rows.map((r) => ({
+    assessmentId: r.id,
+    sprintId: r.sprint_id,
+    phase: r.phase,
+    cycleNumber: r.sprints?.cycle_number ?? 0,
+    completedAt: r.completed_at,
+    results: ((resultRows ?? []) as any[])
+      .filter((x) => x.sprint_assessment_id === r.id)
+      .map((x) => ({
+        testKey: x.test_key,
+        valueLeft: x.value_left ?? undefined,
+        valueRight: x.value_right ?? undefined,
+        valueSingle: x.value_single ?? undefined,
+        notes: x.notes ?? undefined,
+      })),
+  }));
+}
+
+/**
+ * Seeds the assessment form from a past assessment. Only keys the current
+ * definitions still have are copied (definitions can change between
+ * sprints); new tests stay empty. `??`-style null checks are deliberate so a
+ * stored 0 (a pass/fail "Fail") survives.
+ */
+export function prefillDraft(
+  definitions: readonly AssessmentDefinition[],
+  past: PastAssessment | null
+): Map<string, AssessmentResultInput> {
+  const draft = new Map<string, AssessmentResultInput>();
+  if (!past) return draft;
+  const byKey = new Map(past.results.map((r) => [r.testKey, r]));
+  for (const def of definitions) {
+    const prior = byKey.get(def.testKey);
+    if (!prior) continue;
+    if (def.isBilateral) {
+      if (prior.valueLeft == null && prior.valueRight == null) continue;
+      draft.set(def.testKey, {
+        testKey: def.testKey,
+        valueLeft: prior.valueLeft ?? undefined,
+        valueRight: prior.valueRight ?? undefined,
+      });
+    } else {
+      if (prior.valueSingle == null) continue;
+      draft.set(def.testKey, { testKey: def.testKey, valueSingle: prior.valueSingle });
+    }
+  }
+  return draft;
+}
