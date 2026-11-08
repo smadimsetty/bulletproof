@@ -1,105 +1,51 @@
 // apps/mobile/app/(tabs)/index.tsx
 //
-// Home screen (mobility sprint pivot), complete: pain-point picker ->
-// baseline assessment -> active sprint checklist (with swap + daily
-// feedback) -> reassessment prompt -> reassessment form -> before/after
-// summary -> back to the picker. Also carries the "Switch pain point"
-// abandon escape hatch (design spec section 5) so the one-in-flight-sprint
-// DB constraint never traps a user for the full 14+ days.
+// Workout tab (spec section 1): in-progress banner or "Start empty
+// workout", the sprint card, and the 3 most recent saved workouts.
 import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Text,
-  View,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-} from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import {
-  fetchPainPoints,
-  fetchInFlightSprint,
-  beginSprint,
-  activateSprintAfterBaseline,
-  fetchTodaySprintDay,
-  completeExercise,
-  completeDay,
-  fetchSwapCandidates,
-  swapExercise,
-  submitDayFeedback,
-  abandonSprint,
-  type PainPoint,
-  type Sprint,
-  type SprintDay,
-  type SprintDayExercise,
-  type SwapCandidate,
-} from '../../lib/sprintLifecycle';
-import {
-  fetchAssessmentDefinitions,
-  fetchAssessmentResults,
-  submitAssessment,
-  buildBeforeAfterComparison,
-  type AssessmentDefinition,
-  type AssessmentResultInput,
-  type AssessmentComparison,
-} from '../../lib/sprintAssessment';
-import PainPointPicker from '../../components/PainPointPicker';
-import AssessmentForm from '../../components/AssessmentForm';
-import SprintDayChecklist from '../../components/SprintDayChecklist';
-import DayFeedbackSheet from '../../components/DayFeedbackSheet';
-import AssessmentSummary from '../../components/AssessmentSummary';
+  fetchActiveWorkout, fetchWorkoutHistory, startSprintWorkout, startWorkout, subscribeToActiveWorkoutChanges,
+  type ActiveWorkoutSummary, type WorkoutListItem,
+} from '../../lib/workouts';
+import { fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay, type PainPoint, type Sprint, type SprintDay } from '../../lib/sprintLifecycle';
+import { defaultWorkoutTitle } from '../../lib/workoutTitles';
+import { handleStartResult } from '../../lib/workoutStart';
+import ActiveWorkoutBanner from '../../components/ActiveWorkoutBanner';
+import WorkoutListRow from '../../components/WorkoutListRow';
+import SprintCard from '../../components/SprintCard';
 
-/**
- * Non-initial failures (ticking a box, swapping, submitting) must never
- * replace the screen: AssessmentForm's draft lives inside that component,
- * so unmounting it on a dropped request throws away six hand-measured
- * values. Only the top-level load() gets to blank the screen. (The same
- * regression was fixed once before, on Settings, 2026-06-26.)
- */
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
 }
 
-export default function Home() {
+export default function WorkoutTab() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
+  const [active, setActive] = useState<ActiveWorkoutSummary | null>(null);
+  const [recent, setRecent] = useState<WorkoutListItem[]>([]);
   const [sprint, setSprint] = useState<Sprint | null>(null);
-  const [definitions, setDefinitions] = useState<AssessmentDefinition[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+  const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [today, setToday] = useState<SprintDay | null>(null);
-  const [completingDay, setCompletingDay] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [pendingCompleteDay, setPendingCompleteDay] = useState<SprintDay | null>(null);
-  const [swapExerciseTarget, setSwapExerciseTarget] = useState<SprintDayExercise | null>(null);
-  const [swapCandidates, setSwapCandidates] = useState<ReadonlyArray<SwapCandidate>>([]);
-  const [comparisons, setComparisons] = useState<AssessmentComparison[] | null>(null);
+  const [starting, setStarting] = useState(false);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    if (mode === 'refresh') {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
+  const load = useCallback(async (mode: 'initial' | 'refresh') => {
+    if (mode === 'refresh') setRefreshing(true);
     try {
-      const [pp, inFlight] = await Promise.all([fetchPainPoints(), fetchInFlightSprint()]);
+      const [a, r, s, pp] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(0, 3), fetchInFlightSprint(), fetchPainPoints()]);
+      setActive(a);
+      setRecent(r);
+      setSprint(s);
       setPainPoints(pp);
-      setSprint(inFlight);
-      setComparisons(null);
-
-      if (inFlight && (inFlight.status === 'pending_baseline' || inFlight.status === 'pending_reassessment')) {
-        setDefinitions(await fetchAssessmentDefinitions(inFlight.painPointId));
-      }
-      if (inFlight && inFlight.status === 'active') {
-        setToday(await fetchTodaySprintDay(inFlight.id));
-      }
+      setToday(s && s.status === 'active' ? await fetchTodaySprintDay(s.id) : null);
       setLoadError(null);
     } catch (err: any) {
-      setLoadError(err.message ?? 'Failed to load.');
+      if (mode === 'initial') setLoadError(err?.message ?? 'Failed to load.');
+      else reportError(err, 'Could not refresh.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -107,143 +53,37 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    load();
+    load('initial');
   }, [load]);
-
-  const refreshControl = (
-    <RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />
+  useFocusEffect(
+    useCallback(() => {
+      load('refresh');
+    }, [load])
   );
+  useEffect(() => subscribeToActiveWorkoutChanges(() => load('refresh')), [load]);
 
-  async function handleSelectPainPoint(painPoint: PainPoint) {
-    setLoading(true);
+  async function handleStartEmpty() {
+    setStarting(true);
     try {
-      const newSprint = await beginSprint(painPoint.id);
-      // Definitions first: showing the baseline form with an empty test
-      // battery (which reads as "complete") would be worse than staying put.
-      setDefinitions(await fetchAssessmentDefinitions(painPoint.id));
-      setSprint(newSprint);
-    } catch (err: any) {
-      reportError(err, 'Could not start that sprint.');
+      handleStartResult(await startWorkout({ source: 'empty', title: defaultWorkoutTitle(new Date()) }), router);
+    } catch (err) {
+      reportError(err, 'Could not start a workout.');
     } finally {
-      setLoading(false);
+      setStarting(false);
     }
   }
 
-  async function handleSubmitBaseline(results: AssessmentResultInput[]) {
-    if (!sprint) return;
-    setSubmitting(true);
-    try {
-      await submitAssessment(sprint.id, 'baseline', results);
-      await activateSprintAfterBaseline(sprint);
-      await load();
-    } catch (err: any) {
-      reportError(err, 'Could not save your baseline.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleSubmitReassessment(results: AssessmentResultInput[]) {
-    if (!sprint) return;
-    setSubmitting(true);
-    try {
-      await submitAssessment(sprint.id, 'reassessment', results);
-      const [baseline, reassessment] = await Promise.all([
-        fetchAssessmentResults(sprint.id, 'baseline'),
-        fetchAssessmentResults(sprint.id, 'reassessment'),
-      ]);
-      setComparisons(buildBeforeAfterComparison(definitions, baseline, reassessment));
-      setSprint((prev) => (prev ? { ...prev, status: 'completed' } : prev));
-    } catch (err: any) {
-      reportError(err, 'Could not save your reassessment.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleToggleExercise(exercise: SprintDayExercise) {
+  async function handleStartRoutine() {
     if (!today || !sprint) return;
+    const name = painPoints.find((p) => p.id === sprint.painPointId)?.displayName ?? 'Sprint';
+    setStarting(true);
     try {
-      if (!exercise.completedAt) {
-        await completeExercise(exercise.id);
-      }
-      setToday(await fetchTodaySprintDay(sprint.id));
-    } catch (err: any) {
-      reportError(err, 'Could not update that exercise.');
-    }
-  }
-
-  async function handleOpenSwap(exercise: SprintDayExercise) {
-    if (!sprint) return;
-    // Swapping a completed exercise would carry its completed_at onto a
-    // different exercise; SprintDayChecklist already hides the action, this
-    // is the matching guard on the handler itself.
-    if (exercise.completedAt) return;
-    try {
-      const candidates = await fetchSwapCandidates(sprint.painPointId, exercise.slotKey, exercise.exerciseId);
-      setSwapCandidates(candidates);
-      setSwapExerciseTarget(exercise);
-    } catch (err: any) {
-      reportError(err, 'Could not load swap options.');
-    }
-  }
-
-  async function handleSelectSwap(candidate: SwapCandidate) {
-    if (!swapExerciseTarget || !sprint) return;
-    try {
-      await swapExercise(
-        swapExerciseTarget.id,
-        swapExerciseTarget.exerciseId,
-        candidate.exerciseId,
-        candidate.prescribedSets,
-        candidate.prescribedRepsOrDuration
-      );
-      setSwapExerciseTarget(null);
-      setToday(await fetchTodaySprintDay(sprint.id));
-    } catch (err: any) {
-      reportError(err, 'Could not swap that exercise.');
-    }
-  }
-
-  function handleCompleteDayPress() {
-    if (!today) return;
-    setPendingCompleteDay(today);
-    setFeedbackOpen(true);
-  }
-
-  async function handleSubmitFeedback(reaction: 'good' | 'neutral' | 'hurt', note: string) {
-    if (!pendingCompleteDay || !sprint) return;
-    setCompletingDay(true);
-    try {
-      await submitDayFeedback(pendingCompleteDay.id, reaction, note);
-      await completeDay(pendingCompleteDay.id, pendingCompleteDay.dayNumber, sprint.id);
-      setFeedbackOpen(false);
-      setPendingCompleteDay(null);
-      await load();
-    } catch (err: any) {
-      reportError(err, 'Could not save today.');
+      handleStartResult(await startSprintWorkout(today, name), router);
+    } catch (err) {
+      reportError(err, "Could not start today's routine.");
     } finally {
-      setCompletingDay(false);
+      setStarting(false);
     }
-  }
-
-  function handleAbandon() {
-    if (!sprint) return;
-    Alert.alert('Switch pain point?', "You'll lose this sprint's progress.", [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Switch',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await abandonSprint(sprint.id);
-            await load();
-          } catch (err: any) {
-            reportError(err, 'Could not switch pain point.');
-          }
-        },
-      },
-    ]);
   }
 
   if (loading) {
@@ -253,120 +93,60 @@ export default function Home() {
       </View>
     );
   }
-
   if (loadError) {
     return (
       <View style={[sharedStyles.screen, styles.centered]}>
         <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={[sharedStyles.primaryButton, styles.retryButton]} onPress={() => load()}>
+        <Pressable style={sharedStyles.primaryButton} onPress={() => { setLoading(true); load('initial'); }}>
           <Text style={sharedStyles.primaryButtonText}>Try again</Text>
         </Pressable>
       </View>
     );
   }
 
-  if (comparisons) {
-    return <AssessmentSummary comparisons={comparisons} onDone={() => { setSprint(null); setComparisons(null); }} />;
-  }
+  const painPointName = sprint ? painPoints.find((p) => p.id === sprint.painPointId)?.displayName ?? null : null;
 
-  if (!sprint) {
-    return <PainPointPicker painPoints={painPoints} onSelect={handleSelectPainPoint} />;
-  }
-
-  if (sprint.status === 'pending_baseline') {
-    return (
-      <AssessmentForm title="Baseline assessment" definitions={definitions} submitting={submitting} onSubmit={handleSubmitBaseline} />
-    );
-  }
-
-  if (sprint.status === 'pending_reassessment') {
-    return (
-      <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
-        <View style={sharedStyles.card}>
-          {/* Wording stays neutral about whether day 14 was actually ticked
-              off: the sprint also lands here purely by the calendar passing
-              day 14, per the design spec's "day 15 still triggers
-              reassessment". */}
-          <Text style={sharedStyles.sectionTitle}>Your 14 days are up — time to reassess</Text>
-        </View>
-        <AssessmentForm title="Reassessment" definitions={definitions} submitting={submitting} onSubmit={handleSubmitReassessment} />
-      </ScrollView>
-    );
-  }
-
-  if (sprint.status === 'active' && today) {
-    return (
-      <>
-        <SprintDayChecklist
-          day={today}
-          onToggleExercise={handleToggleExercise}
-          onOpenSwap={handleOpenSwap}
-          onCompleteDay={handleCompleteDayPress}
-          onAbandon={handleAbandon}
-          completingDay={completingDay}
-          dayComplete={!!today.completedAt}
-          refreshControl={refreshControl}
-        />
-        <DayFeedbackSheet
-          visible={feedbackOpen}
-          onSubmit={handleSubmitFeedback}
-          onClose={() => setFeedbackOpen(false)}
-        />
-        <Modal visible={!!swapExerciseTarget} animationType="slide" transparent onRequestClose={() => setSwapExerciseTarget(null)}>
-          <Pressable style={styles.backdrop} onPress={() => setSwapExerciseTarget(null)}>
-            <View style={styles.swapSheet}>
-              <Text style={sharedStyles.sectionTitle}>Swap exercise</Text>
-              {swapCandidates.length === 0 && (
-                <Text style={sharedStyles.helperText}>No alternatives for this slot yet.</Text>
-              )}
-              {swapCandidates.map((c) => (
-                <Pressable key={c.exerciseId} style={styles.swapOptionRow} onPress={() => handleSelectSwap(c)}>
-                  <Text style={TYPE.body}>{c.name}</Text>
-                  {(c.prescribedSets || c.prescribedRepsOrDuration) && (
-                    <Text style={sharedStyles.helperText}>
-                      {c.prescribedSets ? `${c.prescribedSets} x ` : ''}
-                      {c.prescribedRepsOrDuration ?? ''}
-                    </Text>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
-        </Modal>
-      </>
-    );
-  }
-
-  // Reachable when an active sprint has no row for today's date -- e.g. the
-  // device's clock drifted outside the generated 14-day window, or a past
-  // partial activation. fetchInFlightSprint now moves a genuinely-finished
-  // sprint to reassessment on its own, but this branch still has to offer a
-  // real way out rather than asking for a pull-to-refresh that didn't exist.
   return (
     <ScrollView
       style={sharedStyles.screen}
-      contentContainerStyle={[sharedStyles.screenContent, styles.fallbackContent]}
-      refreshControl={refreshControl}
+      contentContainerStyle={sharedStyles.screenContent}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />}
     >
-      <View style={sharedStyles.card}>
-        <Text style={sharedStyles.sectionTitle}>No routine for today</Text>
-        <Text style={sharedStyles.helperText}>
-          This sprint doesn't have a session scheduled for today. Pull down to refresh, or switch to a different pain
-          point to start fresh.
-        </Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={handleAbandon}>
-          <Text style={sharedStyles.primaryButtonText}>Switch pain point</Text>
+      {active ? (
+        <ActiveWorkoutBanner workout={active} onDiscarded={() => load('refresh')} />
+      ) : (
+        <Pressable style={sharedStyles.primaryButton} disabled={starting} onPress={handleStartEmpty}>
+          <Text style={sharedStyles.primaryButtonText}>{starting ? 'Starting…' : 'Start empty workout'}</Text>
         </Pressable>
+      )}
+      <SprintCard
+        sprint={sprint}
+        painPointName={painPointName}
+        today={today}
+        activeWorkout={active}
+        starting={starting}
+        onStartRoutine={handleStartRoutine}
+        onOpenSprint={() => router.push('/sprint')}
+      />
+      <View style={styles.sectionHeader}>
+        <Text style={TYPE.sectionTitle}>Recent</Text>
+        {recent.length > 0 && (
+          <Pressable onPress={() => router.push('/history')}>
+            <Text style={styles.link}>See all</Text>
+          </Pressable>
+        )}
       </View>
+      {recent.length === 0 ? (
+        <Text style={sharedStyles.helperText}>No workouts yet. Start one above.</Text>
+      ) : (
+        recent.map((item) => <WorkoutListRow key={item.id} item={item} onPress={() => router.push(`/workout-summary/${item.id}`)} />)
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  retryButton: { alignSelf: 'center', paddingHorizontal: SPACING.lg },
-  fallbackContent: { flexGrow: 1, justifyContent: 'center' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
-  swapSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 8 },
-  swapOptionRow: { paddingVertical: 12 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  link: { color: COLORS.accent, fontWeight: '600' },
 });

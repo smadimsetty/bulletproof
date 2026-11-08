@@ -1,24 +1,24 @@
 // apps/mobile/components/SprintDayChecklist.tsx
 import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, sharedStyles, TYPE } from '../lib/theme';
 import type { SprintDay, SprintDayExercise } from '../lib/sprintLifecycle';
 
 export default function SprintDayChecklist({
   day,
-  onToggleExercise,
   onOpenSwap,
-  onCompleteDay,
+  onStartRoutine,
   onAbandon,
-  completingDay,
+  starting,
+  routineInProgress,
   dayComplete = false,
   refreshControl,
 }: {
   day: SprintDay;
-  onToggleExercise: (exercise: SprintDayExercise) => void;
   onOpenSwap: (exercise: SprintDayExercise) => void;
-  onCompleteDay: () => void;
+  onStartRoutine: () => void;
   onAbandon: () => void;
-  completingDay: boolean;
+  starting: boolean;
+  routineInProgress: boolean;
   /** Today is already logged: show what was done, but stop accepting edits. */
   dayComplete?: boolean;
   refreshControl?: ScrollViewProps['refreshControl'];
@@ -47,16 +47,10 @@ export default function SprintDayChecklist({
       )}
       {day.exercises.map((exercise) => (
         <View key={exercise.id} style={sharedStyles.card}>
-          <Pressable
-            style={styles.checkRow}
-            disabled={dayComplete}
-            onPress={() => onToggleExercise(exercise)}
-          >
-            <Text style={[TYPE.body, dayComplete && styles.mutedText]}>
-              {exercise.completedAt ? '☑ ' : '☐ '}
-              {exercise.exerciseName}
-            </Text>
-          </Pressable>
+          <Text style={[TYPE.body, dayComplete && styles.mutedText]}>
+            {exercise.completedAt ? '✓ ' : ''}
+            {exercise.exerciseName}
+          </Text>
           {(exercise.prescribedSets || exercise.prescribedRepsOrDuration) && (
             <Text style={sharedStyles.helperText}>
               {exercise.prescribedSets ? `${exercise.prescribedSets} x ` : ''}
@@ -75,8 +69,10 @@ export default function SprintDayChecklist({
         </View>
       ))}
       {!dayComplete && (
-        <Pressable style={sharedStyles.primaryButton} disabled={completingDay} onPress={onCompleteDay}>
-          <Text style={sharedStyles.primaryButtonText}>{completingDay ? 'Saving…' : 'Complete Day'}</Text>
+        <Pressable style={sharedStyles.primaryButton} disabled={starting} onPress={onStartRoutine}>
+          <Text style={sharedStyles.primaryButtonText}>
+            {starting ? 'Starting…' : routineInProgress ? "Resume today's routine" : "Start today's routine"}
+          </Text>
         </Pressable>
       )}
     </ScrollView>
@@ -86,6 +82,5 @@ export default function SprintDayChecklist({
 const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   link: { color: COLORS.accent, fontWeight: '600' },
-  checkRow: { paddingVertical: SPACING.xs },
   mutedText: { color: COLORS.muted },
 });
