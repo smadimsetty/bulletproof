@@ -30,7 +30,7 @@ edit title/notes and delete the whole workout only).
   - `app/workout/[workoutId].tsx` — the live logger. Header title = workout
     title; no back-swipe surprises: leaving the screen does NOT end the
     workout (the banner brings you back).
-  - `app/history/[workoutId].tsx` — saved-workout detail.
+  - `app/workout-summary/[workoutId].tsx` — saved-workout detail (not under `history/`, which would collide with the History tab's `/history` path).
   - `app/sprint.tsx` — the existing sprint flow, moved here from the Home
     tab (picker → baseline → day view → reassessment → summary) with only
     the changes in §5.
@@ -49,11 +49,13 @@ edit title/notes and delete the whole workout only).
   3. "Recent" — last 3 saved workouts (same row component as History),
      tap → detail. "See all" → History tab.
   - Pull-to-refresh; reloads on focus (`useFocusEffect`).
-- **Active-workout banner** (`components/ActiveWorkoutBanner.tsx`, rendered
-  in `app/_layout.tsx` above the Stack when signed in): visible whenever an
-  in-progress workout exists AND the current route is not that workout's
-  logger. Shows "<title> · N min" (ticks every 15s), tap → logger, × →
-  confirm → discard. Uses the safe-area top inset (the 2026-07-07 notch bug).
+- **Active-workout banner** (`components/ActiveWorkoutBanner.tsx`): rendered
+  as the first element of the Workout and History tabs' content whenever an
+  in-progress workout exists (rendering it above the root Stack would
+  double-count the safe-area top inset under each screen's own header — the
+  2026-07-07 notch bug's cousin). Shows "<title> · N min" (ticks every 15s),
+  tap → logger, × → confirm → discard. On the Workout tab it replaces the
+  "Start empty workout" button.
 
 ## 2. Data model (migration `20261107120000_create_workouts.sql`)
 
@@ -196,12 +198,13 @@ absolute epoch ms so backgrounding can't drift)
      Keep logging. No save.
   2. Delete uncompleted `workout_sets` rows of this workout.
   3. Delete `workout_exercises` left with zero sets.
-  4. Update `workouts`: `title`, `notes`, `ended_at = now()`.
-  5. Sprint workouts: for each remaining workout exercise with a
+  4. Sprint workouts: for each remaining workout exercise with a
      `sprint_day_exercise_id`, set that row's `completed_at = now()` (keeps
      the LRU picker's history correct); then existing `completeDay(...)`
      (handles the day-14 → `pending_reassessment` transition); then
      feedback if given.
+  5. Update `workouts`: `title`, `notes`, `ended_at = now()` — last, so a
+     failure anywhere earlier leaves a still-in-progress workout to retry.
   6. End Live Activity, navigate to the detail screen (replace).
   Any step's failure → Alert, sheet stays open with input intact; a retry
   re-runs the whole sequence (every step is idempotent).
