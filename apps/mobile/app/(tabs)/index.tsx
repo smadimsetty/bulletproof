@@ -32,6 +32,7 @@ export default function WorkoutTab() {
   const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [today, setToday] = useState<SprintDay | null>(null);
   const [starting, setStarting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   // Synchronous guard: two taps can land before `starting` re-renders.
   const startingRef = useRef(false);
   const loadedRef = useRef(false);
@@ -41,7 +42,7 @@ export default function WorkoutTab() {
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
     try {
-      const [a, r, s, pp] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(0, 3), fetchInFlightSprint(), fetchPainPoints()]);
+      const [a, r, s, pp] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(null, 3), fetchInFlightSprint(), fetchPainPoints()]);
       setActive(a);
       setRecent(r);
       setSprint(s);
@@ -107,8 +108,16 @@ export default function WorkoutTab() {
     return (
       <View style={[sharedStyles.screen, styles.centered]}>
         <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={() => { setLoading(true); load('initial'); }}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
+        <Pressable
+          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
+          disabled={retrying}
+          onPress={async () => {
+            setRetrying(true);
+            await load('initial'); // failure puts the new message in loadError
+            setRetrying(false);
+          }}
+        >
+          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
         </Pressable>
       </View>
     );
@@ -156,6 +165,7 @@ export default function WorkoutTab() {
 }
 
 const styles = StyleSheet.create({
+  retryingButton: { opacity: 0.6 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   link: { color: COLORS.accent, fontWeight: '600' },

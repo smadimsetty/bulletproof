@@ -1,7 +1,7 @@
 // apps/mobile/lib/workouts.test.ts
 import {
   isInProgressConflict, buildSprintWorkoutExercises, finishWorkout, startSprintWorkout, startWorkout,
-  subscribeToActiveWorkoutChanges, type Workout,
+  subscribeToActiveWorkoutChanges, discardWorkout, fetchWorkoutHistory, historyCursorFilter, type Workout,
 } from './workouts';
 import type { SprintDay } from './sprintLifecycle';
 
@@ -10,7 +10,7 @@ import { supabase } from './supabase';
 
 function chain(result: any) {
   const c: any = {};
-  for (const m of ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'is', 'not', 'order', 'range', 'in', 'limit']) c[m] = jest.fn(() => c);
+  for (const m of ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'is', 'not', 'order', 'range', 'in', 'limit', 'or']) c[m] = jest.fn(() => c);
   c.single = jest.fn(() => Promise.resolve(result));
   c.maybeSingle = jest.fn(() => Promise.resolve(result));
   // Awaiting the builder itself (e.g. `await from(t).delete().in(...)`).
@@ -209,5 +209,50 @@ describe('startSprintWorkout', () => {
     expect(chains[4].eq).toHaveBeenCalledWith('id', 'w1');
     expect(cb).toHaveBeenCalledTimes(2); // started, then cleaned up
     unsub();
+  });
+});
+
+describe('discardWorkout', () => {
+  test('a sprint workout reverts the day and its exercises before deleting', async () => {
+    const { tables, chains } = queue(
+      { table: 'workouts', result: { data: { sprint_day_id: 'd14' }, error: null } },
+      { table: 'sprint_days', result: OK },
+      { table: 'sprint_day_exercises', result: OK },
+      { table: 'workouts', result: OK }
+    );
+    await discardWorkout('w1');
+    expect(tables).toEqual(['workouts', 'sprint_days', 'sprint_day_exercises', 'workouts']);
+    expect(chains[1].update).toHaveBeenCalledWith({ completed_at: null });
+    expect(chains[1].eq).toHaveBeenCalledWith('id', 'd14');
+    expect(chains[2].update).toHaveBeenCalledWith({ completed_at: null });
+    expect(chains[2].eq).toHaveBeenCalledWith('sprint_day_id', 'd14');
+    expect(chains[3].delete).toHaveBeenCalled();
+  });
+
+  test('a non-sprint workout only deletes', async () => {
+    const { tables } = queue(
+      { table: 'workouts', result: { data: { sprint_day_id: null }, error: null } },
+      { table: 'workouts', result: OK }
+    );
+    await discardWorkout('w1');
+    expect(tables).toEqual(['workouts', 'workouts']);
+  });
+});
+
+describe('fetchWorkoutHistory', () => {
+  test('first page has no cursor filter', async () => {
+    const { chains } = queue({ table: 'workouts', result: { data: [], error: null } });
+    await fetchWorkoutHistory(null, 30);
+    expect(chains[0].or).not.toHaveBeenCalled();
+    expect(chains[0].order).toHaveBeenCalledWith('id', { ascending: false });
+    expect(chains[0].limit).toHaveBeenCalledWith(30);
+  });
+
+  test('a cursor adds the ended_at/id keyset filter', async () => {
+    const { chains } = queue({ table: 'workouts', result: { data: [], error: null } });
+    await fetchWorkoutHistory({ endedAt: '2026-11-07T10:00:00Z', id: 'w5' }, 30);
+    const expected = 'ended_at.lt.2026-11-07T10:00:00Z,and(ended_at.eq.2026-11-07T10:00:00Z,id.lt.w5)';
+    expect(chains[0].or).toHaveBeenCalledWith(expected);
+    expect(historyCursorFilter({ endedAt: '2026-11-07T10:00:00Z', id: 'w5' })).toBe(expected);
   });
 });

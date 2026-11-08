@@ -18,6 +18,8 @@ export interface SetRowProps {
   onChange: (next: SetValues) => void;
   /** Persist an edit on a completed row; explicit values beat the (possibly not yet rendered) draft. */
   onCommitEdit: (values?: SetValues) => void;
+  /** ROM unit is per exercise, so the parent updates every row of it. */
+  onChangeRomUnit: (unit: RomUnit) => void;
   onToggleComplete: () => void;
   onToggleWarmup: () => void;
   onDelete: () => void;
@@ -199,11 +201,7 @@ export default function SetRow(props: SetRowProps) {
             />
             <Pressable
               hitSlop={6}
-              onPress={() => {
-                const next = { ...draft, romUnit: ROM_CYCLE[romUnit] };
-                onChange(next);
-                onCommitEdit(next);
-              }}
+              onPress={() => props.onChangeRomUnit(ROM_CYCLE[romUnit])}
             >
               <Text style={styles.romUnit}>{romUnit}</Text>
             </Pressable>

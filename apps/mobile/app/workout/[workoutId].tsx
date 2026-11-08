@@ -8,13 +8,16 @@
 //
 // Timer rules (fixes from the 2026-11-07 final review):
 // - holdRef/restRef are the synchronous source of truth; every change goes
-//   through applyHold/applyRest, and every hold change bumps holdGenRef.
+//   through applyHold/applyRest. userHoldGenRef is bumped only when the user
+//   starts a hold (startHoldFor).
 // - A row's completion is single-shot: inFlightRef holds the pending
 //   completion per row id, and a second completion of the same id is ignored.
 // - Manual ✓ / un-tick / × on a row first stops any hold aimed at that row.
 // - After a completion's writes resolve, switch-sides / rest only start if
-//   the hold wasn't changed in the meantime (holdGenRef unchanged), so a hold
-//   the user just started is never clobbered.
+//   the user didn't start a new hold in the meantime (userHoldGenRef
+//   unchanged), so a hold they just started is never clobbered. The tick's own
+//   state changes (lead-in -> holding -> done) must NOT count, or the rest bar
+//   after a timed hold would be skipped.
 // - Side effects (haptics, completions) run outside state updaters.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -24,10 +27,10 @@ import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import {
   addExercisesToWorkout, addSet, deleteSet, discardWorkout, fetchExerciseCatalog, fetchPreviousSetsForExercises,
-  fetchWorkout, finishWorkout, removeWorkoutExercise, setMeasureRom, updateSet,
+  fetchWorkout, finishWorkout, removeWorkoutExercise, setMeasureRom, setRomUnitForExercise, updateSet,
   type FinishInput, type Workout, type WorkoutExerciseRow, type WorkoutSetRow,
 } from '../../lib/workouts';
-import { defaultRestSeconds, fieldsForExercise, missingRequiredField, type SetValues } from '../../lib/setFields';
+import { defaultRestSeconds, fieldsForExercise, missingRequiredField, type RomUnit, type SetValues } from '../../lib/setFields';
 import { dirtyCompletedSets } from '../../lib/finishPlan';
 import { previousHint, type PreviousSet } from '../../lib/previousValues';
 import {
@@ -70,20 +73,20 @@ export default function LoggerScreen() {
   const [finishOpen, setFinishOpen] = useState(false);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   // Refs so timer callbacks (created in an older render) read current state.
   const workoutRef = useRef<Workout | null>(null);
   workoutRef.current = workout;
   const draftsRef = useRef<Record<string, SetValues>>({});
   draftsRef.current = drafts;
   const holdRef = useRef<HoldTimer>(IDLE);
-  const holdGenRef = useRef(0);
+  const userHoldGenRef = useRef(0);
   const restRef = useRef<RestTimer | null>(null);
   const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
   const prevRequestedRef = useRef<Set<string>>(new Set());
 
   function applyHold(next: HoldTimer) {
     holdRef.current = next;
-    holdGenRef.current += 1;
     setHold(next);
   }
   function applyRest(next: RestTimer | null) {
@@ -171,7 +174,7 @@ export default function LoggerScreen() {
   function completeRow(setId: string, overrideDurationS?: number, viaTimer = false): Promise<void> {
     const pending = inFlightRef.current.get(setId);
     if (pending) return pending; // single-shot per row
-    const gen = holdGenRef.current;
+    const gen = userHoldGenRef.current;
     const w = workoutRef.current;
     const found = w && findSet(w, setId);
     if (!found || found.set.completedAt) return Promise.resolve();
@@ -193,9 +196,9 @@ export default function LoggerScreen() {
         setDrafts((d) => ({ ...d, [setId]: values }));
         await flushDirtyCompleted(setId).catch(() => {}); // Finish flushes again
         const fresh = await reload();
-        // The user touched the hold timer meanwhile (e.g. started another
-        // hold): leave their timer alone and start nothing.
-        if (holdGenRef.current !== gen) return;
+        // The user started another hold meanwhile: leave their timer alone
+        // and start nothing.
+        if (userHoldGenRef.current !== gen) return;
         const again = findSet(fresh, setId);
         const partner = again ? rightPartner(again.exercise, again.set) : null;
         if (partner && viaTimer && kind === 'hold') {
@@ -217,6 +220,8 @@ export default function LoggerScreen() {
 
   async function uncompleteRow(setId: string) {
     try {
+      // A ✓ still writing would land after this and re-complete the row.
+      await inFlightRef.current.get(setId);
       await updateSet(setId, { completedAt: null });
       await reload();
     } catch (err) {
@@ -280,13 +285,14 @@ export default function LoggerScreen() {
   function startHoldFor(set: WorkoutSetRow) {
     const t = Date.now();
     // Starting a new hold finishes any running one with its elapsed time --
-    // a manual stop: no success haptic, no switch, and (because the hold
-    // generation changes right below) no rest either.
+    // a manual stop: no success haptic, no switch, and (because the user hold
+    // generation is bumped right below) no rest either.
     const stopped = stopHold(holdRef.current, t);
     if (stopped.event && stopped.event.type === 'hold_completed') {
       completeRow(stopped.event.rowId, stopped.event.durationS, false);
     }
     applyRest(null);
+    userHoldGenRef.current += 1; // after completeRow captured its generation above
     const target = (draftsRef.current[set.id] ?? valuesOf(set)).durationS ?? 30;
     applyHold(startHold(set.id, target, t));
   }
@@ -335,6 +341,16 @@ export default function LoggerScreen() {
       () => addExercisesToWorkout(workoutId, [{ exerciseId: e.id, sprintDayExerciseId: null, targetText: null, prescribedSets: null }]),
       'Could not add that exercise.'
     );
+  }
+
+  /** The ROM unit is per exercise: change every row's draft, persist for the exercise. */
+  function changeRomUnit(exercise: WorkoutExerciseRow, romUnit: RomUnit) {
+    setDrafts((d) => {
+      const next = { ...d };
+      for (const s of exercise.sets) next[s.id] = { ...(d[s.id] ?? valuesOf(s)), romUnit };
+      return next;
+    });
+    run(() => setRomUnitForExercise(exercise.id, romUnit), 'Could not change the unit.');
   }
 
   // ---- finish / discard ----
@@ -433,8 +449,22 @@ export default function LoggerScreen() {
     return (
       <View style={[sharedStyles.screen, styles.centered]}>
         <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={() => reload().then(() => setLoadError(null)).catch((e) => setLoadError(e?.message ?? 'Could not load.'))}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
+        <Pressable
+          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
+          disabled={retrying}
+          onPress={async () => {
+            setRetrying(true);
+            try {
+              await reload();
+              setLoadError(null);
+            } catch (e: any) {
+              setLoadError(e?.message ?? 'Could not load.');
+            } finally {
+              setRetrying(false);
+            }
+          }}
+        >
+          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
         </Pressable>
       </View>
     );
@@ -490,6 +520,7 @@ export default function LoggerScreen() {
                     draft={drafts[set.id] ?? valuesOf(set)}
                     onChange={(next) => setDrafts((d) => ({ ...d, [set.id]: next }))}
                     onCommitEdit={(values) => commitEdit(set.id, values)}
+                    onChangeRomUnit={(u) => changeRomUnit(exercise, u)}
                     onToggleComplete={() => toggleComplete(set)}
                     onToggleWarmup={() =>
                       run(() => updateSet(set.id, { setType: set.setType === 'warmup' ? 'working' : 'warmup' }), 'Could not update.')
@@ -541,6 +572,7 @@ export default function LoggerScreen() {
 }
 
 const styles = StyleSheet.create({
+  retryingButton: { opacity: 0.6 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   finish: { ...TYPE.label, color: COLORS.accent, fontWeight: '700' },

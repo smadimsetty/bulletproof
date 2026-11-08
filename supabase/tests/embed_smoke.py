@@ -38,9 +38,9 @@ EMBEDS = [
         "id, title, source, started_at, ended_at, workout_exercises ( id, workout_sets ( id ) )",
     ),
     (
-        "workout_exercises",
-        "id, workouts!inner ( ended_at ), "
-        "workout_sets ( id, set_number, side, set_type, reps, weight_kg, duration_s, rom_value, rom_unit, completed_at )",
+        "workouts",
+        "ended_at, workout_exercises!inner ( exercise_id, workout_sets "
+        "( id, set_number, side, set_type, reps, weight_kg, duration_s, rom_value, rom_unit, completed_at ) )",
     ),
     (
         "sprint_assessments",

@@ -27,6 +27,7 @@ export default function WorkoutSummaryScreen() {
   const [titleDraft, setTitleDraft] = useState('');
   const [notesDraft, setNotesDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -94,8 +95,16 @@ export default function WorkoutSummaryScreen() {
     return (
       <View style={[sharedStyles.screen, styles.centered]}>
         <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={() => { setLoadError(null); load(); }}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
+        <Pressable
+          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
+          disabled={retrying}
+          onPress={async () => {
+            setRetrying(true);
+            await load(); // failure puts the new message in loadError
+            setRetrying(false);
+          }}
+        >
+          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
         </Pressable>
       </View>
     );
@@ -177,6 +186,7 @@ export default function WorkoutSummaryScreen() {
 }
 
 const styles = StyleSheet.create({
+  retryingButton: { opacity: 0.6 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
   chipLabel: { ...TYPE.helper, color: COLORS.accent, fontWeight: '600' },

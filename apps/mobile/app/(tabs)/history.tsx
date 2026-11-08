@@ -29,6 +29,7 @@ export default function HistoryScreen() {
   const [active, setActive] = useState<ActiveWorkoutSummary | null>(null);
   const [items, setItems] = useState<WorkoutListItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const loadedRef = useRef(false);
   // How many rows "Load more" has revealed, so a focus reload (e.g. back from
   // a workout detail) doesn't truncate the list to the first page.
@@ -40,7 +41,7 @@ export default function HistoryScreen() {
     if (mode === 'refresh') setRefreshing(true);
     const limit = mode === 'focus' ? Math.max(PAGE_SIZE, loadedCountRef.current) : PAGE_SIZE;
     try {
-      const [a, page] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(0, limit)]);
+      const [a, page] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(null, limit)]);
       setActive(a);
       setItems(page);
       loadedCountRef.current = Math.max(PAGE_SIZE, page.length);
@@ -68,7 +69,8 @@ export default function HistoryScreen() {
     if (loadingMore) return;
     setLoadingMore(true);
     try {
-      const page = await fetchWorkoutHistory(items.length, PAGE_SIZE);
+      const last = items[items.length - 1];
+      const page = await fetchWorkoutHistory(last ? { endedAt: last.endedAt!, id: last.id } : null, PAGE_SIZE);
       const next = [...items, ...page];
       loadedCountRef.current = next.length;
       setItems(next);
@@ -91,8 +93,16 @@ export default function HistoryScreen() {
     return (
       <View style={[sharedStyles.screen, styles.centered]}>
         <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={() => { setLoading(true); load('initial'); }}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
+        <Pressable
+          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
+          disabled={retrying}
+          onPress={async () => {
+            setRetrying(true);
+            await load('initial'); // failure puts the new message in loadError
+            setRetrying(false);
+          }}
+        >
+          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
         </Pressable>
       </View>
     );
@@ -129,6 +139,7 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
+  retryingButton: { opacity: 0.6 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
   group: { gap: SPACING.sm },
 });

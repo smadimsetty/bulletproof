@@ -217,18 +217,24 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
   };
 }
 
-/** Completed sets of this exercise from the most recent *saved* workout. */
+/**
+ * Completed sets of this exercise from the most recent *saved* workout.
+ * Queried from `workouts` (not `workout_exercises`) so ORDER BY ended_at
+ * DESC LIMIT 1 applies to the top-level rows -- a referenced-table order on
+ * a to-one embed would only sort inside each row and not bound the result.
+ */
 async function fetchPreviousSets(exerciseId: string): Promise<PreviousSet[]> {
   const { data, error } = await supabase
-    .from('workout_exercises')
-    .select(`id, workouts!inner ( ended_at ), workout_sets ( ${SET_COLUMNS} )`)
-    .eq('exercise_id', exerciseId)
-    .not('workouts.ended_at', 'is', null);
+    .from('workouts')
+    .select(`ended_at, workout_exercises!inner ( exercise_id, workout_sets ( ${SET_COLUMNS} ) )`)
+    .eq('workout_exercises.exercise_id', exerciseId)
+    .not('ended_at', 'is', null)
+    .order('ended_at', { ascending: false })
+    .limit(1);
   check(error);
-  const rows = ((data ?? []) as any[]).filter((r) => r.workouts?.ended_at);
-  if (rows.length === 0) return [];
-  rows.sort((a, b) => (a.workouts.ended_at < b.workouts.ended_at ? 1 : -1));
-  return ((rows[0].workout_sets ?? []) as any[])
+  const latest = ((data ?? []) as any[])[0];
+  const sets = latest?.workout_exercises?.[0]?.workout_sets ?? [];
+  return (sets as any[])
     .map(toSetRow)
     .filter((s) => s.completedAt)
     .map((s) => ({
@@ -273,13 +279,30 @@ export async function fetchExerciseCatalog(): Promise<CatalogExercise[]> {
   }));
 }
 
-export async function fetchWorkoutHistory(offset: number, limit: number): Promise<WorkoutListItem[]> {
-  const { data, error } = await supabase
+export interface HistoryCursor {
+  readonly endedAt: string;
+  readonly id: string;
+}
+
+/** Keyset filter for "rows strictly after this cursor" in (ended_at desc, id desc) order. */
+export function historyCursorFilter(c: HistoryCursor): string {
+  return `ended_at.lt.${c.endedAt},and(ended_at.eq.${c.endedAt},id.lt.${c.id})`;
+}
+
+/**
+ * Keyset paging on (ended_at, id): a delete or save between pages can't shift
+ * the window, and two workouts sharing an ended_at are neither skipped nor
+ * repeated.
+ */
+export async function fetchWorkoutHistory(cursor: HistoryCursor | null, limit: number): Promise<WorkoutListItem[]> {
+  let q = supabase
     .from('workouts')
     .select('id, title, source, started_at, ended_at, workout_exercises ( id, workout_sets ( id ) )')
     .not('ended_at', 'is', null)
     .order('ended_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .order('id', { ascending: false });
+  if (cursor) q = q.or(historyCursorFilter(cursor));
+  const { data, error } = await q.limit(limit);
   check(error);
   return ((data ?? []) as any[]).map((w) => ({
     id: w.id,
@@ -324,7 +347,7 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
     .select('position')
     .eq('workout_id', workoutId);
   check(posError);
-  let position = Math.max(0, ...((existing ?? []) as any[]).map((r) => r.position)) + 1;
+  const position = Math.max(0, ...((existing ?? []) as any[]).map((r) => r.position)) + 1;
 
   const ids = Array.from(new Set(specs.map((s) => s.exerciseId)));
   const { data: meta, error: metaError } = await supabase
@@ -334,29 +357,35 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
   check(metaError);
   const metaById = new Map(((meta ?? []) as any[]).map((m) => [m.id, m]));
 
-  for (const spec of specs) {
+  // All previous-set lookups in parallel, then one insert per table instead
+  // of ~3 sequential round trips per exercise.
+  const previousById = await fetchPreviousSetsForExercises(ids);
+
+  const exerciseRows = specs.map((spec, i) => ({
+    workout_id: workoutId,
+    exercise_id: spec.exerciseId,
+    sprint_day_exercise_id: spec.sprintDayExerciseId,
+    position: position + i,
+    target_text: spec.targetText,
+  }));
+  const { data: inserted, error: weError } = await supabase
+    .from('workout_exercises')
+    .insert(exerciseRows)
+    .select('id, position');
+  check(weError);
+  const idByPosition = new Map(((inserted ?? []) as any[]).map((r) => [r.position as number, r.id as string]));
+
+  const setRows = specs.flatMap((spec, i) => {
     const m = metaById.get(spec.exerciseId);
     const fields = fieldsForExercise({ exerciseType: m?.exercise_type ?? null, unilateral: !!m?.unilateral });
-    const previous = await fetchPreviousSets(spec.exerciseId);
-
-    const { data: weRow, error: weError } = await supabase
-      .from('workout_exercises')
-      .insert({
-        workout_id: workoutId,
-        exercise_id: spec.exerciseId,
-        sprint_day_exercise_id: spec.sprintDayExerciseId,
-        position: position++,
-        target_text: spec.targetText,
-      })
-      .select('id')
-      .single();
-    check(weError);
-
+    const previous = previousById[spec.exerciseId] ?? [];
+    const workoutExerciseId = idByPosition.get(position + i);
+    if (!workoutExerciseId) throw new Error('Could not add that exercise.');
     const count = defaultSetCount(fields.kind, spec.prescribedSets, m?.default_sets ?? null);
-    const setRows = plannedRows(count, fields.sided).map((row) => {
+    return plannedRows(count, fields.sided).map((row) => {
       const v = prefillValues(row, previous, fields.kind, spec.targetText);
       return {
-        workout_exercise_id: (weRow as any).id,
+        workout_exercise_id: workoutExerciseId,
         set_number: row.setNumber,
         side: row.side,
         reps: v.reps,
@@ -366,9 +395,9 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
         rom_unit: v.romUnit,
       };
     });
-    const { error: setsError } = await supabase.from('workout_sets').insert(setRows);
-    check(setsError);
-  }
+  });
+  const { error: setsError } = await supabase.from('workout_sets').insert(setRows);
+  check(setsError);
 }
 
 export async function startSprintWorkout(day: SprintDay, painPointName: string): Promise<StartResult> {
@@ -449,6 +478,12 @@ export async function setMeasureRom(workoutExerciseId: string, on: boolean): Pro
   check(error);
 }
 
+/** The ROM unit is one choice per exercise: apply it to every set row of it. */
+export async function setRomUnitForExercise(workoutExerciseId: string, unit: RomUnit): Promise<void> {
+  const { error } = await supabase.from('workout_sets').update({ rom_unit: unit }).eq('workout_exercise_id', workoutExerciseId);
+  check(error);
+}
+
 export async function finishWorkout(workout: Workout, input: FinishInput): Promise<'saved' | 'no_completed_sets'> {
   const plan = planFinish(workout.exercises);
   if (!plan.ok) return 'no_completed_sets';
@@ -506,6 +541,25 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
 }
 
 export async function discardWorkout(workoutId: string): Promise<void> {
+  // A failed Finish can have completed the sprint day before ended_at was
+  // written. Discarding must leave the day not-completed, so undo it first.
+  // Guarded on this workout row's own sprint_day_id only.
+  const { data: row, error: readError } = await supabase
+    .from('workouts')
+    .select('sprint_day_id')
+    .eq('id', workoutId)
+    .maybeSingle();
+  check(readError);
+  const sprintDayId = (row as any)?.sprint_day_id as string | null | undefined;
+  if (sprintDayId) {
+    const { error: dayError } = await supabase.from('sprint_days').update({ completed_at: null }).eq('id', sprintDayId);
+    check(dayError);
+    const { error: exError } = await supabase
+      .from('sprint_day_exercises')
+      .update({ completed_at: null })
+      .eq('sprint_day_id', sprintDayId);
+    check(exError);
+  }
   const { error } = await supabase.from('workouts').delete().eq('id', workoutId);
   check(error);
   notifyActiveWorkoutChanged();
