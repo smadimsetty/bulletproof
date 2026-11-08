@@ -1,8 +1,10 @@
 # Session handoff — 2026-11-07 (pick up here)
 
-## 1. The one blocker (Sohan, ~2 min)
+## 1. Blocker — RESOLVED 2026-11-07
 
-TestFlight build 21 is **built but not submitted**. `eas submit` failed:
+Build 21 was submitted to TestFlight after Sohan renewed the Apple agreement
+(it took ~5 min after acceptance for Apple to register it). Original note:
+`eas submit` failed with:
 
 > A required Apple agreement is missing or has expired.
 
@@ -109,7 +111,7 @@ Docs:
 
 ## 8. Next session, in order
 
-1. Confirm Apple agreements accepted → run the submit command above.
+1. ~~Submit build 21~~ (done).
 2. Ask Sohan how the on-device walkthrough went; fix anything found first.
 3. Start **sub-project B (routines + library)**: brainstorm → spec → plan →
    build, same workflow (cheap models for transcription tasks, Opus final
