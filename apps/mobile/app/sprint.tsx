@@ -7,7 +7,7 @@
 // swap) -> reassessment -> before/after summary -> back to the picker. Also
 // carries the "Switch pain point" abandon escape hatch so the
 // one-in-flight-sprint DB constraint never traps a user for the full 14+ days.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -78,11 +78,16 @@ export default function SprintScreen() {
   const [swapExerciseTarget, setSwapExerciseTarget] = useState<SprintDayExercise | null>(null);
   const [swapCandidates, setSwapCandidates] = useState<ReadonlyArray<SwapCandidate>>([]);
   const [comparisons, setComparisons] = useState<AssessmentComparison[] | null>(null);
+  const startingRef = useRef(false);
+  const loadedRef = useRef(false);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+  // 'initial' shows the full-screen spinner/error, 'refresh' (pull) shows the
+  // refresh spinner and Alerts, 'focus' is silent. Only 'initial' ever sets
+  // `loading` (see reportError above for why).
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus' = 'initial') => {
     if (mode === 'refresh') {
       setRefreshing(true);
-    } else {
+    } else if (mode === 'initial') {
       setLoading(true);
     }
     try {
@@ -99,21 +104,20 @@ export default function SprintScreen() {
         setToday(await fetchTodaySprintDay(inFlight.id));
       }
       setLoadError(null);
+      loadedRef.current = true;
     } catch (err: any) {
       if (mode === 'refresh') reportError(err, 'Could not refresh.');
-      else setLoadError(err.message ?? 'Failed to load.');
+      else if (mode === 'initial') setLoadError(err.message ?? 'Failed to load.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // useFocusEffect also runs on mount, so it does the first load too.
   useFocusEffect(
     useCallback(() => {
-      load('refresh');
+      load(loadedRef.current ? 'focus' : 'initial');
     }, [load])
   );
 
@@ -202,20 +206,27 @@ export default function SprintScreen() {
 
   async function handleStartRoutine() {
     if (!today || !sprint) return;
+    if (startingRef.current) return;
     const painPointName = painPoints.find((p) => p.id === sprint.painPointId)?.displayName ?? 'Sprint';
+    startingRef.current = true;
     setStarting(true);
     try {
       handleStartResult(await startSprintWorkout(today, painPointName), router);
     } catch (err: any) {
       reportError(err, "Could not start today's routine.");
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
   }
 
   function handleAbandon() {
     if (!sprint) return;
-    Alert.alert('Switch pain point?', "You'll lose this sprint's progress.", [
+    const routineInProgress = !!activeWorkout && !!today && activeWorkout.sprintDayId === today.id;
+    const message = routineInProgress
+      ? "You'll lose this sprint's progress. Today's routine is still in progress: it will still save, as a plain workout, but won't count toward any sprint."
+      : "You'll lose this sprint's progress.";
+    Alert.alert('Switch pain point?', message, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Switch',

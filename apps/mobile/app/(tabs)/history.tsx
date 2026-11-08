@@ -2,7 +2,7 @@
 //
 // History tab (spec section 6): saved workouts grouped by week, paged 30 at
 // a time, with the in-progress banner on top.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
@@ -29,40 +29,49 @@ export default function HistoryScreen() {
   const [active, setActive] = useState<ActiveWorkoutSummary | null>(null);
   const [items, setItems] = useState<WorkoutListItem[]>([]);
   const [hasMore, setHasMore] = useState(false);
+  const loadedRef = useRef(false);
+  // How many rows "Load more" has revealed, so a focus reload (e.g. back from
+  // a workout detail) doesn't truncate the list to the first page.
+  const loadedCountRef = useRef(PAGE_SIZE);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh') => {
+  // 'initial' blanks to an error screen on failure, 'refresh' (pull) shows the
+  // spinner and Alerts, 'focus' (tab focus / change events) is silent.
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
+    const limit = mode === 'focus' ? Math.max(PAGE_SIZE, loadedCountRef.current) : PAGE_SIZE;
     try {
-      const [a, page] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(0, PAGE_SIZE)]);
+      const [a, page] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(0, limit)]);
       setActive(a);
       setItems(page);
-      setHasMore(page.length === PAGE_SIZE);
+      loadedCountRef.current = Math.max(PAGE_SIZE, page.length);
+      setHasMore(page.length === limit);
       setLoadError(null);
+      loadedRef.current = true;
     } catch (err: any) {
       if (mode === 'initial') setLoadError(err?.message ?? 'Failed to load.');
-      else reportError(err, 'Could not refresh.');
+      else if (mode === 'refresh') reportError(err, 'Could not refresh.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    load('initial');
-  }, [load]);
+  // useFocusEffect also runs on mount, so it does the first load too.
   useFocusEffect(
     useCallback(() => {
-      load('refresh');
+      load(loadedRef.current ? 'focus' : 'initial');
     }, [load])
   );
-  useEffect(() => subscribeToActiveWorkoutChanges(() => load('refresh')), [load]);
+  useEffect(() => subscribeToActiveWorkoutChanges(() => load('focus')), [load]);
 
   async function loadMore() {
     if (loadingMore) return;
     setLoadingMore(true);
     try {
       const page = await fetchWorkoutHistory(items.length, PAGE_SIZE);
-      setItems((prev) => [...prev, ...page]);
+      const next = [...items, ...page];
+      loadedCountRef.current = next.length;
+      setItems(next);
       setHasMore(page.length === PAGE_SIZE);
     } catch (err) {
       reportError(err, 'Could not load more workouts.');

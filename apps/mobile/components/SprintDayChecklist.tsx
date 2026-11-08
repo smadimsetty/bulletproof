@@ -60,8 +60,11 @@ export default function SprintDayChecklist({
           {/* Swapping an exercise that's already checked off would move its
               completed_at onto a different exercise -- falsely crediting the
               swap target and erasing the real one, which then pollutes the
-              LRU picker's history. Simply don't offer it once it's done. */}
-          {!exercise.completedAt && !dayComplete && (
+              LRU picker's history. Simply don't offer it once it's done.
+              Same while today's workout is in progress: the workout row
+              still points at this sprint_day_exercise, so saving it would
+              credit the swapped-in exercise instead. */}
+          {!exercise.completedAt && !dayComplete && !routineInProgress && (
             <Pressable onPress={() => onOpenSwap(exercise)}>
               <Text style={styles.link}>Swap</Text>
             </Pressable>

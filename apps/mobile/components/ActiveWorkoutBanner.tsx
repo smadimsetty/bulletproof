@@ -2,7 +2,7 @@
 //
 // In-progress workout banner, rendered at the top of the Workout and
 // History tabs' content (spec section 1). Tap resumes; × discards.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { COLORS, RADII, SPACING, TYPE } from '../lib/theme';
@@ -23,6 +23,8 @@ export default function ActiveWorkoutBanner({
 }) {
   const router = useRouter();
   const [, setTick] = useState(0);
+  // A fast double tap would push two logger screens.
+  const lastPushRef = useRef(0);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
@@ -46,7 +48,15 @@ export default function ActiveWorkoutBanner({
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.tapArea} onPress={() => router.push(`/workout/${workout.id}`)}>
+      <Pressable
+        style={styles.tapArea}
+        onPress={() => {
+          const t = Date.now();
+          if (t - lastPushRef.current < 1000) return;
+          lastPushRef.current = t;
+          router.push(`/workout/${workout.id}`);
+        }}
+      >
         <View style={styles.dot} />
         <Text style={styles.text} numberOfLines={1}>
           {workout.title} · {elapsedMinutes(workout.startedAt)} min

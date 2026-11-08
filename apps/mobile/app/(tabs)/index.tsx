@@ -2,7 +2,7 @@
 //
 // Workout tab (spec section 1): in-progress banner or "Start empty
 // workout", the sprint card, and the 3 most recent saved workouts.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
@@ -32,8 +32,13 @@ export default function WorkoutTab() {
   const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [today, setToday] = useState<SprintDay | null>(null);
   const [starting, setStarting] = useState(false);
+  // Synchronous guard: two taps can land before `starting` re-renders.
+  const startingRef = useRef(false);
+  const loadedRef = useRef(false);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh') => {
+  // 'initial' blanks to an error screen on failure, 'refresh' (pull) shows the
+  // spinner and Alerts, 'focus' (tab focus / change events) is silent.
+  const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
     try {
       const [a, r, s, pp] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(0, 3), fetchInFlightSprint(), fetchPainPoints()]);
@@ -43,45 +48,50 @@ export default function WorkoutTab() {
       setPainPoints(pp);
       setToday(s && s.status === 'active' ? await fetchTodaySprintDay(s.id) : null);
       setLoadError(null);
+      loadedRef.current = true;
     } catch (err: any) {
       if (mode === 'initial') setLoadError(err?.message ?? 'Failed to load.');
-      else reportError(err, 'Could not refresh.');
+      else if (mode === 'refresh') reportError(err, 'Could not refresh.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    load('initial');
-  }, [load]);
+  // useFocusEffect also runs on mount, so it does the first load too.
   useFocusEffect(
     useCallback(() => {
-      load('refresh');
+      load(loadedRef.current ? 'focus' : 'initial');
     }, [load])
   );
-  useEffect(() => subscribeToActiveWorkoutChanges(() => load('refresh')), [load]);
+  useEffect(() => subscribeToActiveWorkoutChanges(() => load('focus')), [load]);
 
   async function handleStartEmpty() {
+    if (startingRef.current) return;
+    startingRef.current = true;
     setStarting(true);
     try {
       handleStartResult(await startWorkout({ source: 'empty', title: defaultWorkoutTitle(new Date()) }), router);
     } catch (err) {
       reportError(err, 'Could not start a workout.');
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
   }
 
   async function handleStartRoutine() {
     if (!today || !sprint) return;
+    if (startingRef.current) return;
     const name = painPoints.find((p) => p.id === sprint.painPointId)?.displayName ?? 'Sprint';
+    startingRef.current = true;
     setStarting(true);
     try {
       handleStartResult(await startSprintWorkout(today, name), router);
     } catch (err) {
       reportError(err, "Could not start today's routine.");
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
   }

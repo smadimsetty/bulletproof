@@ -6,7 +6,7 @@
 // The `recommendations` fetch below is
 // intentionally left in place though nothing renders it: it's the mobile
 // side of the old daily-recommendation engine, which stays running
-// dormant per that same table rather than being torn out.
+// dormant rather than being torn out.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { Stack } from 'expo-router';
@@ -37,6 +37,7 @@ export default function RootLayout() {
     INITIAL_RECOMMENDATIONS_STATE
   );
   const appState = useRef(AppState.currentState);
+  const hadSession = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -85,8 +86,13 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!session) {
+      // Signed out: the lock-screen activity must not outlive the session.
+      // (Not on cold start, where session is briefly null before getSession.)
+      if (hadSession.current) syncWorkoutLiveActivity(null);
+      hadSession.current = false;
       return;
     }
+    hadSession.current = true;
 
     runHealthKitSyncIfEnabled('launch');
     loadRecommendations();
