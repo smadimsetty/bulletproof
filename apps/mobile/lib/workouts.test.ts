@@ -1,5 +1,8 @@
 // apps/mobile/lib/workouts.test.ts
-import { isInProgressConflict, buildSprintWorkoutExercises, startWorkout, subscribeToActiveWorkoutChanges } from './workouts';
+import {
+  isInProgressConflict, buildSprintWorkoutExercises, finishWorkout, startSprintWorkout, startWorkout,
+  subscribeToActiveWorkoutChanges, type Workout,
+} from './workouts';
 import type { SprintDay } from './sprintLifecycle';
 
 jest.mock('./supabase', () => ({ supabase: { from: jest.fn() } }));
@@ -7,17 +10,23 @@ import { supabase } from './supabase';
 
 function chain(result: any) {
   const c: any = {};
-  for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'is', 'not', 'order', 'range', 'in', 'limit']) c[m] = jest.fn(() => c);
+  for (const m of ['select', 'insert', 'update', 'upsert', 'delete', 'eq', 'is', 'not', 'order', 'range', 'in', 'limit']) c[m] = jest.fn(() => c);
   c.single = jest.fn(() => Promise.resolve(result));
   c.maybeSingle = jest.fn(() => Promise.resolve(result));
+  // Awaiting the builder itself (e.g. `await from(t).delete().in(...)`).
+  c.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
   return c;
 }
 
 beforeEach(() => (supabase.from as jest.Mock).mockReset());
 
-test('isInProgressConflict', () => {
-  expect(isInProgressConflict({ code: '23505' })).toBe(true);
-  expect(isInProgressConflict({ code: '23503' })).toBe(false);
+const IN_PROGRESS_DUP = { code: '23505', message: 'duplicate key value violates unique constraint "workouts_one_in_progress_per_owner"' };
+const SPRINT_DAY_DUP = { code: '23505', message: 'duplicate key value violates unique constraint "workouts_sprint_day_id_key"' };
+
+test('isInProgressConflict only matches the in-progress index', () => {
+  expect(isInProgressConflict(IN_PROGRESS_DUP)).toBe(true);
+  expect(isInProgressConflict(SPRINT_DAY_DUP)).toBe(false);
+  expect(isInProgressConflict({ code: '23503', message: 'workouts_one_in_progress_per_owner' })).toBe(false);
   expect(isInProgressConflict(null)).toBe(false);
 });
 
@@ -47,13 +56,158 @@ describe('startWorkout', () => {
 
   test('23505 maps to in_progress with the active id', async () => {
     (supabase.from as jest.Mock)
-      .mockReturnValueOnce(chain({ data: null, error: { code: '23505', message: 'dup' } }))
+      .mockReturnValueOnce(chain({ data: null, error: IN_PROGRESS_DUP }))
       .mockReturnValueOnce(chain({ data: { id: 'w0', title: 't', started_at: 'x', sprint_day_id: null }, error: null }));
     await expect(startWorkout({ source: 'empty', title: 'x' })).resolves.toEqual({ ok: false, reason: 'in_progress', activeWorkoutId: 'w0' });
+  });
+
+  test('a sprint-day 23505 is not reported as an in-progress workout', async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: null, error: SPRINT_DAY_DUP }));
+    await expect(startWorkout({ source: 'sprint', title: 'x', sprintDayId: 'd1' })).rejects.toThrow('already been logged');
+    expect(supabase.from).toHaveBeenCalledTimes(1);
   });
 
   test('other errors throw', async () => {
     (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: null, error: { code: '42501', message: 'denied' } }));
     await expect(startWorkout({ source: 'empty', title: 'x' })).rejects.toThrow('denied');
+  });
+});
+
+/** Queue one chain per supabase.from() call, recording the table names. */
+function queue(...steps: { table: string; result: any }[]) {
+  const tables: string[] = [];
+  const chains: any[] = [];
+  (supabase.from as jest.Mock).mockImplementation((table: string) => {
+    const step = steps[chains.length];
+    if (!step) throw new Error(`unexpected from('${table}') call #${chains.length + 1}`);
+    expect(table).toBe(step.table);
+    const c = chain(step.result);
+    tables.push(table);
+    chains.push(c);
+    return c;
+  });
+  return { tables, chains };
+}
+const OK = { data: null, error: null };
+
+function set(id: string, setNumber: number, side: 'left' | 'right' | null, completedAt: string | null) {
+  return { id, setNumber, side, setType: 'working' as const, reps: null, weightKg: null, durationS: 30, romValue: null, romUnit: null, completedAt };
+}
+
+const sprintWorkout: Workout = {
+  id: 'w1', title: 'Neck · Day 14', notes: null, source: 'sprint', sprintDayId: 'd14',
+  startedAt: '2026-11-07T10:00:00Z', endedAt: null,
+  exercises: [
+    {
+      id: 'we1', exerciseId: 'e1', exerciseName: 'Chin tuck', exerciseType: 'mobility_stretch', unilateral: false,
+      position: 1, targetText: null, measureRom: false, sprintDayExerciseId: 'sde1',
+      sets: [set('s1', 1, null, 'x'), set('s2', 2, null, null)],
+    },
+    {
+      id: 'we2', exerciseId: 'e2', exerciseName: 'Couch stretch', exerciseType: 'mobility_stretch', unilateral: true,
+      position: 2, targetText: null, measureRom: false, sprintDayExerciseId: 'sde2',
+      sets: [set('s3', 1, 'left', null)],
+    },
+  ],
+};
+const finishInput = { title: '  ', notes: ' felt fine ', reaction: 'good' as const, reactionNote: '' };
+const DAY_14 = { data: { id: 'd14', day_number: 14, sprint_id: 'sp1' }, error: null };
+
+describe('finishWorkout', () => {
+  test('active sprint: deletes, completes, transitions, feedback, and writes ended_at last', async () => {
+    const { tables, chains } = queue(
+      { table: 'workout_sets', result: OK },
+      { table: 'workout_exercises', result: OK },
+      { table: 'sprint_days', result: DAY_14 },
+      { table: 'sprints', result: { data: { status: 'active' }, error: null } },
+      { table: 'sprint_day_exercises', result: OK },
+      { table: 'sprint_days', result: OK },
+      { table: 'sprints', result: OK },
+      { table: 'sprint_day_feedback', result: OK },
+      { table: 'workouts', result: OK }
+    );
+    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toBe('saved');
+    expect(tables).toHaveLength(9);
+    expect(chains[0].in).toHaveBeenCalledWith('id', ['s2', 's3']);
+    expect(chains[1].in).toHaveBeenCalledWith('id', ['we2']);
+    expect(chains[4].eq).toHaveBeenCalledWith('id', 'sde1');
+    expect(chains[6].update).toHaveBeenCalledWith({ status: 'pending_reassessment' });
+    expect(chains[8].update.mock.calls[0][0]).toEqual({ title: 'Neck · Day 14', notes: 'felt fine', ended_at: expect.any(String) });
+  });
+
+  test('a failure mid-sequence never writes ended_at', async () => {
+    const { tables } = queue(
+      { table: 'workout_sets', result: OK },
+      { table: 'workout_exercises', result: OK },
+      { table: 'sprint_days', result: DAY_14 },
+      { table: 'sprints', result: { data: { status: 'active' }, error: null } },
+      { table: 'sprint_day_exercises', result: OK },
+      { table: 'sprint_days', result: { data: null, error: { message: 'network down' } } }
+    );
+    await expect(finishWorkout(sprintWorkout, finishInput)).rejects.toThrow('network down');
+    expect(tables).not.toContain('workouts');
+  });
+
+  test('a retry after day 14 already moved the sprint on still saves the workout', async () => {
+    const { tables, chains } = queue(
+      { table: 'workout_sets', result: OK },
+      { table: 'workout_exercises', result: OK },
+      { table: 'sprint_days', result: DAY_14 },
+      { table: 'sprints', result: { data: { status: 'pending_reassessment' }, error: null } },
+      { table: 'sprint_day_feedback', result: OK },
+      { table: 'workouts', result: OK }
+    );
+    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toBe('saved');
+    expect(tables[tables.length - 1]).toBe('workouts');
+    expect(chains[5].update.mock.calls[0][0].ended_at).toEqual(expect.any(String));
+  });
+
+  test('an abandoned sprint is never revived: only the workout is saved', async () => {
+    const { tables } = queue(
+      { table: 'workout_sets', result: OK },
+      { table: 'workout_exercises', result: OK },
+      { table: 'sprint_days', result: DAY_14 },
+      { table: 'sprints', result: { data: { status: 'abandoned' }, error: null } },
+      { table: 'workouts', result: OK }
+    );
+    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toBe('saved');
+    expect(tables).toEqual(['workout_sets', 'workout_exercises', 'sprint_days', 'sprints', 'workouts']);
+  });
+
+  test('no completed sets: refuses and writes nothing', async () => {
+    const none: Workout = { ...sprintWorkout, exercises: [sprintWorkout.exercises[1]] };
+    await expect(finishWorkout(none, finishInput)).resolves.toBe('no_completed_sets');
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+});
+
+describe('startSprintWorkout', () => {
+  const day: SprintDay = {
+    id: 'd3', sprintId: 'sp1', dayNumber: 3, date: '2026-11-07', completedAt: null,
+    exercises: [{ id: 'sde1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', prescribedSets: 2, prescribedRepsOrDuration: '30s', order: 1, completedAt: null }],
+  };
+
+  test('resumes the existing in-progress workout for that day instead of creating one', async () => {
+    const { tables } = queue({ table: 'workouts', result: { data: { id: 'w9' }, error: null } });
+    await expect(startSprintWorkout(day, 'Neck')).resolves.toEqual({ ok: true, workoutId: 'w9' });
+    expect(tables).toEqual(['workouts']);
+  });
+
+  test('deletes the new workout and rethrows when adding exercises fails', async () => {
+    const cb = jest.fn();
+    const unsub = subscribeToActiveWorkoutChanges(cb);
+    const { tables, chains } = queue(
+      { table: 'workouts', result: { data: null, error: null } },
+      { table: 'workouts', result: { data: { id: 'w1' }, error: null } },
+      { table: 'workout_exercises', result: { data: [], error: null } },
+      { table: 'exercises', result: { data: null, error: { message: 'meta failed' } } },
+      { table: 'workouts', result: OK }
+    );
+    await expect(startSprintWorkout(day, 'Neck')).rejects.toThrow('meta failed');
+    expect(tables).toHaveLength(5);
+    expect(chains[4].delete).toHaveBeenCalled();
+    expect(chains[4].eq).toHaveBeenCalledWith('id', 'w1');
+    expect(cb).toHaveBeenCalledTimes(2); // started, then cleaned up
+    unsub();
   });
 });

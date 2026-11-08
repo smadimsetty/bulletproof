@@ -111,8 +111,16 @@ function check(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 
-export function isInProgressConflict(error: { code?: string } | null): boolean {
-  return error?.code === '23505';
+type PgError = { code?: string; message?: string; details?: string | null } | null;
+
+/**
+ * 23505 on the one-in-progress-per-owner index. workouts.sprint_day_id is
+ * UNIQUE too, so a 23505 alone could also mean "this sprint day already has
+ * a saved workout" -- which has nothing to resume.
+ */
+export function isInProgressConflict(error: PgError): boolean {
+  if (error?.code !== '23505') return false;
+  return `${error.message ?? ''} ${error.details ?? ''}`.includes('workouts_one_in_progress_per_owner');
 }
 
 export function buildSprintWorkoutExercises(day: SprintDay): NewWorkoutExercise[] {
@@ -228,6 +236,22 @@ async function fetchPreviousSets(exerciseId: string): Promise<PreviousSet[]> {
     }));
 }
 
+/**
+ * Previous completed sets per exercise, for the logger's "prev: …" hints.
+ * One query per exercise, in parallel.
+ */
+export async function fetchPreviousSetsForExercises(
+  exerciseIds: readonly string[]
+): Promise<Record<string, PreviousSet[]>> {
+  const unique = Array.from(new Set(exerciseIds));
+  const lists = await Promise.all(unique.map((id) => fetchPreviousSets(id)));
+  const out: Record<string, PreviousSet[]> = {};
+  unique.forEach((id, i) => {
+    out[id] = lists[i];
+  });
+  return out;
+}
+
 export async function fetchExerciseCatalog(): Promise<CatalogExercise[]> {
   const { data, error } = await supabase
     .from('exercises')
@@ -277,6 +301,9 @@ export async function startWorkout(input: {
   if (isInProgressConflict(error)) {
     const active = await fetchActiveWorkout();
     return { ok: false, reason: 'in_progress', activeWorkoutId: active?.id ?? null };
+  }
+  if (error?.code === '23505' && input.sprintDayId) {
+    throw new Error("Today's routine has already been logged.");
   }
   check(error);
   notifyActiveWorkoutChanged();
@@ -430,17 +457,31 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
   }
 
   if (workout.sprintDayId) {
-    for (const id of plan.sprintDayExerciseIdsToComplete) {
-      await completeExercise(id);
-    }
     const { data: day, error: dayError } = await supabase
       .from('sprint_days')
       .select('id, day_number, sprint_id')
       .eq('id', workout.sprintDayId)
       .single();
     check(dayError);
-    await completeDay((day as any).id, (day as any).day_number, (day as any).sprint_id);
-    if (input.reaction) {
+    const { data: sprint, error: sprintError } = await supabase
+      .from('sprints')
+      .select('status')
+      .eq('id', (day as any).sprint_id)
+      .single();
+    check(sprintError);
+    const status = (sprint as any).status as string;
+    // Only a still-active sprint gets its day completed. An abandoned sprint
+    // must not be revived (completeDay's day-14 step would flip it back to
+    // pending_reassessment, or hit the one-in-flight index and fail every
+    // retry); a sprint already moved on (e.g. by a retry after day 14
+    // succeeded) needs nothing more. Either way the workout itself saves.
+    if (status === 'active') {
+      for (const id of plan.sprintDayExerciseIdsToComplete) {
+        await completeExercise(id);
+      }
+      await completeDay((day as any).id, (day as any).day_number, (day as any).sprint_id);
+    }
+    if (input.reaction && status !== 'abandoned') {
       await submitDayFeedback((day as any).id, input.reaction, input.reactionNote);
     }
   }
@@ -465,10 +506,10 @@ export async function discardWorkout(workoutId: string): Promise<void> {
 }
 
 export async function updateWorkoutMeta(workoutId: string, title: string, notes: string): Promise<void> {
-  const { error } = await supabase
-    .from('workouts')
-    .update({ title: title.trim(), notes: notes.trim() === '' ? null : notes.trim() })
-    .eq('id', workoutId);
+  // An emptied title keeps the old one, same as Finish.
+  const patch: Record<string, string | null> = { notes: notes.trim() === '' ? null : notes.trim() };
+  if (title.trim() !== '') patch.title = title.trim();
+  const { error } = await supabase.from('workouts').update(patch).eq('id', workoutId);
   check(error);
 }
 
