@@ -18,6 +18,7 @@
 // - Side effects (haptics, completions) run outside state updaters.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
@@ -43,6 +44,7 @@ import RestBar from '../../components/logger/RestBar';
 import Ticker from '../../components/logger/Ticker';
 import ExercisePickerSheet from '../../components/logger/ExercisePickerSheet';
 import FinishSheet from '../../components/logger/FinishSheet';
+import LastAssessmentSheet from '../../components/LastAssessmentSheet';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -66,6 +68,7 @@ export default function LoggerScreen() {
   const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   // Refs so timer callbacks (created in an older render) read current state.
   const workoutRef = useRef<Workout | null>(null);
@@ -405,16 +408,24 @@ export default function LoggerScreen() {
 
   // Stable header options: the header no longer re-renders on every tick.
   const headerTitle = workout?.title ?? 'Workout';
+  const painPointId = workout?.painPointId ?? null;
   const screenOptions = useMemo(
     () => ({
       title: headerTitle,
       headerRight: () => (
-        <Pressable onPress={() => openFinishRef.current()} hitSlop={8}>
-          <Text style={styles.finish}>Finish</Text>
-        </Pressable>
+        <View style={styles.headerRight}>
+          {painPointId && (
+            <Pressable onPress={() => setAssessmentOpen(true)} hitSlop={8} accessibilityLabel="Last assessment">
+              <Ionicons name="clipboard-outline" size={20} color={COLORS.accent} />
+            </Pressable>
+          )}
+          <Pressable onPress={() => openFinishRef.current()} hitSlop={8}>
+            <Text style={styles.finish}>Finish</Text>
+          </Pressable>
+        </View>
       ),
     }),
-    [headerTitle]
+    [headerTitle, painPointId]
   );
 
   // ---- render ----
@@ -515,6 +526,7 @@ export default function LoggerScreen() {
         </Ticker>
       )}
       <ExercisePickerSheet visible={pickerOpen} catalog={catalog} onPick={pickExercise} onClose={() => setPickerOpen(false)} />
+      <LastAssessmentSheet visible={assessmentOpen} painPointId={painPointId} onClose={() => setAssessmentOpen(false)} />
       <FinishSheet
         visible={finishOpen}
         initialTitle={workout.title}
@@ -530,6 +542,7 @@ export default function LoggerScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   finish: { ...TYPE.label, color: COLORS.accent, fontWeight: '700' },
   bottomPad: { paddingBottom: 120 },
 });

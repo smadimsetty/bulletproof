@@ -262,3 +262,29 @@ export function prefillDraft(
   }
   return draft;
 }
+
+export type ChangeVerdict = 'better' | 'worse' | 'same' | null;
+
+function scalarFor(direction: BetterDirection, v: AssessmentComparisonValue): number | null {
+  if (direction === 'symmetry') {
+    return v.left !== undefined && v.right !== undefined ? Math.abs(v.left - v.right) : null;
+  }
+  if (v.single !== undefined) return v.single;
+  const sides = [v.left, v.right].filter((x): x is number => x !== undefined);
+  return sides.length === 0 ? null : sides.reduce((a, b) => a + b, 0) / sides.length;
+}
+
+/**
+ * Direction of change from `baseline` (the earlier value) to `reassessment`
+ * (the later one), judged by the test's better_direction. For symmetry the
+ * measure is the left/right gap, smaller being better.
+ */
+export function changeVerdict(c: AssessmentComparison): ChangeVerdict {
+  if (!c.baseline || !c.reassessment) return null;
+  const before = scalarFor(c.betterDirection, c.baseline);
+  const after = scalarFor(c.betterDirection, c.reassessment);
+  if (before === null || after === null) return null;
+  if (after === before) return 'same';
+  const increased = after > before;
+  return (c.betterDirection === 'higher') === increased ? 'better' : 'worse';
+}

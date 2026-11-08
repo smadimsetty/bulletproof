@@ -41,6 +41,8 @@ export interface Workout {
   readonly notes: string | null;
   readonly source: WorkoutSource;
   readonly sprintDayId: string | null;
+  /** The pain point of the sprint this workout belongs to; null for non-sprint workouts. */
+  readonly painPointId: string | null;
   readonly startedAt: string;
   readonly endedAt: string | null;
   readonly exercises: readonly WorkoutExerciseRow[];
@@ -177,6 +179,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
     .from('workouts')
     .select(
       `id, title, notes, source, sprint_day_id, started_at, ended_at,
+       sprint_days!workouts_sprint_day_id_fkey ( sprints ( pain_point_id ) ),
        workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id,
          exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, evidence_rationale ),
          workout_sets ( ${SET_COLUMNS} ) )`
@@ -191,6 +194,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
     notes: w.notes,
     source: w.source,
     sprintDayId: w.sprint_day_id,
+    painPointId: w.sprint_days?.sprints?.pain_point_id ?? null,
     startedAt: w.started_at,
     endedAt: w.ended_at,
     exercises: ((w.workout_exercises ?? []) as any[])

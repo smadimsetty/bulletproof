@@ -12,7 +12,7 @@ function formatNumber(n: number, unit: string): string {
   return n === 1 ? 'Pass' : 'Fail';
 }
 
-function formatValue(v: AssessmentComparisonValue | null, unit: string): string {
+export function formatValue(v: AssessmentComparisonValue | null, unit: string): string {
   if (!v) return '—';
   if (v.single !== undefined) return formatNumber(v.single, unit);
   if (v.left !== undefined || v.right !== undefined) {

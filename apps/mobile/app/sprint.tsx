@@ -49,6 +49,7 @@ import {
 } from '../lib/sprintAssessment';
 import PainPointPicker from '../components/PainPointPicker';
 import AssessmentForm from '../components/AssessmentForm';
+import LastAssessmentSheet from '../components/LastAssessmentSheet';
 import SprintDayChecklist from '../components/SprintDayChecklist';
 import AssessmentSummary from '../components/AssessmentSummary';
 import { fetchActiveWorkout, startSprintWorkout, type ActiveWorkoutSummary } from '../lib/workouts';
@@ -105,6 +106,7 @@ export default function SprintScreen() {
   const [starting, setStarting] = useState(false);
   const [swapExerciseTarget, setSwapExerciseTarget] = useState<SprintDayExercise | null>(null);
   const [swapCandidates, setSwapCandidates] = useState<ReadonlyArray<SwapCandidate>>([]);
+  const [lastAssessmentOpen, setLastAssessmentOpen] = useState(false);
   const [comparisons, setComparisons] = useState<AssessmentComparison[] | null>(null);
   const startingRef = useRef(false);
   const loadedRef = useRef(false);
@@ -346,12 +348,18 @@ export default function SprintScreen() {
         <SprintDayChecklist
           day={today}
           onOpenSwap={handleOpenSwap}
+          onOpenLastAssessment={() => setLastAssessmentOpen(true)}
           onStartRoutine={handleStartRoutine}
           onAbandon={handleAbandon}
           starting={starting}
           routineInProgress={!!activeWorkout && activeWorkout.sprintDayId === today.id}
           dayComplete={!!today.completedAt}
           refreshControl={refreshControl}
+        />
+        <LastAssessmentSheet
+          visible={lastAssessmentOpen}
+          painPointId={sprint.painPointId}
+          onClose={() => setLastAssessmentOpen(false)}
         />
         <Modal visible={!!swapExerciseTarget} animationType="slide" transparent onRequestClose={() => setSwapExerciseTarget(null)}>
           <Pressable style={styles.backdrop} onPress={() => setSwapExerciseTarget(null)}>

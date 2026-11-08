@@ -2,6 +2,8 @@ import {
   isAssessmentComplete,
   buildBeforeAfterComparison,
   prefillDraft,
+  changeVerdict,
+  type AssessmentComparison,
   type PastAssessment,
   type AssessmentDefinition,
   type AssessmentResultInput,
@@ -239,5 +241,34 @@ describe('prefillDraft', () => {
 
   test('null past gives an empty map', () => {
     expect(prefillDraft([BILATERAL_DEF], null).size).toBe(0);
+  });
+});
+
+function comparison(
+  betterDirection: AssessmentComparison['betterDirection'],
+  baseline: AssessmentComparison['baseline'],
+  reassessment: AssessmentComparison['reassessment']
+): AssessmentComparison {
+  return { testKey: 't', name: 'T', unit: 'cm', betterDirection, baseline, reassessment };
+}
+
+describe('changeVerdict', () => {
+  test('higher + single, 30 -> 45 is better', () => {
+    expect(changeVerdict(comparison('higher', { single: 30 }, { single: 45 }))).toBe('better');
+  });
+  test('lower + single, 5 -> 7 is worse', () => {
+    expect(changeVerdict(comparison('lower', { single: 5 }, { single: 7 }))).toBe('worse');
+  });
+  test('symmetry narrows from L9/R12 to L10/R11 is better', () => {
+    expect(changeVerdict(comparison('symmetry', { left: 9, right: 12 }, { left: 10, right: 11 }))).toBe('better');
+  });
+  test('higher uses the mean of left/right when there is no single value', () => {
+    expect(changeVerdict(comparison('higher', { left: 8, right: 10 }, { left: 10, right: 12 }))).toBe('better');
+  });
+  test('missing previous gives null', () => {
+    expect(changeVerdict(comparison('higher', null, { single: 5 }))).toBeNull();
+  });
+  test('equal is same', () => {
+    expect(changeVerdict(comparison('lower', { single: 5 }, { single: 5 }))).toBe('same');
   });
 });

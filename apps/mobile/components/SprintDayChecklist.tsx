@@ -7,6 +7,7 @@ import type { SprintDay, SprintDayExercise } from '../lib/sprintLifecycle';
 export default function SprintDayChecklist({
   day,
   onOpenSwap,
+  onOpenLastAssessment,
   onStartRoutine,
   onAbandon,
   starting,
@@ -16,6 +17,7 @@ export default function SprintDayChecklist({
 }: {
   day: SprintDay;
   onOpenSwap: (exercise: SprintDayExercise) => void;
+  onOpenLastAssessment: () => void;
   onStartRoutine: () => void;
   onAbandon: () => void;
   starting: boolean;
@@ -32,9 +34,14 @@ export default function SprintDayChecklist({
     >
       <View style={styles.headerRow}>
         <Text style={TYPE.screenTitle}>Day {day.dayNumber} of 14</Text>
-        <Pressable onPress={onAbandon}>
-          <Text style={styles.link}>Switch pain point</Text>
-        </Pressable>
+        <View style={styles.headerLinks}>
+          <Pressable onPress={onOpenLastAssessment}>
+            <Text style={styles.link}>Last assessment</Text>
+          </Pressable>
+          <Pressable onPress={onAbandon}>
+            <Text style={styles.link}>Switch pain point</Text>
+          </Pressable>
+        </View>
       </View>
       {dayComplete && (
         <View style={sharedStyles.card}>
@@ -115,6 +122,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   titleText: { flex: 1 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLinks: { alignItems: 'flex-end', gap: 4 },
   link: { color: COLORS.accent, fontWeight: '600' },
   mutedText: { color: COLORS.muted },
 });

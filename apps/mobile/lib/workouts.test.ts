@@ -95,7 +95,7 @@ function set(id: string, setNumber: number, side: 'left' | 'right' | null, compl
 }
 
 const sprintWorkout: Workout = {
-  id: 'w1', title: 'Neck · Day 14', notes: null, source: 'sprint', sprintDayId: 'd14',
+  id: 'w1', title: 'Neck · Day 14', notes: null, source: 'sprint', sprintDayId: 'd14', painPointId: null,
   startedAt: '2026-11-07T10:00:00Z', endedAt: null,
   exercises: [
     {
