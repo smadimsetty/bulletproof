@@ -1,7 +1,7 @@
 // apps/mobile/app/(tabs)/index.tsx
 //
 // Workout tab (spec section 1): in-progress banner or "Start empty
-// workout", the sprint card, and the 3 most recent saved workouts.
+// workout", the sprint card, routines, and the 3 most recent saved workouts.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -10,12 +10,14 @@ import {
   fetchActiveWorkout, fetchWorkoutHistory, startSprintWorkout, startWorkout, subscribeToActiveWorkoutChanges,
   type ActiveWorkoutSummary, type WorkoutListItem,
 } from '../../lib/workouts';
+import { fetchRoutinesAndFolders, startRoutineWorkout, type Routine, type RoutineFolder } from '../../lib/routines';
 import { fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay, type PainPoint, type Sprint, type SprintDay } from '../../lib/sprintLifecycle';
 import { defaultWorkoutTitle } from '../../lib/workoutTitles';
 import { handleStartResult } from '../../lib/workoutStart';
 import ActiveWorkoutBanner from '../../components/ActiveWorkoutBanner';
 import WorkoutListRow from '../../components/WorkoutListRow';
 import SprintCard from '../../components/SprintCard';
+import RoutinesSection from '../../components/routines/RoutinesSection';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -31,6 +33,8 @@ export default function WorkoutTab() {
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [today, setToday] = useState<SprintDay | null>(null);
+  const [folders, setFolders] = useState<RoutineFolder[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
   const [starting, setStarting] = useState(false);
   const [retrying, setRetrying] = useState(false);
   // Synchronous guard: two taps can land before `starting` re-renders.
@@ -42,7 +46,18 @@ export default function WorkoutTab() {
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
     try {
-      const [a, r, s, pp] = await Promise.all([fetchActiveWorkout(), fetchWorkoutHistory(null, 3), fetchInFlightSprint(), fetchPainPoints()]);
+      const [a, r, s, pp, rf] = await Promise.all([
+        fetchActiveWorkout(),
+        fetchWorkoutHistory(null, 3),
+        fetchInFlightSprint(),
+        fetchPainPoints(),
+        // Routines are secondary: a failure here must not blank the whole tab.
+        fetchRoutinesAndFolders().catch(() => null),
+      ]);
+      if (rf) {
+        setFolders(rf.folders);
+        setRoutines(rf.routines);
+      }
       setActive(a);
       setRecent(r);
       setSprint(s);
@@ -75,6 +90,24 @@ export default function WorkoutTab() {
       handleStartResult(await startWorkout({ source: 'empty', title: defaultWorkoutTitle(new Date()) }), router);
     } catch (err) {
       reportError(err, 'Could not start a workout.');
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  }
+
+  async function handleStartSavedRoutine(routine: Routine) {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
+    try {
+      const result = await startRoutineWorkout(routine);
+      handleStartResult(result, router);
+      if (result.ok && result.skipped && result.skipped.length > 0) {
+        Alert.alert('Some exercises were skipped', `These no longer exist: ${result.skipped.join(', ')}.`);
+      }
+    } catch (err) {
+      reportError(err, 'Could not start this routine.');
     } finally {
       startingRef.current = false;
       setStarting(false);
@@ -147,6 +180,7 @@ export default function WorkoutTab() {
         onStartRoutine={handleStartRoutine}
         onOpenSprint={() => router.push('/sprint')}
       />
+      <RoutinesSection folders={folders} routines={routines} starting={starting || !!active} onStart={handleStartSavedRoutine} onChanged={() => load('focus')} />
       <View style={styles.sectionHeader}>
         <Text style={TYPE.sectionTitle}>Recent</Text>
         {recent.length > 0 && (

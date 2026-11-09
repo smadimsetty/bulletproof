@@ -2,11 +2,12 @@
 //
 // Saved-workout detail (spec section 6): read-only set lines per exercise,
 // with an Edit mode for title/notes and a Delete action.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import { deleteWorkout, fetchWorkout, updateWorkoutMeta, type Workout } from '../../lib/workouts';
+import { fetchRoutine, mergeRoutineUpdate, routineDiffers, routineFromWorkout, saveRoutine } from '../../lib/routines';
 import { durationLabel } from '../../lib/historyGrouping';
 import { fieldsForExercise } from '../../lib/setFields';
 import { formatSetLines } from '../../lib/setFormatting';
@@ -21,7 +22,7 @@ function reportError(err: any, fallback: string) {
 }
 
 export default function WorkoutSummaryScreen() {
-  const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
+  const { workoutId, checkRoutine } = useLocalSearchParams<{ workoutId: string; checkRoutine?: string }>();
   const router = useRouter();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -32,6 +33,8 @@ export default function WorkoutSummaryScreen() {
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [prs, setPrs] = useState<PrEvent[]>([]);
+  const [savingRoutine, setSavingRoutine] = useState(false);
+  const routineCheckedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -56,6 +59,50 @@ export default function WorkoutSummaryScreen() {
   useEffect(() => {
     if (workout && workout.endedAt == null) router.replace(`/workout/${workout.id}`);
   }, [workout, router]);
+
+  // Right after finishing a workout started from a routine: offer to update
+  // the routine, but only if its structure (exercises / set counts) changed.
+  // A routine deleted meanwhile, or any lookup failure, just means no prompt.
+  useEffect(() => {
+    if (!checkRoutine || !workout?.routineId || !workout.endedAt || routineCheckedRef.current) return;
+    routineCheckedRef.current = true;
+    const saved = workout;
+    (async () => {
+      const routine = await fetchRoutine(saved.routineId!);
+      if (!routine || !routineDiffers(routine, saved)) return;
+      Alert.alert('Update routine?', `This workout differs from "${routine.title}". Update the routine to match?`, [
+        { text: 'Keep original', style: 'cancel' },
+        {
+          text: 'Update',
+          onPress: async () => {
+            try {
+              await saveRoutine(mergeRoutineUpdate(routine, saved));
+            } catch (err) {
+              reportError(err, 'Could not update the routine.');
+            }
+          },
+        },
+      ]);
+    })().catch(() => undefined);
+  }, [checkRoutine, workout]);
+
+  async function handleSaveAsRoutine() {
+    if (!workout || savingRoutine) return;
+    const draft = routineFromWorkout(workout);
+    if (draft.exercises.length === 0) {
+      Alert.alert('Nothing to save', 'This workout has no completed working sets.');
+      return;
+    }
+    setSavingRoutine(true);
+    try {
+      await saveRoutine({ folderId: null, title: draft.title, notes: draft.notes, exercises: draft.exercises });
+      Alert.alert('Saved to Routines', `"${draft.title}" is on your Workout tab.`);
+    } catch (err) {
+      reportError(err, 'Could not save the routine.');
+    } finally {
+      setSavingRoutine(false);
+    }
+  }
 
   function toggleEdit() {
     if (!workout) return;
@@ -196,6 +243,9 @@ export default function WorkoutSummaryScreen() {
             </View>
           );
         })}
+      <Pressable style={[sharedStyles.primaryButton, savingRoutine && styles.retryingButton]} disabled={savingRoutine} onPress={handleSaveAsRoutine}>
+        <Text style={sharedStyles.primaryButtonText}>{savingRoutine ? 'Saving…' : 'Save as routine'}</Text>
+      </Pressable>
       <Pressable onPress={handleDelete} style={styles.deleteButton}>
         <Text style={styles.deleteText}>Delete workout</Text>
       </Pressable>

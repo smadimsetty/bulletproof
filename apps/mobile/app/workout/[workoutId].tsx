@@ -467,7 +467,7 @@ export default function LoggerScreen() {
       applyHold(IDLE);
       applyRest(null);
       setFinishOpen(false);
-      router.replace(`/workout-summary/${workoutId}`);
+      router.replace(workout?.routineId ? `/workout-summary/${workoutId}?checkRoutine=1` : `/workout-summary/${workoutId}`);
     } catch (err) {
       reportError(err, 'Could not save this workout. Your sets are still here — try again.');
     } finally {
