@@ -244,7 +244,7 @@ export default function WorkoutSummaryScreen() {
       {
         label: 'Report workout',
         icon: 'flag-outline',
-        onPress: () => setTimeout(() => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', after: () => router.back() }), MENU_HANDOFF_MS),
+        onPress: () => setTimeout(() => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', blockUser: author ?? undefined, after: () => router.back() }), MENU_HANDOFF_MS),
       },
       {
         label: 'Hide from my feed',

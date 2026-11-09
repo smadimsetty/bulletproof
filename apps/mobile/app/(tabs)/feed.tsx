@@ -140,7 +140,7 @@ export default function FeedTab() {
       {
         label: 'Report workout',
         icon: 'flag-outline',
-        onPress: later(() => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', after: () => dropItem(item.id) })),
+        onPress: later(() => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', blockUser: item.author ?? undefined, after: () => dropItem(item.id) })),
       },
       {
         label: 'Hide from my feed',

@@ -116,6 +116,7 @@ export default function CommentsScreen() {
                 type: 'comment',
                 id: c.id,
                 label: 'this comment',
+                blockUser: c.author ?? undefined,
                 // Reported content disappears for the reporter right away.
                 after: () => setComments((prev) => prev.filter((x) => x.id !== c.id)),
               }),
