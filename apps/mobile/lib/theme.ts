@@ -2,9 +2,9 @@
 //
 // Design tokens for the Stage 4 redesign. Source of truth:
 // docs/superpowers/specs/2026-11-08-visual-design.md section 2.
-// Legacy aliases (COLORS.ink/muted/card/accentMuted/background, LEGACY_SPACING,
-// RADII.card/chip/button, legacy TYPE keys, sharedStyles) stay so screens not
-// yet redesigned keep compiling. Remove once grep shows no users.
+// A few legacy aliases (COLORS.ink/muted/card/background, RADII.card/chip/button,
+// legacy TYPE keys) remain for older call sites; sharedStyles and
+// LEGACY_SPACING were removed in step 20.
 import { StyleSheet } from 'react-native';
 import { Easing } from 'react-native-reanimated';
 
@@ -104,7 +104,6 @@ export const NUMERAL_MAX_FONT_SCALE = 1.2;
 export const SPACING = { xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
 
 /** Old scale; untouched screens import this as SPACING until they are redesigned. */
-export const LEGACY_SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
 export const RADII = {
   xs: 6,
@@ -185,69 +184,3 @@ export const MOTION = {
   popSpring: { damping: 10, stiffness: 300, mass: 0.8 },
 } as const;
 
-// ---------- Legacy shared styles (pre-redesign screens) ----------
-export const sharedStyles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  screenContent: {
-    padding: LEGACY_SPACING.md,
-    gap: LEGACY_SPACING.md,
-  },
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADII.card,
-    padding: LEGACY_SPACING.md,
-    gap: LEGACY_SPACING.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#262A32',
-  },
-  sectionTitle: {
-    ...TYPE.sectionTitle,
-  },
-  helperText: {
-    ...TYPE.helper,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: LEGACY_SPACING.xs,
-    backgroundColor: COLORS.accentTint,
-    borderRadius: RADII.chip,
-    paddingVertical: LEGACY_SPACING.xs,
-    paddingHorizontal: LEGACY_SPACING.sm,
-  },
-  chipText: {
-    ...TYPE.body,
-    fontSize: 15,
-    color: COLORS.accent,
-  },
-  primaryButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADII.button,
-    paddingVertical: LEGACY_SPACING.sm,
-    paddingHorizontal: LEGACY_SPACING.md,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    ...TYPE.body,
-    fontSize: 15,
-    color: COLORS.onAccent,
-    fontWeight: '600',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: RADII.button,
-    paddingVertical: LEGACY_SPACING.sm,
-    paddingHorizontal: LEGACY_SPACING.sm,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.elevated,
-  },
-  warningText: {
-    ...TYPE.helper,
-    color: COLORS.danger,
-  },
-});

@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.sohan.bulletproof",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -64,7 +64,16 @@
       ],
       "expo-web-browser",
       "expo-sharing",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-mark.png",
+          "imageWidth": 160,
+          "backgroundColor": "#0B0C0F",
+          "resizeMode": "contain"
+        }
+      ]
     ],
     "extra": {
       "eas": {
