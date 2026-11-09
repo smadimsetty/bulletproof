@@ -320,8 +320,8 @@ export default function ExerciseDetailScreen() {
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         actions={[
-          { label: 'Edit', icon: 'create-outline', onPress: () => setTimeout(() => router.push(`/library/new?id=${info.id}`), 350) },
-          { label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => setTimeout(() => setConfirmOpen(true), 350) },
+          { label: 'Edit', icon: 'create-outline', onPress: () => router.push(`/library/new?id=${info.id}`) },
+          { label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => setConfirmOpen(true) },
         ]}
       />
       <ConfirmSheet

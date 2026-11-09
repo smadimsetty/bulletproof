@@ -22,7 +22,6 @@ import { useToast } from '../../components/Toast';
 import { ActionSheet, Card, EmptyState, ErrorState, IconButton, LargeHeader, Skeleton, SkeletonRow, type ActionSheetAction } from '../../components/ui';
 
 // Let an ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
-const SHEET_HANDOFF_MS = 350;
 const ENTER_COUNT = 8;
 
 function FeedSkeletonCard() {
@@ -48,6 +47,10 @@ export default function FeedTab() {
   const [unread, setUnread] = useState(0);
   const [meId, setMeId] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<FeedItem | null>(null);
+  // Keep the last target so the sheet rows stay rendered while it animates out.
+  const lastMenuItem = useRef<FeedItem | null>(null);
+  if (menuItem) lastMenuItem.current = menuItem;
+  const shownMenuItem = menuItem ?? lastMenuItem.current;
   const loadedRef = useRef(false);
   // Staggered enter animation: first 8 cards of the very first paint only (not refresh / paging).
   const animatedRef = useRef(false);
@@ -133,14 +136,11 @@ export default function FeedTab() {
   const dropItem = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
 
   function menuActions(item: FeedItem): ActionSheetAction[] {
-    const later = (fn: () => void) => () => {
-      setTimeout(fn, SHEET_HANDOFF_MS);
-    };
     const actions: ActionSheetAction[] = [
       {
         label: 'Report workout',
         icon: 'flag-outline',
-        onPress: later(() => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', blockUser: item.author ?? undefined, after: () => dropItem(item.id) })),
+        onPress: () => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', blockUser: item.author ?? undefined, after: () => dropItem(item.id) }),
       },
       {
         label: 'Hide from my feed',
@@ -161,7 +161,7 @@ export default function FeedTab() {
         label: `Block @${author.handle}`,
         icon: 'ban-outline',
         destructive: true,
-        onPress: later(() => safety.confirmBlock(author, () => setItems((prev) => prev.filter((i) => i.ownerId !== author.id)))),
+        onPress: () => safety.confirmBlock(author, () => setItems((prev) => prev.filter((i) => i.ownerId !== author.id))),
       });
     }
     return actions;
@@ -271,7 +271,7 @@ export default function FeedTab() {
         visible={menuItem !== null}
         onClose={() => setMenuItem(null)}
         title="Workout"
-        actions={menuItem ? menuActions(menuItem) : []}
+        actions={shownMenuItem ? menuActions(shownMenuItem) : []}
       />
       {safety.element}
     </View>

@@ -42,7 +42,7 @@ export function ConfirmSheet({
     }
   }, [visible, destructive]);
 
-  const blocked = requireText != null && typed !== requireText;
+  const blocked = requireText != null && typed.trim() !== requireText;
 
   return (
     <Sheet

@@ -42,9 +42,6 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-// Let the ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
-const SHEET_HANDOFF_MS = 300;
-const later = (fn: () => void) => setTimeout(fn, SHEET_HANDOFF_MS);
 
 type Menu = { kind: 'routine'; routine: Routine } | { kind: 'folder'; folder: RoutineFolder } | null;
 type Confirm = { kind: 'routine'; routine: Routine } | { kind: 'folder'; folder: RoutineFolder } | null;
@@ -87,15 +84,15 @@ export default function RoutinesSection({ folders, routines, starting, onStart, 
         {
           label: 'Move to folder',
           icon: 'folder-outline' as const,
-          onPress: () => later(() =>
+          onPress: () =>
             setSheet({
               kind: 'pick',
               folders,
               current: r.folderId,
               onPick: (folderId) => void guarded(() => moveRoutine(r.id, folderId), 'Could not move that routine.'),
-            })),
+            }),
         },
-        { label: 'Delete', icon: 'trash-outline' as const, destructive: true, onPress: () => later(() => setConfirm({ kind: 'routine', routine: r })) },
+        { label: 'Delete', icon: 'trash-outline' as const, destructive: true, onPress: () => setConfirm({ kind: 'routine', routine: r }) },
       ];
     }
     if (menu?.kind === 'folder') {
@@ -104,15 +101,15 @@ export default function RoutinesSection({ folders, routines, starting, onStart, 
         {
           label: 'Rename',
           icon: 'create-outline' as const,
-          onPress: () => later(() =>
+          onPress: () =>
             setSheet({
               kind: 'name',
               title: 'Rename folder',
               initial: f.name,
               onSubmit: (name) => void guarded(() => renameFolder(f.id, name), 'Could not rename that folder.'),
-            })),
+            }),
         },
-        { label: 'Delete', icon: 'trash-outline' as const, destructive: true, onPress: () => later(() => setConfirm({ kind: 'folder', folder: f })) },
+        { label: 'Delete', icon: 'trash-outline' as const, destructive: true, onPress: () => setConfirm({ kind: 'folder', folder: f }) },
       ];
     }
     return [];

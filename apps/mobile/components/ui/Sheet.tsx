@@ -51,6 +51,7 @@ export function Sheet({
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const [mounted, setMounted] = useState(visible);
+  const [closing, setClosing] = useState(false);
 
   const translateY = useSharedValue(screenH);
   const scrim = useSharedValue(0);
@@ -74,6 +75,7 @@ export function Sheet({
   useEffect(() => {
     if (visible) {
       closingRef.current = false;
+      setClosing(false);
       setMounted(true);
       scrim.value = withTiming(1, { duration: MOTION.base });
       if (reduced) {
@@ -97,6 +99,7 @@ export function Sheet({
   const requestClose = useCallback(() => {
     if (closingRef.current || !dismissableRef.current) return;
     closingRef.current = true;
+    setClosing(true);
     animateOut();
     setTimeout(() => onCloseRef.current(), reduced ? 150 : EXIT_MS);
   }, [animateOut, reduced]);
@@ -145,7 +148,7 @@ export function Sheet({
 
   return (
     <Modal transparent animationType="none" statusBarTranslucent visible onRequestClose={requestClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root} pointerEvents={visible && !closing ? 'auto' : 'none'}>
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.scrim }, scrimStyle]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={requestClose} accessibilityLabel="Close" accessibilityRole="button" />
         </Animated.View>

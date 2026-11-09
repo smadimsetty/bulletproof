@@ -11,7 +11,6 @@ import { getMyId } from '../../lib/session';
 import type { ProfileDetail } from '../../lib/social/profiles';
 
 // Let the ActionSheet finish dismissing before the next sheet presents (iOS drops overlapping presentations).
-const SHEET_HANDOFF_MS = 350;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -47,17 +46,13 @@ export default function ProfileScreen() {
                 {
                   label: 'Report user',
                   icon: 'flag-outline',
-                  onPress: () =>
-                    setTimeout(
-                      () => safety.openReport({ type: 'user', id: loaded.id, label: `@${loaded.handle}`, blockUser: loaded }),
-                      SHEET_HANDOFF_MS
-                    ),
+                  onPress: () => safety.openReport({ type: 'user', id: loaded.id, label: `@${loaded.handle}`, blockUser: loaded }),
                 },
                 {
                   label: `Block @${loaded.handle}`,
                   icon: 'ban-outline',
                   destructive: true,
-                  onPress: () => setTimeout(() => safety.confirmBlock(loaded, () => router.back()), SHEET_HANDOFF_MS),
+                  onPress: () => safety.confirmBlock(loaded, () => router.back()),
                 },
               ]
             : []

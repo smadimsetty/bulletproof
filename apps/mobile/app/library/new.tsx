@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { usePreventRemove } from 'expo-router/build/react-navigation/core';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as haptics from '../../lib/haptics';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
@@ -60,22 +61,22 @@ export default function NewExerciseScreen() {
   const leaveOk = useRef(false);
   const pendingLeave = useRef<any>(null);
   const snapshot = JSON.stringify({ name, type, pattern, unilateral, bodyParts, equipment, description, url });
-  const dirtyRef = useRef(false);
+  const [dirty, setDirty] = useState(false);
   useEffect(() => {
     if (loading) return;
     if (baseline.current === null) baseline.current = snapshot;
-    dirtyRef.current = snapshot !== baseline.current;
+    setDirty(snapshot !== baseline.current);
   }, [loading, snapshot]);
-  useEffect(
-    () =>
-      navigation.addListener('beforeRemove', (e: any) => {
-        if (leaveOk.current || !dirtyRef.current) return;
-        e.preventDefault();
-        pendingLeave.current = e.data.action;
-        setDiscardOpen(true);
-      }),
-    [navigation]
-  );
+  // Real navigation prevention (also blocks the native swipe-down). Once the user has chosen to leave
+  // (leaveOk), the prevented action is simply re-dispatched; it is not prevented a second time.
+  usePreventRemove(dirty, ({ data }) => {
+    if (leaveOk.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    pendingLeave.current = data.action;
+    setDiscardOpen(true);
+  });
 
   useEffect(() => {
     if (!id) return;

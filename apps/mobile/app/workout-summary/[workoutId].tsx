@@ -46,7 +46,6 @@ import {
 } from '../../components/ui';
 
 // Let an ActionSheet finish dismissing before the next Modal or Alert presents (iOS drops overlapping presentations).
-const MENU_HANDOFF_MS = 300;
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -59,8 +58,16 @@ function loadMessage(err: any): string {
 }
 
 export default function WorkoutSummaryScreen() {
-  const { workoutId, checkRoutine, justFinished } = useLocalSearchParams<{ workoutId: string; checkRoutine?: string; justFinished?: string }>();
+  const { workoutId, checkRoutine, justFinished, photoFail } = useLocalSearchParams<{ workoutId: string; checkRoutine?: string; justFinished?: string; photoFail?: string }>();
   const toast = useToast();
+  const photoFailShownRef = useRef(false);
+  useEffect(() => {
+    const n = Number(photoFail);
+    if (!Number.isFinite(n) || n <= 0 || photoFailShownRef.current) return;
+    photoFailShownRef.current = true;
+    toast.show({ message: photoFailureMessage(n) ?? "Some photos didn't upload.", tone: 'danger' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoFail]);
   const router = useRouter();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
@@ -163,7 +170,7 @@ export default function WorkoutSummaryScreen() {
     setSavingRoutine(true);
     try {
       await saveRoutine({ folderId: null, title: draft.title, notes: draft.notes, exercises: draft.exercises });
-      toast.show({ message: `Saved to Routines: `, tone: 'success' });
+      toast.show({ message: `Saved to Routines: "${draft.title}"`, tone: 'success' });
     } catch (err) {
       reportError(err, 'Could not save the routine.');
     } finally {
@@ -197,7 +204,7 @@ export default function WorkoutSummaryScreen() {
       if (result.kind === 'started') {
         router.push(`/workout/${result.workoutId}`);
       } else if (result.kind === 'routine') {
-        toast.show({ message: `Saved to Routines: `, tone: 'success' });
+        toast.show({ message: `Saved to Routines: "${routineFromWorkout(workout).title}"`, tone: 'success' });
       } else {
         const activeId = result.activeWorkoutId;
         Alert.alert('You already have a workout in progress', 'Finish or discard it before starting another.', [
@@ -244,7 +251,7 @@ export default function WorkoutSummaryScreen() {
       {
         label: 'Report workout',
         icon: 'flag-outline',
-        onPress: () => setTimeout(() => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', blockUser: author ?? undefined, after: () => router.back() }), MENU_HANDOFF_MS),
+        onPress: () => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', blockUser: author ?? undefined, after: () => router.back() }),
       },
       {
         label: 'Hide from my feed',
@@ -264,7 +271,7 @@ export default function WorkoutSummaryScreen() {
         label: `Block @${author.handle}`,
         icon: 'ban-outline',
         destructive: true,
-        onPress: () => setTimeout(() => safety.confirmBlock(author, () => router.back()), MENU_HANDOFF_MS),
+        onPress: () => safety.confirmBlock(author, () => router.back()),
       });
     }
     return actions;
@@ -538,10 +545,10 @@ export default function WorkoutSummaryScreen() {
         actions={
           isOwner
             ? [
-                { label: 'Edit', icon: 'create-outline', onPress: () => setTimeout(toggleEdit, MENU_HANDOFF_MS) },
+                { label: 'Edit', icon: 'create-outline', onPress: toggleEdit },
                 { label: 'Save as routine', icon: 'albums-outline', onPress: handleSaveAsRoutine },
                 { label: 'Share card', icon: 'share-outline', onPress: handleShare },
-                { label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => setTimeout(() => setDeleteOpen(true), MENU_HANDOFF_MS) },
+                { label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => setDeleteOpen(true) },
               ]
             : otherMenuActions()
         }

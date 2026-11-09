@@ -3,7 +3,7 @@
 // One exercise in the logger (visual spec 4.6): name (taps through to the
 // exercise detail), Sprint badge, description eye toggle, a done check once
 // every set is ticked, a menu ActionSheet, the set rows and "+ Add set".
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,14 +24,12 @@ export interface ExerciseCardProps {
   columnHeader?: ReactNode;
 }
 
-// Let the ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
-const SHEET_HANDOFF_MS = 300;
-
 export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRom, onRemove, columnHeader }: ExerciseCardProps) {
   const router = useRouter();
   const [descOpen, toggleDesc] = useToggle();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const removedRef = useRef(false);
   const allDone = exercise.sets.length > 0 && exercise.sets.every((s) => !!s.completedAt);
 
   return (
@@ -64,7 +62,7 @@ export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRo
         title={exercise.exerciseName}
         actions={[
           { label: exercise.measureRom ? 'Stop measuring ROM' : 'Measure ROM', icon: 'resize-outline', onPress: onToggleRom },
-          { label: 'Remove exercise', icon: 'trash-outline', destructive: true, onPress: () => setTimeout(() => setConfirmRemove(true), SHEET_HANDOFF_MS) },
+          { label: 'Remove exercise', icon: 'trash-outline', destructive: true, onPress: () => setConfirmRemove(true) },
         ]}
       />
       <ConfirmSheet
@@ -75,6 +73,8 @@ export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRo
         confirmLabel="Remove"
         destructive
         onConfirm={() => {
+          if (removedRef.current) return;
+          removedRef.current = true;
           setConfirmRemove(false);
           onRemove();
         }}

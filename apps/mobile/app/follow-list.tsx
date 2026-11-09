@@ -16,7 +16,6 @@ import { ActionSheet, Button, ConfirmSheet, EmptyState, ErrorState, IconButton, 
 
 const PAGE = 50;
 // Let the ActionSheet finish dismissing before the ConfirmSheet presents (iOS drops overlapping presentations).
-const SHEET_HANDOFF_MS = 350;
 
 export default function FollowListScreen() {
   const router = useRouter();
@@ -172,10 +171,7 @@ export default function FollowListScreen() {
                   label: 'Remove follower',
                   icon: 'person-remove-outline',
                   destructive: true,
-                  onPress: () => {
-                    const p = menuPerson;
-                    setTimeout(() => setRemovePerson(p), SHEET_HANDOFF_MS);
-                  },
+                  onPress: () => setRemovePerson(menuPerson),
                 },
               ]
             : []

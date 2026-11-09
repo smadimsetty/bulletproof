@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { usePreventRemove } from 'expo-router/build/react-navigation/core';
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as haptics from '../../lib/haptics';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
@@ -50,25 +51,25 @@ export default function RoutineEditorScreen() {
 
   // Unsaved-changes guard for the modal's swipe-down / Cancel (visual spec 5).
   const baseline = useRef<string | null>(null);
-  const dirtyRef = useRef(false);
+  const [dirty, setDirty] = useState(false);
   const leaveOk = useRef(false);
   const pendingLeave = useRef<any>(null);
   const snapshot = JSON.stringify({ title, notes, folderId, drafts });
   useEffect(() => {
     if (loading || loadError) return;
     if (baseline.current === null) baseline.current = snapshot;
-    dirtyRef.current = snapshot !== baseline.current;
+    setDirty(snapshot !== baseline.current);
   }, [loading, loadError, snapshot]);
-  useEffect(
-    () =>
-      navigation.addListener('beforeRemove', (e: any) => {
-        if (leaveOk.current || !dirtyRef.current) return;
-        e.preventDefault();
-        pendingLeave.current = e.data.action;
-        setDiscardOpen(true);
-      }),
-    [navigation]
-  );
+  // Real navigation prevention (also blocks the native swipe-down). Once the user has chosen to leave
+  // (leaveOk), the prevented action is simply re-dispatched; it is not prevented a second time.
+  usePreventRemove(dirty, ({ data }) => {
+    if (leaveOk.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    pendingLeave.current = data.action;
+    setDiscardOpen(true);
+  });
 
   const load = useCallback(async () => {
     try {

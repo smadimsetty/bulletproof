@@ -21,7 +21,6 @@ import { useSafety } from '../../components/social/ReportSheet';
 import { ActionSheet, EmptyState, ErrorState, PressableScale, SkeletonRow, TextField, type ActionSheetAction } from '../../components/ui';
 
 // Let an ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
-const SHEET_HANDOFF_MS = 350;
 
 export default function CommentsScreen() {
   const router = useRouter();
@@ -37,6 +36,10 @@ export default function CommentsScreen() {
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [menuComment, setMenuComment] = useState<Comment | null>(null);
+  // Keep the last target so the sheet rows stay rendered while it animates out.
+  const lastMenuComment = useRef<Comment | null>(null);
+  if (menuComment) lastMenuComment.current = menuComment;
+  const shownMenuComment = menuComment ?? lastMenuComment.current;
   // Comments that mount after the first load fade in; the initial list doesn't.
   const [animateNew, setAnimateNew] = useState(false);
   const postingRef = useRef(false);
@@ -110,18 +113,14 @@ export default function CommentsScreen() {
         label: 'Report comment',
         icon: 'flag-outline',
         onPress: () =>
-          setTimeout(
-            () =>
-              safety.openReport({
-                type: 'comment',
-                id: c.id,
-                label: 'this comment',
-                blockUser: c.author ?? undefined,
-                // Reported content disappears for the reporter right away.
-                after: () => setComments((prev) => prev.filter((x) => x.id !== c.id)),
-              }),
-            SHEET_HANDOFF_MS
-          ),
+          safety.openReport({
+            type: 'comment',
+            id: c.id,
+            label: 'this comment',
+            blockUser: c.author ?? undefined,
+            // Reported content disappears for the reporter right away.
+            after: () => setComments((prev) => prev.filter((x) => x.id !== c.id)),
+          }),
       });
     }
     return actions;
@@ -221,7 +220,7 @@ export default function CommentsScreen() {
         visible={menuComment !== null}
         onClose={() => setMenuComment(null)}
         title="Comment"
-        actions={menuComment ? menuActions(menuComment) : []}
+        actions={shownMenuComment ? menuActions(shownMenuComment) : []}
       />
       {safety.element}
       <View style={styles.composer}>

@@ -56,7 +56,7 @@ import LastAssessmentSheet from '../../components/LastAssessmentSheet';
 import { fetchUserSettings, type Visibility } from '../../lib/userSettings';
 import { fetchMyProfile } from '../../lib/social/profiles';
 import { initialVisibility } from '../../lib/social/visibility';
-import { photoFailureMessage, uploadWorkoutPhotos } from '../../lib/social/media';
+import { uploadWorkoutPhotos } from '../../lib/social/media';
 import { ensurePushRegistered } from '../../lib/social/push';
 import { saveWorkoutToHealth } from '../../lib/healthkitWrite';
 import { dominantKind } from '../../lib/workoutKind';
@@ -122,8 +122,13 @@ function Logger() {
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // True when the discard sheet was opened because Finish found no completed sets.
+  const [discardNoSets, setDiscardNoSets] = useState(false);
+  const discardingRef = useRef(false);
   // Sets that beat a previous best this session (SetRow shows a trophy). Presentation only.
   const [prSetIds, setPrSetIds] = useState<Set<string>>(new Set());
+  // Sets completed by the hold timer: its own success haptic plays, so the row stays quiet.
+  const [timerDoneIds, setTimerDoneIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   // Finish-sheet defaults; best effort. Until the user's real default loads
   // (or if it never does) fall back to Private: posting to followers is
@@ -315,6 +320,7 @@ function Logger() {
       return rest;
     });
 
+    if (viaTimer) setTimerDoneIds((prev) => new Set(prev).add(setId));
     const run = (async () => {
       try {
         await updateSet(setId, { ...values, completedAt: new Date().toISOString() });
@@ -536,10 +542,8 @@ function Logger() {
       }
       const result = await finishWorkout(fresh, input);
       if (result === 'no_completed_sets') {
-        Alert.alert('No sets completed', 'Tick at least one set, or discard this workout.', [
-          { text: 'Keep logging', style: 'cancel', onPress: () => setFinishOpen(false) },
-          { text: 'Discard', style: 'destructive', onPress: handleDiscardConfirmed },
-        ]);
+        setDiscardNoSets(true);
+        handleDiscard();
         return;
       }
       applyHold(IDLE);
@@ -554,22 +558,24 @@ function Logger() {
       // First finished workout is a natural moment to ask for push (once, ever).
       ensurePushRegistered({ ask: true });
       // The workout is saved; a photo failure must not undo that, just say so.
+      let photoFail = 0;
       if (photoUris.length > 0) {
         // Own try: anything thrown here happens after the save succeeded.
         try {
           const { failed } = await uploadWorkoutPhotos(workoutId, photoUris);
-          const msg = photoFailureMessage(failed);
-          if (msg) Alert.alert('Some photos did not upload', msg);
+          photoFail = failed;
         } catch {
-          Alert.alert('Some photos did not upload', photoFailureMessage(photoUris.length) ?? '');
+          photoFail = photoUris.length;
         }
       }
       haptics.success();
       // From a fullScreenModal this swaps the logger for the summary: stack becomes [tabs, summary], back lands on tabs.
+      // Photo failures are reported on the summary as a toast (an Alert here would collide with the replace).
+      const failParam = photoFail > 0 ? `&photoFail=${photoFail}` : '';
       router.replace(
         workout?.routineId
-          ? `/workout-summary/${workoutId}?checkRoutine=1&justFinished=1`
-          : `/workout-summary/${workoutId}?justFinished=1`
+          ? `/workout-summary/${workoutId}?checkRoutine=1&justFinished=1${failParam}`
+          : `/workout-summary/${workoutId}?justFinished=1${failParam}`
       );
     } catch (err) {
       reportError(err, 'Could not save this workout. Your sets are still here — try again.');
@@ -729,6 +735,7 @@ function Logger() {
                     timer={hold}
                     isNextUp={set.id === nextUpId}
                     isPr={prSetIds.has(set.id)}
+                    quietComplete={prSetIds.has(set.id) || timerDoneIds.has(set.id)}
                   />
                 );
               }}
@@ -771,14 +778,22 @@ function Logger() {
       />
       <ConfirmSheet
         visible={discardOpen}
-        onClose={() => setDiscardOpen(false)}
-        title="Discard workout?"
-        body="Every set logged in it will be deleted."
+        onClose={() => {
+          setDiscardOpen(false);
+          setDiscardNoSets(false);
+        }}
+        title={discardNoSets ? "No sets completed" : "Discard workout?"}
+        body={discardNoSets ? "Tick at least one set to finish, or discard this workout. Every set logged in it will be deleted." : "Every set logged in it will be deleted."}
         confirmLabel="Discard"
+        cancelLabel={discardNoSets ? "Keep logging" : "Cancel"}
         destructive
         onConfirm={() => {
+          if (discardingRef.current) return;
+          discardingRef.current = true;
           setDiscardOpen(false);
-          handleDiscardConfirmed();
+          void handleDiscardConfirmed().finally(() => {
+            discardingRef.current = false;
+          });
         }}
       />
     </View>

@@ -20,6 +20,8 @@ export interface ActionSheetProps {
   actions: ActionSheetAction[];
 }
 
+const ACTION_HANDOFF_MS = 260;
+
 export function ActionSheet({ visible, onClose, title, actions }: ActionSheetProps) {
   return (
     <Sheet visible={visible} onClose={onClose} title={title} dismissable>
@@ -32,7 +34,8 @@ export function ActionSheet({ visible, onClose, title, actions }: ActionSheetPro
             leading={a.icon ? { icon: a.icon, tone: a.destructive ? 'danger' : 'neutral' } : undefined}
             onPress={() => {
               onClose();
-              a.onPress();
+              // One central handoff: let this sheet finish dismissing before the action presents anything else.
+              setTimeout(a.onPress, ACTION_HANDOFF_MS);
             }}
             style={styles.row}
           />
