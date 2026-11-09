@@ -11,6 +11,8 @@ import { planFinish } from './finishPlan';
 import { sprintTargetText, sprintWorkoutTitle } from './workoutTitles';
 import { fetchLibrary, type LibraryExercise } from './library';
 import { getMyId } from './session';
+import type { Visibility } from './userSettings';
+import { assertTextAllowed } from './social/textFilter';
 
 export type WorkoutSource = 'empty' | 'sprint' | 'routine' | 'copy';
 
@@ -36,8 +38,19 @@ export interface WorkoutExerciseRow {
   readonly sets: readonly WorkoutSetRow[];
 }
 
+export interface WorkoutMediaRef {
+  readonly id: string;
+  readonly path: string;
+  readonly position: number;
+}
+
 export interface Workout {
   readonly id: string;
+  readonly ownerId: string;
+  readonly visibility: Visibility;
+  /** The workout this one was copied from; null if none (or since deleted). */
+  readonly copiedFromWorkoutId: string | null;
+  readonly media: readonly WorkoutMediaRef[];
   readonly title: string;
   readonly notes: string | null;
   readonly source: WorkoutSource;
@@ -96,6 +109,7 @@ export interface FinishInput {
   readonly notes: string;
   readonly reaction: 'good' | 'neutral' | 'hurt' | null;
   readonly reactionNote: string;
+  readonly visibility: Visibility;
 }
 
 // ---- change events -------------------------------------------------------
@@ -185,7 +199,8 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
   const { data, error } = await supabase
     .from('workouts')
     .select(
-      `id, title, notes, source, sprint_day_id, routine_id, started_at, ended_at,
+      `id, owner_id, title, notes, source, sprint_day_id, routine_id, started_at, ended_at, visibility, copied_from_workout_id,
+       workout_media ( id, path, position ),
        sprint_days!workouts_sprint_day_id_fkey ( sprints ( pain_point_id ) ),
        workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id,
          exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, evidence_rationale ),
@@ -197,6 +212,12 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
   const w: any = data;
   return {
     id: w.id,
+    ownerId: w.owner_id,
+    visibility: w.visibility,
+    copiedFromWorkoutId: w.copied_from_workout_id ?? null,
+    media: ((w.workout_media ?? []) as any[])
+      .map((m) => ({ id: m.id as string, path: m.path as string, position: m.position as number }))
+      .sort((a, b) => a.position - b.position),
     title: w.title,
     notes: w.notes,
     source: w.source,
@@ -532,6 +553,10 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
   const plan = planFinish(workout.exercises);
   if (!plan.ok) return 'no_completed_sets';
 
+  // Fail early (before any sprint-day side effects) if the word filter would
+  // reject the public text; private workouts are never filtered.
+  if (input.visibility !== 'private') await assertTextAllowed([input.title, input.notes]);
+
   if (plan.deleteSetIds.length > 0) {
     const { error } = await supabase.from('workout_sets').delete().in('id', plan.deleteSetIds);
     check(error);
@@ -576,6 +601,7 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
     .update({
       title: input.title.trim() || workout.title,
       notes: input.notes.trim() === '' ? null : input.notes.trim(),
+      visibility: input.visibility,
       ended_at: new Date().toISOString(),
     })
     .eq('id', workout.id);
@@ -650,10 +676,18 @@ export async function discardWorkout(workoutId: string): Promise<void> {
   notifyActiveWorkoutChanged();
 }
 
-export async function updateWorkoutMeta(workoutId: string, title: string, notes: string): Promise<void> {
+export async function updateWorkoutMeta(
+  workoutId: string,
+  title: string,
+  notes: string,
+  visibility?: Visibility
+): Promise<void> {
   // An emptied title keeps the old one, same as Finish.
   const patch: Record<string, string | null> = { notes: notes.trim() === '' ? null : notes.trim() };
   if (title.trim() !== '') patch.title = title.trim();
+  if (visibility) patch.visibility = visibility;
+  // Word filter applies to anything that is not private (the DB trigger checks the final row).
+  if (visibility && visibility !== 'private') await assertTextAllowed([patch.title ?? null, patch.notes]);
   const { error } = await supabase.from('workouts').update(patch).eq('id', workoutId);
   check(error);
 }

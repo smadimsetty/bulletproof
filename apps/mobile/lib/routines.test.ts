@@ -13,7 +13,7 @@ const we = (exerciseId: string, position: number, sets: WorkoutSetRow[], o: Part
   position, targetText: null, measureRom: false, sprintDayExerciseId: null, sets, ...o,
 });
 const workout = (exercises: WorkoutExerciseRow[]): Workout => ({
-  id: 'w', title: 'Evening workout', notes: null, source: 'routine', sprintDayId: null, routineId: 'r1', painPointId: null,
+  id: 'w', ownerId: 'me', visibility: 'private', copiedFromWorkoutId: null, media: [], title: 'Evening workout', notes: null, source: 'routine', sprintDayId: null, routineId: 'r1', painPointId: null,
   startedAt: '2026-11-08T10:00:00Z', endedAt: '2026-11-08T11:00:00Z', exercises,
 });
 const routine = (exs: { id: string; sets: number; rest?: number | null; notes?: string | null }[]): Routine => ({

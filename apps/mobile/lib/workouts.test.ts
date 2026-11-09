@@ -96,7 +96,7 @@ function set(id: string, setNumber: number, side: 'left' | 'right' | null, compl
 }
 
 const sprintWorkout: Workout = {
-  id: 'w1', title: 'Neck · Day 14', notes: null, source: 'sprint', sprintDayId: 'd14', routineId: null, painPointId: null,
+  id: 'w1', ownerId: 'me', visibility: 'private', copiedFromWorkoutId: null, media: [], title: 'Neck · Day 14', notes: null, source: 'sprint', sprintDayId: 'd14', routineId: null, painPointId: null,
   startedAt: '2026-11-07T10:00:00Z', endedAt: null,
   exercises: [
     {
@@ -111,7 +111,7 @@ const sprintWorkout: Workout = {
     },
   ],
 };
-const finishInput = { title: '  ', notes: ' felt fine ', reaction: 'good' as const, reactionNote: '' };
+const finishInput = { title: '  ', notes: ' felt fine ', reaction: 'good' as const, reactionNote: '', visibility: 'private' as const };
 const DAY_14 = { data: { id: 'd14', day_number: 14, sprint_id: 'sp1' }, error: null };
 
 describe('finishWorkout', () => {
@@ -133,7 +133,7 @@ describe('finishWorkout', () => {
     expect(chains[1].in).toHaveBeenCalledWith('id', ['we2']);
     expect(chains[4].eq).toHaveBeenCalledWith('id', 'sde1');
     expect(chains[6].update).toHaveBeenCalledWith({ status: 'pending_reassessment' });
-    expect(chains[8].update.mock.calls[0][0]).toEqual({ title: 'Neck · Day 14', notes: 'felt fine', ended_at: expect.any(String) });
+    expect(chains[8].update.mock.calls[0][0]).toEqual({ title: 'Neck · Day 14', notes: 'felt fine', visibility: 'private', ended_at: expect.any(String) });
   });
 
   test('a failure mid-sequence never writes ended_at', async () => {

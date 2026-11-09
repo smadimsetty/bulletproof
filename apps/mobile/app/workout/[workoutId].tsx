@@ -52,6 +52,10 @@ import { fetchStatsDataset } from '../../lib/stats/dataset';
 import { computePrEvents, isNewBest, prKey, setCandidates, type Bests } from '../../lib/stats/prs';
 import { prHeadline } from '../../lib/stats/format';
 import LastAssessmentSheet from '../../components/LastAssessmentSheet';
+import { fetchUserSettings, DEFAULT_SETTINGS, type Visibility } from '../../lib/userSettings';
+import { fetchMyProfile } from '../../lib/social/profiles';
+import { initialVisibility } from '../../lib/social/visibility';
+import { photoFailureMessage, uploadWorkoutPhotos } from '../../lib/social/media';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -78,6 +82,11 @@ export default function LoggerScreen() {
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  // Finish-sheet defaults; best effort (falls back to Followers / not-public).
+  const [postDefaults, setPostDefaults] = useState<{ visibility: Visibility; profileIsPublic: boolean }>({
+    visibility: DEFAULT_SETTINGS.defaultVisibility,
+    profileIsPublic: false,
+  });
   // Refs so timer callbacks (created in an older render) read current state.
   const workoutRef = useRef<Workout | null>(null);
   workoutRef.current = workout;
@@ -126,6 +135,12 @@ export default function LoggerScreen() {
       }
     })();
   }, [reload]);
+
+  useEffect(() => {
+    Promise.all([fetchUserSettings(), fetchMyProfile()])
+      .then(([s, p]) => setPostDefaults({ visibility: s.defaultVisibility, profileIsPublic: !!p?.isPublic }))
+      .catch(() => undefined);
+  }, []);
 
   // Opened a saved workout via a stale link -- show its summary instead.
   const endedAt = workout?.endedAt ?? null;
@@ -441,7 +456,7 @@ export default function LoggerScreen() {
   const openFinishRef = useRef(openFinish);
   openFinishRef.current = openFinish;
 
-  async function handleSave(input: FinishInput) {
+  async function handleSave(input: FinishInput, photoUris: string[]) {
     setSaving(true);
     try {
       Keyboard.dismiss();
@@ -467,6 +482,12 @@ export default function LoggerScreen() {
       applyHold(IDLE);
       applyRest(null);
       setFinishOpen(false);
+      // The workout is saved; a photo failure must not undo that, just say so.
+      if (photoUris.length > 0) {
+        const { failed } = await uploadWorkoutPhotos(workoutId, photoUris);
+        const msg = photoFailureMessage(failed);
+        if (msg) Alert.alert('Some photos did not upload', msg);
+      }
       router.replace(workout?.routineId ? `/workout-summary/${workoutId}?checkRoutine=1` : `/workout-summary/${workoutId}`);
     } catch (err) {
       reportError(err, 'Could not save this workout. Your sets are still here — try again.');
@@ -635,6 +656,8 @@ export default function LoggerScreen() {
         visible={finishOpen}
         initialTitle={workout.title}
         isSprint={workout.source === 'sprint'}
+        defaultVisibility={initialVisibility(workout.source === 'sprint', postDefaults.visibility, postDefaults.profileIsPublic)}
+        canPublic={postDefaults.profileIsPublic}
         saving={saving}
         onSave={handleSave}
         onDiscard={handleDiscard}
