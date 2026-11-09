@@ -4,13 +4,14 @@
 // sprint-day workout adds an outer accent ring; today is bold with a dot.
 // Chevrons or a horizontal swipe page months, never past the current one.
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInLeft, FadeInRight, useReducedMotion } from 'react-native-reanimated';
 import * as haptics from '../../lib/haptics';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import { monthGrid } from '../../lib/stats/consistency';
 import { monthName } from '../../lib/stats/format';
-import { Card, IconButton } from '../ui';
+import { Card, IconButton, ListRow, Sheet } from '../ui';
 
 const HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -18,9 +19,15 @@ export default function MonthCalendar({
   workouts,
   now,
 }: {
-  workouts: readonly { endedAt: string; isSprint: boolean }[];
+  workouts: readonly { id: string; title?: string; endedAt: string; isSprint: boolean }[];
   now: Date;
 }) {
+  const router = useRouter();
+  const [dayPick, setDayPick] = useState<string[] | null>(null);
+  const openDay = (ids: string[]) => {
+    if (ids.length === 1) router.push(`/workout-summary/${ids[0]}`);
+    else if (ids.length > 1) setDayPick(ids);
+  };
   const reduced = useReducedMotion();
   const [cursor, setCursor] = useState({ year: now.getFullYear(), month0: now.getMonth() });
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -82,7 +89,14 @@ export default function MonthCalendar({
               {week.map((day) => {
                 const worked = day.count > 0;
                 return (
-                  <View key={day.date} style={styles.cell}>
+                  <Pressable
+                    key={day.date}
+                    style={styles.cell}
+                    disabled={!worked}
+                    onPress={() => openDay(day.workoutIds)}
+                    accessibilityRole={worked ? "button" : undefined}
+                    accessibilityLabel={worked ? `${day.date}, ${day.count} workout${day.count === 1 ? "" : "s"}` : undefined}
+                  >
                     <View style={[styles.ring, worked && day.hasSprint ? styles.sprintRing : null]}>
                       <View style={[styles.bubble, worked ? styles.filled : null]}>
                         <Text
@@ -99,7 +113,7 @@ export default function MonthCalendar({
                       </View>
                     </View>
                     {day.isToday ? <View style={styles.todayDot} /> : null}
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -116,13 +130,24 @@ export default function MonthCalendar({
           <Text style={TYPE.caption}>Sprint day</Text>
         </View>
       </View>
+      <Sheet visible={dayPick !== null} onClose={() => setDayPick(null)} title="Workouts">
+        {(dayPick ?? []).map((id) => (
+          <ListRow
+            key={id}
+            title={workouts.find((w) => w.id === id)?.title || "Workout"}
+            onPress={() => {
+              setDayPick(null);
+              router.push(`/workout-summary/${id}`);
+            }}
+          />
+        ))}
+      </Sheet>
     </Card>
   );
 }
 
-// TODO(stage4): spec also wants a 1.5px accent outline for a sprint day with no workout, and
-// tapping a workout day to open it; the calendar is only fed finished workouts, so neither
-// signal exists here without new data/navigation. Left as-is.
+// TODO(stage4): spec also wants a 1.5px accent outline for a sprint day with no workout; the
+// calendar is only fed finished workouts, so that signal does not exist here. Left as-is.
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   grid: { gap: 0 },

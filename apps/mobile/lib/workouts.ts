@@ -467,6 +467,22 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
   check(setsError);
 }
 
+/** The finished workout that completed a sprint day (mine), or null when none is found. */
+export async function fetchSprintDayWorkoutId(sprintDayId: string): Promise<string | null> {
+  const me = await getMyId();
+  const { data, error } = await supabase
+    .from('workouts')
+    .select('id')
+    .eq('sprint_day_id', sprintDayId)
+    .eq('owner_id', me)
+    .not('ended_at', 'is', null)
+    .order('ended_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  check(error);
+  return (data as any)?.id ?? null;
+}
+
 export async function startSprintWorkout(day: SprintDay, painPointName: string): Promise<StartResult> {
   const { data: existing, error: existingError } = await supabase
     .from('workouts')

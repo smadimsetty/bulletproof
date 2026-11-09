@@ -67,9 +67,10 @@ describe('monthGrid', () => {
   });
 
   test('late-Sunday workout lands on Nov 8; sprint flag and today set', () => {
-    const grid = monthGrid(2026, 10, [{ endedAt: at(2026, 11, 8, 23, 30), isSprint: true }], now);
+    const grid = monthGrid(2026, 10, [{ id: 'w1', endedAt: at(2026, 11, 8, 23, 30), isSprint: true }, { id: 'w2', endedAt: at(2026, 11, 8, 9, 0), isSprint: false }], now);
     const cell = grid.flat().find((d) => d.date === '2026-11-08')!;
-    expect(cell).toMatchObject({ count: 1, hasSprint: true, isToday: true });
+    expect(cell).toMatchObject({ count: 2, hasSprint: true, isToday: true, workoutIds: ['w1', 'w2'] });
     expect(grid.flat().filter((d) => d.count > 0)).toHaveLength(1);
+    expect(grid.flat().find((d) => d.date === '2026-11-07')!.workoutIds).toEqual([]);
   });
 });

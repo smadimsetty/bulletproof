@@ -78,6 +78,8 @@ export interface CalendarDay {
   inMonth: boolean;
   count: number;
   hasSprint: boolean;
+  /** Ids of the workouts that ended on this day, for tap-through. */
+  workoutIds: string[];
   isToday: boolean;
 }
 
@@ -85,14 +87,15 @@ export interface CalendarDay {
 export function monthGrid(
   year: number,
   month0: number,
-  workouts: readonly { endedAt: string; isSprint: boolean }[],
+  workouts: readonly { id: string; endedAt: string; isSprint: boolean }[],
   now: Date
 ): CalendarDay[][] {
-  const byDay = new Map<string, { count: number; hasSprint: boolean }>();
+  const byDay = new Map<string, { count: number; hasSprint: boolean; ids: string[] }>();
   for (const w of workouts) {
     const key = localDay(w.endedAt);
-    const cur = byDay.get(key) ?? { count: 0, hasSprint: false };
+    const cur = byDay.get(key) ?? { count: 0, hasSprint: false, ids: [] };
     cur.count++;
+    cur.ids.push(w.id);
     cur.hasSprint = cur.hasSprint || w.isSprint;
     byDay.set(key, cur);
   }
@@ -112,6 +115,7 @@ export function monthGrid(
         inMonth: day.getMonth() === month0 && day.getFullYear() === year,
         count: hit?.count ?? 0,
         hasSprint: hit?.hasSprint ?? false,
+        workoutIds: hit?.ids ?? [],
         isToday: date === today,
       });
       day = addDays(day, 1);

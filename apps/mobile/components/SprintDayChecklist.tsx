@@ -4,13 +4,14 @@
 // progress ring, today's routine as numbered exercise cards (eye toggle +
 // swap), a sticky Start / Resume footer, and a header menu for "Last
 // assessment" and "Switch pain point". Logic is unchanged: every action is a prop.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { DescriptionBody, DescriptionToggleButton, useToggle } from './DescriptionToggle';
 import { COLORS, NUMERAL_MAX_FONT_SCALE, SPACING, TYPE } from '../lib/theme';
 import type { SprintDay, SprintDayExercise } from '../lib/sprintLifecycle';
+import { fetchSprintDayWorkoutId } from '../lib/workouts';
 import { ActionSheet, Button, Card, IconButton, ProgressRing, ScreenScroll, SectionHeader, StickyFooter } from './ui';
 
 export default function SprintDayChecklist({
@@ -39,7 +40,24 @@ export default function SprintDayChecklist({
   refreshing?: boolean;
   onRefresh?: () => void;
 }) {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [doneWorkoutId, setDoneWorkoutId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!dayComplete) {
+      setDoneWorkoutId(null);
+      return;
+    }
+    let cancelled = false;
+    fetchSprintDayWorkoutId(day.id)
+      .then((id) => {
+        if (!cancelled) setDoneWorkoutId(id);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [dayComplete, day.id]);
   const daysLeft = Math.max(0, 14 - day.dayNumber);
   return (
     <View style={styles.root}>
@@ -76,6 +94,9 @@ export default function SprintDayChecklist({
               <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
               <Text style={[TYPE.title3, styles.flex]}>{`Day ${day.dayNumber} done. See you tomorrow.`}</Text>
             </View>
+            {doneWorkoutId ? (
+              <Button title="View workout" variant="secondary" onPress={() => router.push(`/workout-summary/${doneWorkoutId}`)} />
+            ) : null}
             {day.dayNumber === 14 ? <Text style={TYPE.callout}>That's the full 14 — your reassessment is up next.</Text> : null}
           </Card>
         )}
@@ -107,8 +128,8 @@ export default function SprintDayChecklist({
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
         actions={[
-          { label: 'Last assessment', icon: 'clipboard-outline', onPress: () => setTimeout(onOpenLastAssessment, MENU_HANDOFF_MS) },
-          { label: 'Switch pain point', icon: 'swap-horizontal-outline', destructive: true, onPress: () => setTimeout(onAbandon, MENU_HANDOFF_MS) },
+          { label: 'Last assessment', icon: 'clipboard-outline', onPress: onOpenLastAssessment },
+          { label: 'Switch pain point', icon: 'swap-horizontal-outline', destructive: true, onPress: onAbandon },
         ]}
       />
     </View>
@@ -116,7 +137,6 @@ export default function SprintDayChecklist({
 }
 
 // Let the ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
-const MENU_HANDOFF_MS = 300;
 
 // Own component so each exercise keeps its own description open/closed state.
 function ExerciseRow({
