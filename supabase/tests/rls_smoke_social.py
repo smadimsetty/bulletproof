@@ -67,7 +67,11 @@ try:
     s, r = req('POST', '/rest/v1/workout_media?select=id', {'workout_id': w1, 'path': path, 'position': 0}, token=A); ok(s == 201, f"A registers workout_media ({s} {r})")
 
     def b_reads_w1(): return req('GET', f"/rest/v1/workouts?select=id&id=eq.{w1}", token=B)[1]
-    def b_reads_photo(): return raw('GET', f"/storage/v1/object/authenticated/workout-media/{path}", token=B)[0]
+    # The app only ever reads photos through signed URLs (1 h), so "can read"
+    # = "can mint a signed URL". Direct authenticated GETs can be answered from
+    # Supabase Storage's cache for a while after access is revoked, which is
+    # why they aren't used as the signal here (or anywhere in the app).
+    def b_reads_photo(): return req('POST', f"/storage/v1/object/sign/workout-media/{path}", {'expiresIn': 60}, token=B)[0]
 
     # ---- no follow yet
     ok(b_reads_w1() == [], "B cannot read A's followers workout before following")
@@ -84,6 +88,10 @@ try:
     ok(b_reads_photo() != 200, "B (pending follow) cannot read A's photo")
     s, r = req('GET', f"/rest/v1/profiles?select=id,handle&id=eq.{a_id}", token=B); ok(s == 200 and len(r) == 1, "B sees A's profile card (handle) while pending")
     s, r = req('POST', '/rest/v1/rpc/can_view_profile_details', {'p_id': a_id}, token=B); ok(s == 200 and r is False, f"pending follower cannot view A's profile details ({r})")
+    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'bio': 'Ankle rehab diary'}, token=A, prefer='return=minimal'); ok(s in (200, 204), f"A sets own bio ({s})")
+    s, r = req('GET', f"/rest/v1/profiles?select=bio&id=eq.{a_id}", token=B); ok(s >= 400, f"bio column not directly selectable ({s})")
+    s, r = req('POST', '/rest/v1/rpc/profile_bio', {'p_id': a_id}, token=B); ok(s == 200 and r is None, f"pending follower gets no bio ({r})")
+    s, r = req('POST', '/rest/v1/rpc/profile_bio', {'p_id': a_id}, token=A); ok(r == 'Ankle rehab diary', f"A reads own bio via RPC ({r})")
     s, r = req('GET', f"/rest/v1/notifications?select=kind&actor_id=eq.{b_id}", token=A); ok(s == 200 and any(n['kind'] == 'follow_request' for n in r), f"A gets a follow_request notification ({r})")
     s, r = req('PATCH', f"/rest/v1/follows?follower_id=eq.{b_id}&followee_id=eq.{a_id}", {'status': 'accepted'}, token=B); ok(s == 200 and r == [], f"B cannot accept their own follow ({r})")
 
@@ -95,6 +103,7 @@ try:
     ok(b_reads_photo() == 200, "B (accepted) reads A's photo")
     s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w2}", token=B); ok(r == [], "B can never read A's private workout")
     s, r = req('POST', '/rest/v1/rpc/can_view_profile_details', {'p_id': a_id}, token=B); ok(r is True, "accepted follower can view profile details")
+    s, r = req('POST', '/rest/v1/rpc/profile_bio', {'p_id': a_id}, token=B); ok(r == 'Ankle rehab diary', f"accepted follower reads bio ({r})")
     s, r = req('GET', f"/rest/v1/notifications?select=kind&actor_id=eq.{a_id}", token=B); ok(any(n['kind'] == 'follow_accepted' for n in (r or [])), "B gets follow_accepted notification")
     s, r = req('POST', '/rest/v1/workout_likes', {'workout_id': w1}, token=B); ok(s == 201, f"B likes W1 ({s})")
     s, cm = req('POST', '/rest/v1/workout_comments?select=id', {'workout_id': w1, 'body': 'nice one'}, token=B); ok(s == 201, f"B comments on W1 ({s})"); cm_id = cm[0]['id']
@@ -107,15 +116,15 @@ try:
     s, r = req('PATCH', f"/rest/v1/workouts?id=eq.{w1}", {'title': 'blowjob'}, token=A); ok(s >= 400 and isinstance(r, dict) and r.get('code') == 'P0001' and "isn't allowed" in r.get('message', ''), f"word filter rejects seeded term in followers title ({s} {r})")
     s, r = req('PATCH', f"/rest/v1/workouts?id=eq.{w2}", {'title': 'blowjob'}, token=A); ok(s == 200, f"word filter allows the same term in a private workout ({s})")
     s, r = req('POST', '/rest/v1/workout_comments', {'workout_id': w1, 'body': 'kill yourself'}, token=B); ok(s >= 400 and isinstance(r, dict) and r.get('code') == 'P0001', f"word filter rejects comment ({s})")
-    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'bio': 'send nudes'}, token=A); ok(s >= 400, f"word filter rejects bio ({s})")
-    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'is_moderator': True}, token=A); ok(s >= 400, f"A cannot self-set is_moderator ({s})")
+    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'bio': 'send nudes'}, token=A, prefer='return=minimal'); ok(s >= 400, f"word filter rejects bio ({s})")
+    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'is_moderator': True}, token=A, prefer='return=minimal'); ok(s >= 400, f"A cannot self-set is_moderator ({s})")
     s, r = req('GET', f"/rest/v1/profiles?select=is_moderator&id=eq.{a_id}", token=SR, key=SR); ok(r and r[0]['is_moderator'] is False, "is_moderator still false")
     s, r = req('PATCH', f"/rest/v1/workouts?id=eq.{w1}", {'hidden_by_moderation': True}, token=A)
     s, r = req('GET', f"/rest/v1/workouts?select=hidden_by_moderation&id=eq.{w1}", token=SR, key=SR); ok(r and r[0]['hidden_by_moderation'] is False, "owner cannot change hidden_by_moderation")
 
     # ---- C (no follow): public workout only while A is_public
     s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w3}", token=C); ok(r == [], "C cannot read A's public workout while A is private")
-    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'is_public': True}, token=A); ok(s == 200, "A goes public")
+    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'is_public': True}, token=A, prefer='return=minimal'); ok(s in (200, 204), "A goes public")
     s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w3}", token=C); ok(rows(r) == 1, "C reads A's public workout while A is public")
     s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w1}", token=C); ok(r == [], "C still cannot read A's followers workout")
 
@@ -130,7 +139,7 @@ try:
         s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w3}", token=tk); ok(r == [], f"{nm} cannot read the hidden workout")
     s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w3}", token=A); ok(rows(r) == 1, "owner still reads own hidden workout")
     s, r = req('GET', '/rest/v1/content_reports?select=id', token=C); ok(rows(r) == 1, "reporter sees only own reports")
-    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'is_public': False}, token=A)
+    s, r = req('PATCH', f"/rest/v1/profiles?id=eq.{a_id}", {'is_public': False}, token=A, prefer='return=minimal')
     s, r = req('GET', f"/rest/v1/workouts?select=id&id=eq.{w3}", token=C); ok(r == [], "C loses A's public workouts when A flips private")
 
     # ---- block A <-> B
