@@ -59,6 +59,20 @@ EMBEDS = [
         "exercises!routine_exercises_exercise_id_fkey ( name, exercise_type, unilateral ) )",
     ),
     (
+        "workouts",
+        "id, owner_id, title, notes, source, sprint_day_id, routine_id, started_at, ended_at, visibility, "
+        "copied_from_workout_id, workout_media ( id, path, position ), "
+        "sprint_days!workouts_sprint_day_id_fkey ( sprints ( pain_point_id ) ), "
+        "workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id, "
+        "exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, evidence_rationale ), "
+        "workout_sets ( id, set_number, side, set_type, reps, weight_kg, duration_s, rom_value, rom_unit, completed_at ) )",
+    ),
+    (
+        "workouts",
+        "id, owner_id, title, notes, started_at, ended_at, workout_media ( path, position ), "
+        "workout_exercises ( id, workout_sets ( id ) ), workout_likes ( count ), workout_comments ( count )",
+    ),
+    (
         "exercise_logs",
         "date, exercise_id, reps_completed, weight_kg, "
         "exercises!exercise_logs_exercise_id_fkey ( name, body_parts, is_complex )",
