@@ -1,12 +1,13 @@
 // apps/mobile/components/progress/AssessmentTrendsSection.tsx
 //
-// One card per pain point the user has assessed; per test a line chart
-// across every completed assessment (Left/Right lines for bilateral tests),
-// or a row of pass/fail dots.
+// One card per pain point the user has assessed; per test a line chart across
+// every completed assessment (L/R lines for bilateral tests), or a row of
+// pass/fail dots (visual spec 4.9 section 3).
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import type { TestTrend, TrendPoint } from '../../lib/stats/assessmentTrends';
-import TrendLineChart from './TrendLineChart';
+import { Card, EmptyState, LineChartCard, PassFailDots, SectionHeader, type ChartSeries } from '../ui';
 
 export interface PainPointTrends {
   painPointId: string;
@@ -19,82 +20,112 @@ function valueText(p: TrendPoint, bilateral: boolean): string {
   return bilateral ? `L ${f(p.left)} / R ${f(p.right)}` : f(p.single);
 }
 
-function verdictColor(v: TestTrend['verdict']): string {
-  return v === 'better' ? COLORS.accent : v === 'worse' ? COLORS.danger : COLORS.muted;
-}
-
 function passed(p: TrendPoint): boolean {
   return ((p.single ?? p.left ?? 0) as number) >= 1;
+}
+
+const VERDICT = {
+  better: { color: COLORS.success, icon: 'arrow-up' as const },
+  worse: { color: COLORS.danger, icon: 'arrow-down' as const },
+  same: { color: COLORS.textTertiary, icon: 'remove' as const },
+};
+
+function seriesFor(t: TestTrend): ChartSeries[] {
+  const pick = (get: (p: TrendPoint) => number | undefined) =>
+    t.points.flatMap((p) => {
+      const v = get(p);
+      return v === undefined ? [] : [{ value: v, label: p.label }];
+    });
+  if (t.isBilateral) {
+    return [
+      { name: 'L', color: COLORS.chartLeft, data: pick((p) => p.left) },
+      { name: 'R', color: COLORS.chartRight, data: pick((p) => p.right) },
+    ].filter((s) => s.data.length > 0);
+  }
+  return [{ color: COLORS.accent, data: pick((p) => p.single) }];
 }
 
 function TestRow({ t }: { t: TestTrend }) {
   const first = t.points[0];
   const last = t.points[t.points.length - 1];
+  const verdict = t.verdict ? VERDICT[t.verdict] : null;
   return (
     <View style={styles.test}>
-      <Text style={TYPE.label}>{t.name}</Text>
+      <View style={styles.testHead}>
+        <Text style={[TYPE.callout, styles.testName]} numberOfLines={2}>
+          {t.name}
+        </Text>
+        {!t.isPassFail ? (
+          <View style={styles.headline}>
+            {verdict ? <Ionicons name={verdict.icon} size={14} color={verdict.color} /> : null}
+            <Text style={[TYPE.stat, styles.headlineText, { color: verdict?.color ?? COLORS.textPrimary }]} numberOfLines={1}>
+              {t.points.length === 1
+                ? `${valueText(first, t.isBilateral)} ${t.unit}`
+                : `${valueText(first, t.isBilateral)} → ${valueText(last, t.isBilateral)} ${t.unit}`}
+            </Text>
+          </View>
+        ) : null}
+      </View>
       {t.isPassFail ? (
-        <View style={styles.dots}>
-          {t.points.map((p, i) => (
-            <View key={i} style={[styles.dot, passed(p) ? styles.dotPass : styles.dotFail]} />
-          ))}
-        </View>
+        <PassFailDots results={t.points.map(passed)} />
+      ) : t.points.length === 1 ? (
+        <Text style={TYPE.footnote}>Reassess to see a trend</Text>
       ) : (
-        <>
-          <Text style={[TYPE.body, { color: verdictColor(t.verdict), fontWeight: '600' }]}>
-            {t.points.length === 1
-              ? `${valueText(first, t.isBilateral)} ${t.unit}`
-              : `${valueText(first, t.isBilateral)} → ${valueText(last, t.isBilateral)} ${t.unit}`}
-          </Text>
-          {t.points.length === 1 ? (
-            <Text style={sharedStyles.helperText}>Reassess to see a trend</Text>
-          ) : (
-            <TrendLineChart
-              twoSeries={t.isBilateral}
-              points={t.points.map((p) => ({
-                label: p.label,
-                a: t.isBilateral ? p.left : p.single,
-                b: p.right,
-              }))}
-            />
-          )}
-        </>
+        <LineChartCard bare series={seriesFor(t)} />
       )}
     </View>
   );
 }
 
-export default function AssessmentTrendsSection({ groups }: { groups: readonly PainPointTrends[] }) {
+export default function AssessmentTrendsSection({
+  groups,
+  onStartSprint,
+}: {
+  groups: readonly PainPointTrends[];
+  onStartSprint: () => void;
+}) {
   const visible = groups
     .map((g) => ({ ...g, trends: g.trends.filter((t) => t.points.length > 0) }))
     .filter((g) => g.trends.length > 0);
 
   return (
     <View style={styles.section}>
-      <Text style={TYPE.sectionTitle}>Assessment trends</Text>
+      <SectionHeader title="Assessments" inset={SPACING.xs} />
       {visible.length === 0 ? (
-        <View style={sharedStyles.card}>
-          <Text style={sharedStyles.helperText}>Complete an assessment in a sprint to see trends here.</Text>
-        </View>
+        <Card>
+          <EmptyState
+            compact
+            icon="analytics-outline"
+            title="No assessments yet"
+            body="Complete a sprint's baseline to start tracking."
+            action={{ label: 'Start a sprint', onPress: onStartSprint }}
+          />
+        </Card>
       ) : (
-        visible.map((g) => (
-          <View key={g.painPointId} style={sharedStyles.card}>
-            <Text style={TYPE.sectionTitle}>{g.displayName}</Text>
-            {g.trends.map((t) => (
-              <TestRow key={t.testKey} t={t} />
-            ))}
-          </View>
-        ))
+        visible.map((g) => {
+          const count = Math.max(...g.trends.map((t) => t.points.length));
+          return (
+            <Card key={g.painPointId}>
+              <View>
+                <Text style={TYPE.title3}>{g.displayName}</Text>
+                <Text style={TYPE.footnote}>{`${count} ${count === 1 ? 'assessment' : 'assessments'}`}</Text>
+              </View>
+              {g.trends.map((t) => (
+                <TestRow key={t.testKey} t={t} />
+              ))}
+            </Card>
+          );
+        })
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: SPACING.sm },
-  test: { gap: SPACING.xs, paddingTop: SPACING.sm },
-  dots: { flexDirection: 'row', gap: SPACING.xs, flexWrap: 'wrap' },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: COLORS.accent },
-  dotPass: { backgroundColor: COLORS.accent },
-  dotFail: { backgroundColor: 'transparent', borderColor: COLORS.danger },
+  section: { gap: SPACING.md },
+  test: { gap: SPACING.sm, paddingTop: SPACING.sm },
+  testHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md },
+  testName: { flexShrink: 1 },
+  headline: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, flexShrink: 1 },
+  headlineText: { fontSize: 17, lineHeight: 22 },
 });

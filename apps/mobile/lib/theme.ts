@@ -138,6 +138,9 @@ export const SIZES = {
   avatarXl: 96,
 } as const;
 
+/** Bottom padding for tab-screen scroll content so the docked ActiveWorkoutBanner never covers the last row. */
+export const BANNER_CLEARANCE = 76;
+
 // ---------- 2.4 Elevation ----------
 export const ELEVATION = {
   0: {},

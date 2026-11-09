@@ -5,9 +5,10 @@
 // pure calculators in lib/stats/. Every section renders an empty state for a
 // brand-new user.
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { BANNER_CLEARANCE, COLORS, TYPE } from '../../lib/theme';
+import { CompactHeaderBar, ErrorState, LargeHeader, ScreenScroll, SkeletonCard, SkeletonStat, useScreenScroll } from '../../components/ui';
 import { fetchStatsDataset, type StatsWorkout } from '../../lib/stats/dataset';
 import { computeConsistency } from '../../lib/stats/consistency';
 import { computePrEvents } from '../../lib/stats/prs';
@@ -51,6 +52,7 @@ async function loadAll(): Promise<Loaded> {
 
 export default function ProgressScreen() {
   const router = useRouter();
+  const scrollY = useScreenScroll();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -97,28 +99,36 @@ export default function ProgressScreen() {
     setData((d) => (d ? { ...d, settings: saved } : d));
   }
 
+  const header = <LargeHeader title="Progress" />;
+
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        <ScreenScroll>
+          {header}
+          <SkeletonStat />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScreenScroll>
       </View>
     );
   }
   if (loadError && !data) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && { opacity: 0.6 }]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load('initial');
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <ScreenScroll>
+          {header}
+          <ErrorState
+            message={loadError}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load('initial');
+              setRetrying(false);
+            }}
+          />
+        </ScreenScroll>
       </View>
     );
   }
@@ -126,20 +136,18 @@ export default function ProgressScreen() {
 
   const settings = data.settings ?? DEFAULT_SETTINGS;
   return (
-    <>
-      <ScrollView
-        style={sharedStyles.screen}
-        contentContainerStyle={sharedStyles.screenContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />}
+    <View style={styles.root}>
+      <ScreenScroll
+        scrollY={scrollY}
+        refreshing={refreshing}
+        onRefresh={() => load('refresh')}
+        contentContainerStyle={styles.content}
       >
-        {loadError && <Text style={sharedStyles.warningText}>{loadError}</Text>}
-        <ConsistencyCard
-          consistency={computed.consistency}
-          hasAnyWorkout={data.workouts.length > 0}
-          onPress={() => setGoalOpen(true)}
-        />
+        {header}
+        {loadError ? <Text style={[TYPE.footnote, { color: COLORS.danger }]}>{loadError}</Text> : null}
+        <ConsistencyCard consistency={computed.consistency} onPress={() => setGoalOpen(true)} />
         <MonthCalendar workouts={data.workouts} now={now} />
-        <AssessmentTrendsSection groups={data.trendGroups} />
+        <AssessmentTrendsSection groups={data.trendGroups} onStartSprint={() => router.push('/sprint')} />
         <RecentPrsCard
           events={computed.prEvents}
           weightUnit={settings.weightUnit}
@@ -148,19 +156,23 @@ export default function ProgressScreen() {
         />
         <RecapEntryCard
           now={now}
+          workouts={data.workouts}
           onOpen={(year, month0) => router.push(`/recap?year=${year}&month=${month0}`)}
         />
-      </ScrollView>
+      </ScreenScroll>
+      <CompactHeaderBar title="Progress" scrollY={scrollY} />
       <WeeklyGoalSheet
         visible={goalOpen}
         current={settings.weeklyGoal}
         onClose={() => setGoalOpen(false)}
         onSave={saveGoal}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  // Leave room for the docked active-workout banner.
+  content: { paddingBottom: BANNER_CLEARANCE },
 });

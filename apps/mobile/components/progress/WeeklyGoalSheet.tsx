@@ -1,10 +1,12 @@
 // apps/mobile/components/progress/WeeklyGoalSheet.tsx
 //
-// Stepper (1-14) for the weekly workout goal. Save is async; a failure keeps
-// the sheet open with the error rather than silently dropping the change.
+// Stepper (1-14) for the weekly workout goal (visual spec 4.9). Save is async;
+// a failure keeps the sheet open with the error rather than silently dropping the change.
 import { useEffect, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { StyleSheet, Text, View } from 'react-native';
+import * as haptics from '../../lib/haptics';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
+import { Button, Sheet, Stepper } from '../ui';
 
 export default function WeeklyGoalSheet({
   visible,
@@ -33,8 +35,10 @@ export default function WeeklyGoalSheet({
     setError(null);
     try {
       await onSave(draft);
+      haptics.success();
       onClose();
     } catch (err: any) {
+      haptics.error();
       setError(err?.message ?? 'Could not save.');
     } finally {
       setSaving(false);
@@ -42,54 +46,23 @@ export default function WeeklyGoalSheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        <Text style={TYPE.sectionTitle}>Weekly goal</Text>
-        <Text style={sharedStyles.helperText}>Workouts to finish each week (Mon–Sun) to keep your streak.</Text>
-        <View style={styles.stepper}>
-          <Pressable
-            style={[styles.stepBtn, draft <= 1 && styles.stepDisabled]}
-            disabled={draft <= 1}
-            onPress={() => setDraft((d) => Math.max(1, d - 1))}
-            accessibilityLabel="Decrease goal"
-          >
-            <Text style={styles.stepText}>−</Text>
-          </Pressable>
-          <Text style={styles.value}>{draft}</Text>
-          <Pressable
-            style={[styles.stepBtn, draft >= 14 && styles.stepDisabled]}
-            disabled={draft >= 14}
-            onPress={() => setDraft((d) => Math.min(14, d + 1))}
-            accessibilityLabel="Increase goal"
-          >
-            <Text style={styles.stepText}>+</Text>
-          </Pressable>
-        </View>
-        {error && <Text style={sharedStyles.warningText}>{error}</Text>}
-        <Pressable style={sharedStyles.primaryButton} disabled={saving} onPress={save}>
-          <Text style={sharedStyles.primaryButtonText}>{saving ? 'Saving…' : 'Save'}</Text>
-        </Pressable>
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title="Weekly goal"
+      dismissable={!saving}
+      footer={<Button title="Save" size="lg" fullWidth loading={saving} onPress={save} />}
+    >
+      <View style={styles.body}>
+        <Stepper value={draft} min={1} max={14} onChange={setDraft} />
+        <Text style={[TYPE.footnote, styles.helper]}>Finish this many workouts Mon–Sun to keep the streak.</Text>
+        {error ? <Text style={[TYPE.footnote, { color: COLORS.danger }]}>{error}</Text> : null}
       </View>
-    </Modal>
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  sheet: {
-    backgroundColor: COLORS.card,
-    padding: SPACING.lg,
-    gap: SPACING.md,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.lg },
-  stepBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.accentMuted,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  stepDisabled: { opacity: 0.4 },
-  stepText: { fontSize: 24, color: COLORS.accent, fontWeight: '600' },
-  value: { fontSize: 36, fontWeight: '700', color: COLORS.ink, minWidth: 56, textAlign: 'center' },
+  body: { alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.lg },
+  helper: { textAlign: 'center' },
 });
