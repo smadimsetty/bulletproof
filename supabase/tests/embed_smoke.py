@@ -63,6 +63,9 @@ def main() -> int:
 
     failures = 0
     for table, select in EMBEDS:
+        # supabase-js strips all whitespace outside quotes before sending a
+        # select; PostgREST itself rejects e.g. "( id ) )", so mirror that.
+        select = "".join(select.split())
         url = f"{base}/rest/v1/{table}?" + urllib.parse.urlencode({"select": select, "limit": "1"})
         req = urllib.request.Request(url, headers={"apikey": key, "Authorization": f"Bearer {key}"})
         try:
