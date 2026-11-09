@@ -1,15 +1,16 @@
 // apps/mobile/components/social/FollowButton.tsx
 //
-// Follow / Requested / Following / Follow back. Tapping Following or Requested
-// asks to confirm before unfollowing. The caller re-reads the profile after
-// onChanged, since the server decides pending vs accepted.
+// Follow / Requested / Following / Follow back (visual spec 4.19). Tapping Following or
+// Requested asks to confirm (ConfirmSheet) before unfollowing. The caller re-reads the profile
+// after onChanged, since the server decides pending vs accepted.
 import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
-import { COLORS, RADII, LEGACY_SPACING as SPACING } from '../../lib/theme';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import * as haptics from '../../lib/haptics';
 import { follow, unfollow } from '../../lib/social/follows';
 import { followButtonLabel } from '../../lib/social/followState';
 import type { FollowStatus } from '../../lib/social/profiles';
 import { ensurePushRegistered } from '../../lib/social/push';
+import { Button, ConfirmSheet, useToast } from '../ui';
 
 export default function FollowButton({
   userId,
@@ -17,18 +18,21 @@ export default function FollowButton({
   status,
   followsMe,
   onChanged,
+  size = 'md',
 }: {
   userId: string;
   handle: string;
   status: FollowStatus;
   followsMe: boolean;
   onChanged: () => void | Promise<void>;
+  size?: 'sm' | 'md';
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   // Synchronous guard: two taps can land before `busy` re-renders.
   const busyRef = useRef(false);
   const label = followButtonLabel(status, followsMe);
-  const outlined = status !== 'none';
 
   async function run(action: () => Promise<void>) {
     if (busyRef.current) return;
@@ -38,7 +42,7 @@ export default function FollowButton({
       await action();
       await onChanged();
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Something went wrong.');
+      toast.show({ message: err?.message ?? 'Something went wrong.', tone: 'danger' });
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -46,6 +50,7 @@ export default function FollowButton({
   }
 
   function onPress() {
+    haptics.select();
     if (status === 'none') {
       // First follow is a natural moment to ask for push (once, ever).
       run(async () => {
@@ -54,38 +59,38 @@ export default function FollowButton({
       });
       return;
     }
-    const msg = status === 'pending' ? `Cancel your follow request to @${handle}?` : `Unfollow @${handle}?`;
-    Alert.alert(msg, undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: status === 'pending' ? 'Cancel request' : 'Unfollow', style: 'destructive', onPress: () => run(() => unfollow(userId)) },
-    ]);
+    setConfirmOpen(true);
   }
 
+  const pending = status === 'pending';
   return (
-    <Pressable
-      style={[styles.button, outlined && styles.outlined, busy && styles.busy]}
-      disabled={busy}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label} @${handle}`}
-    >
-      <Text style={[styles.text, outlined && styles.outlinedText]}>{busy ? '…' : label}</Text>
-    </Pressable>
+    <>
+      {/* Remount on a label change so the new label cross-fades in (150 ms). */}
+      <Animated.View key={label} entering={FadeIn.duration(150)} style={size === 'md' ? { alignSelf: 'stretch' } : undefined}>
+        <Button
+          title={label}
+          size={size}
+          fullWidth={size === 'md'}
+          variant={status === 'none' ? 'primary' : 'secondary'}
+          icon={pending ? 'time-outline' : status === 'accepted' ? 'checkmark' : undefined}
+          loading={busy}
+          onPress={onPress}
+          accessibilityLabel={`${label} @${handle}`}
+        />
+      </Animated.View>
+      <ConfirmSheet
+        visible={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={pending ? 'Cancel request?' : `Unfollow @${handle}?`}
+        body={pending ? `Cancel your follow request to @${handle}?` : undefined}
+        confirmLabel={pending ? 'Cancel request' : 'Unfollow'}
+        cancelLabel={pending ? 'Keep request' : 'Cancel'}
+        destructive
+        onConfirm={() => {
+          setConfirmOpen(false);
+          run(() => unfollow(userId));
+        }}
+      />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: COLORS.accent,
-    borderRadius: RADII.button,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
-  outlined: { backgroundColor: 'transparent' },
-  busy: { opacity: 0.6 },
-  text: { color: COLORS.card, fontWeight: '600', fontSize: 15 },
-  outlinedText: { color: COLORS.accent },
-});

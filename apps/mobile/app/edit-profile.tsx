@@ -1,17 +1,22 @@
 // apps/mobile/app/edit-profile.tsx
 //
-// Edit display name, handle, bio and photo. Handle changes re-check
-// availability live (debounced); the word filter's rejection message from the
-// server is shown as-is.
+// Edit display name, handle, bio and photo (visual spec 4.18). Handle changes re-check
+// availability live (debounced); the word filter's rejection message from the server is shown
+// as-is.
+// TODO(stage4): spec presents this as a tall Sheet; Settings and the Profile tab both push the
+// /edit-profile route, so it stays a screen restyled with the same fields.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
+import * as haptics from '../lib/haptics';
+import { COLORS, SPACING, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import {
   displayNameError, fetchMyProfile, handleError, isHandleAvailable, normalizeHandle, updateProfile, type Profile,
 } from '../lib/social/profiles';
+import { Button, ErrorState, IconButton, ScreenScroll, SkeletonCard, StickyFooter, TextField } from '../components/ui';
 
 type HandleState = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -87,6 +92,7 @@ export default function EditProfileScreen() {
       (changedHandle && handleState === 'taken' ? 'That handle is taken.' : null) ??
       (bio.length > 160 ? 'Keep your bio to 160 characters or fewer.' : null);
     if (problem) {
+      haptics.error();
       setSaveError(problem);
       return;
     }
@@ -103,8 +109,10 @@ export default function EditProfileScreen() {
         },
         profile.avatarPath
       );
+      haptics.success();
       router.back();
     } catch (err: any) {
+      haptics.error();
       setSaveError(err?.message ?? 'Could not save your profile.');
     } finally {
       savingRef.current = false;
@@ -114,89 +122,95 @@ export default function EditProfileScreen() {
 
   if (loadError) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
+      <View style={styles.root}>
         <Stack.Screen options={{ title: 'Edit profile' }} />
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.dim]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load();
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+        <ScreenScroll>
+          <ErrorState
+            message={loadError}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load();
+              setRetrying(false);
+            }}
+          />
+        </ScreenScroll>
       </View>
     );
   }
   if (!profile) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
+      <View style={styles.root}>
         <Stack.Screen options={{ title: 'Edit profile' }} />
-        <ActivityIndicator color={COLORS.accent} />
+        <ScreenScroll>
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScreenScroll>
       </View>
     );
   }
 
+  const handleProblem = formatProblem && normalized.length > 0 ? formatProblem : handleState === 'taken' ? 'That handle is taken' : undefined;
+  const handleHelper =
+    handleProblem
+      ? undefined
+      : handleState === 'checking'
+      ? 'Checking…'
+      : handleState === 'available'
+      ? 'Available'
+      : handleState === 'error'
+      ? "Couldn't check availability"
+      : '3–20 letters, numbers or _';
+  const handleStatus =
+    handleState === 'checking' ? (
+      <ActivityIndicator size="small" color={COLORS.textTertiary} />
+    ) : handleState === 'available' ? (
+      <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+    ) : handleState === 'taken' ? (
+      <Ionicons name="close-circle" size={20} color={COLORS.danger} />
+    ) : undefined;
+
   return (
-    <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: 'Edit profile' }} />
-      <ScrollView contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
-        <View style={sharedStyles.card}>
-          <Pressable onPress={pickPhoto} style={styles.photoRow}>
-            <Avatar path={profile.avatarPath} name={displayName || profile.displayName} size={72} localUri={avatarUri} />
-            <Text style={styles.link}>Change photo</Text>
-          </Pressable>
-          <Text style={sharedStyles.helperText}>Display name</Text>
-          <TextInput style={sharedStyles.textInput} value={displayName} onChangeText={setDisplayName} maxLength={40} />
-          <Text style={sharedStyles.helperText}>Handle</Text>
-          <TextInput
-            style={sharedStyles.textInput}
-            value={handle}
-            onChangeText={setHandle}
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={21}
-          />
-          <Text style={[sharedStyles.helperText, (formatProblem || handleState === 'taken') && sharedStyles.warningText]}>
-            {formatProblem && normalized.length > 0
-              ? formatProblem
-              : handleState === 'checking'
-              ? 'Checking…'
-              : handleState === 'available'
-              ? 'Available'
-              : handleState === 'taken'
-              ? 'That handle is taken'
-              : handleState === 'error'
-              ? "Couldn't check availability"
-              : '3–20 letters, numbers or _'}
-          </Text>
-          <Text style={sharedStyles.helperText}>Bio ({bio.length}/160)</Text>
-          <TextInput
-            style={[sharedStyles.textInput, styles.bio]}
-            value={bio}
-            onChangeText={setBio}
-            multiline
-            maxLength={160}
-            placeholder="A line about you (optional)"
-            placeholderTextColor={COLORS.muted}
-          />
+      <ScreenScroll keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+        <View style={styles.photo}>
+          <Avatar path={profile.avatarPath} name={displayName || profile.displayName} size="xl" localUri={avatarUri} />
+          <IconButton icon="camera" variant="accent" size="sm" accessibilityLabel="Change photo" onPress={pickPhoto} style={styles.camera} />
         </View>
-        {saveError && <Text style={sharedStyles.warningText}>{saveError}</Text>}
-        <Pressable style={[sharedStyles.primaryButton, saving && styles.dim]} disabled={saving} onPress={save}>
-          <Text style={sharedStyles.primaryButtonText}>{saving ? 'Saving…' : 'Save'}</Text>
-        </Pressable>
-      </ScrollView>
+        <TextField label="Display name" value={displayName} onChangeText={setDisplayName} maxLength={40} />
+        <TextField
+          label="Handle"
+          value={handle}
+          onChangeText={setHandle}
+          leftIcon="at"
+          autoCapitalize="none"
+          autoCorrect={false}
+          maxLength={21}
+          helper={handleHelper}
+          error={handleProblem}
+          right={handleStatus}
+        />
+        <TextField
+          label="Bio"
+          value={bio}
+          onChangeText={setBio}
+          multiline
+          maxLength={160}
+          showCount
+          placeholder="A line about you (optional)"
+        />
+        {saveError ? <Text style={[TYPE.footnote, { color: COLORS.danger }]}>{saveError}</Text> : null}
+      </ScreenScroll>
+      <StickyFooter>
+        <Button title="Save" size="lg" fullWidth loading={saving} onPress={save} />
+      </StickyFooter>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  dim: { opacity: 0.6 },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  link: { color: COLORS.accent, fontWeight: '600', fontSize: 15 },
-  bio: { minHeight: 80, textAlignVertical: 'top' },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  photo: { alignSelf: 'center', marginBottom: SPACING.sm },
+  camera: { position: 'absolute', right: -4, bottom: -4 },
 });
