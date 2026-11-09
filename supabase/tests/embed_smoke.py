@@ -53,6 +53,12 @@ EMBEDS = [
         "workout_sets ( set_number, side, set_type, reps, weight_kg, duration_s, rom_value, rom_unit, completed_at ) )",
     ),
     (
+        "routines",
+        "id, folder_id, title, notes, position, routine_exercises ( id, exercise_id, position, target_sets, "
+        "target_reps, target_duration_s, target_weight_kg, rest_s, notes, "
+        "exercises!routine_exercises_exercise_id_fkey ( name, exercise_type, unilateral ) )",
+    ),
+    (
         "exercise_logs",
         "date, exercise_id, reps_completed, weight_kg, "
         "exercises!exercise_logs_exercise_id_fkey ( name, body_parts, is_complex )",
