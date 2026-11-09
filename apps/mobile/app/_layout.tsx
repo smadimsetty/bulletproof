@@ -21,6 +21,7 @@ import { fetchMyProfile, subscribeToProfileChanges } from '../lib/social/profile
 import { ensurePushRegistered } from '../lib/social/push';
 import { safePushRoute } from '../lib/social/notificationFormat';
 import { signOut } from '../lib/signOut';
+import { ToastProvider } from '../components/ui/Toast';
 import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 
 type RecommendationsState = {
@@ -167,6 +168,7 @@ export default function RootLayout() {
   const showGate = !!session && (profileGate === 'loading' || profileGate === 'error');
 
   return (
+    <ToastProvider>
     <View style={styles.root}>
       <StatusBar style="light" />
       <Stack screenOptions={STACK_SCREEN_OPTIONS}>
@@ -220,6 +222,7 @@ export default function RootLayout() {
         </View>
       )}
     </View>
+    </ToastProvider>
   );
 }
 

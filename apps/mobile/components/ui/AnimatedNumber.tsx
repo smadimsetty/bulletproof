@@ -16,6 +16,8 @@ export interface AnimatedNumberProps {
   duration?: number;
   /** Roll up from 0 on first mount (default true); false shows the value immediately. */
   animateOnMount?: boolean;
+  /** Value to roll up from on first mount (default 0). */
+  from?: number;
   testID?: string;
 }
 
@@ -26,10 +28,11 @@ export function AnimatedNumber({
   style,
   duration = MOTION.roll,
   animateOnMount = true,
+  from = 0,
   testID,
 }: AnimatedNumberProps) {
   const reduced = useReducedMotion();
-  const startFrom = animateOnMount && !reduced ? 0 : value;
+  const startFrom = animateOnMount && !reduced ? from : value;
   const shared = useSharedValue(startFrom);
 
   useEffect(() => {
