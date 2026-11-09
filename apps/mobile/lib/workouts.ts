@@ -6,12 +6,13 @@
 import { supabase } from './supabase';
 import { completeExercise, completeDay, submitDayFeedback, type SprintDay } from './sprintLifecycle';
 import { defaultSetCount, fieldsForExercise, type RomUnit, type SetValues, type Side } from './setFields';
-import { plannedRows, prefillValues, type PreviousSet } from './previousValues';
+import { plannedRows, prefillValues, previousMatch, type PreviousSet } from './previousValues';
 import { planFinish } from './finishPlan';
 import { sprintTargetText, sprintWorkoutTitle } from './workoutTitles';
 import type { CatalogExercise } from './exerciseSearch';
+import { fetchLibrary } from './library';
 
-export type WorkoutSource = 'empty' | 'sprint';
+export type WorkoutSource = 'empty' | 'sprint' | 'routine' | 'copy';
 
 export interface WorkoutSetRow extends SetValues {
   readonly id: string;
@@ -41,6 +42,8 @@ export interface Workout {
   readonly notes: string | null;
   readonly source: WorkoutSource;
   readonly sprintDayId: string | null;
+  /** The routine this workout was started from; null if none (or since deleted). */
+  readonly routineId: string | null;
   /** The pain point of the sprint this workout belongs to; null for non-sprint workouts. */
   readonly painPointId: string | null;
   readonly startedAt: string;
@@ -70,10 +73,12 @@ export interface NewWorkoutExercise {
   readonly sprintDayExerciseId: string | null;
   readonly targetText: string | null;
   readonly prescribedSets: number | null;
+  /** Routine targets; used only where there is no previous-workout value to prefill from. */
+  readonly targetValues?: { reps: number | null; weightKg: number | null; durationS: number | null };
 }
 
 export type StartResult =
-  | { readonly ok: true; readonly workoutId: string }
+  | { readonly ok: true; readonly workoutId: string; readonly skipped?: string[] }
   | { readonly ok: false; readonly reason: 'in_progress'; readonly activeWorkoutId: string | null };
 
 export interface SetPatch {
@@ -178,7 +183,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
   const { data, error } = await supabase
     .from('workouts')
     .select(
-      `id, title, notes, source, sprint_day_id, started_at, ended_at,
+      `id, title, notes, source, sprint_day_id, routine_id, started_at, ended_at,
        sprint_days!workouts_sprint_day_id_fkey ( sprints ( pain_point_id ) ),
        workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id,
          exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, evidence_rationale ),
@@ -194,6 +199,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
     notes: w.notes,
     source: w.source,
     sprintDayId: w.sprint_day_id,
+    routineId: w.routine_id ?? null,
     painPointId: w.sprint_days?.sprints?.pain_point_id ?? null,
     startedAt: w.started_at,
     endedAt: w.ended_at,
@@ -269,19 +275,9 @@ export async function fetchPreviousSetsForExercises(
   return out;
 }
 
+/** The picker catalog: mobility content plus the user's own exercises (see library.ts). */
 export async function fetchExerciseCatalog(): Promise<CatalogExercise[]> {
-  const { data, error } = await supabase
-    .from('exercises')
-    .select('id, name, exercise_type, unilateral, default_sets')
-    .order('name');
-  check(error);
-  return ((data ?? []) as any[]).map((r) => ({
-    id: r.id,
-    name: r.name,
-    exerciseType: r.exercise_type,
-    unilateral: !!r.unilateral,
-    defaultSets: r.default_sets,
-  }));
+  return fetchLibrary();
 }
 
 export interface HistoryCursor {
@@ -326,10 +322,16 @@ export async function startWorkout(input: {
   source: WorkoutSource;
   title: string;
   sprintDayId?: string | null;
+  routineId?: string | null;
 }): Promise<StartResult> {
   const { data, error } = await supabase
     .from('workouts')
-    .insert({ source: input.source, title: input.title, sprint_day_id: input.sprintDayId ?? null })
+    .insert({
+      source: input.source,
+      title: input.title,
+      sprint_day_id: input.sprintDayId ?? null,
+      routine_id: input.routineId ?? null,
+    })
     .select('id')
     .single();
   if (isInProgressConflict(error)) {
@@ -388,7 +390,18 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
     if (!workoutExerciseId) throw new Error('Could not add that exercise.');
     const count = defaultSetCount(fields.kind, spec.prescribedSets, m?.default_sets ?? null);
     return plannedRows(count, fields.sided).map((row) => {
-      const v = prefillValues(row, previous, fields.kind, spec.targetText);
+      const fromHistory = prefillValues(row, previous, fields.kind, spec.targetText);
+      const t = spec.targetValues;
+      // History wins; routine targets fill in only where there is none.
+      const v =
+        t && !previousMatch(row, previous)
+          ? {
+              ...fromHistory,
+              reps: fromHistory.reps ?? t.reps,
+              weightKg: fromHistory.weightKg ?? t.weightKg,
+              durationS: fromHistory.durationS ?? t.durationS,
+            }
+          : fromHistory;
       return {
         workout_exercise_id: workoutExerciseId,
         set_number: row.setNumber,
