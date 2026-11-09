@@ -288,3 +288,44 @@ export function changeVerdict(c: AssessmentComparison): ChangeVerdict {
   const increased = after > before;
   return (c.betterDirection === 'higher') === increased ? 'better' : 'worse';
 }
+
+/**
+ * Every completed assessment the user has (all pain points, both phases),
+ * oldest first, for the Progress tab's trend charts. Same query shape as
+ * fetchAssessmentHistory minus the pain-point filter.
+ */
+export async function fetchAllAssessments(): Promise<(PastAssessment & { painPointId: string })[]> {
+  const { data, error } = await supabase
+    .from('sprint_assessments')
+    .select('id, sprint_id, phase, completed_at, sprints!inner ( pain_point_id, cycle_number )')
+    .not('completed_at', 'is', null)
+    .order('completed_at', { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as any[];
+  if (rows.length === 0) return [];
+
+  const { data: resultRows, error: resultsError } = await supabase
+    .from('sprint_assessment_results')
+    .select('sprint_assessment_id, test_key, value_left, value_right, value_single, notes')
+    .in('sprint_assessment_id', rows.map((r) => r.id));
+  if (resultsError) throw new Error(resultsError.message);
+
+  return rows.map((r) => ({
+    assessmentId: r.id,
+    sprintId: r.sprint_id,
+    painPointId: r.sprints?.pain_point_id ?? '',
+    phase: r.phase,
+    cycleNumber: r.sprints?.cycle_number ?? 0,
+    completedAt: r.completed_at,
+    results: ((resultRows ?? []) as any[])
+      .filter((x) => x.sprint_assessment_id === r.id)
+      .map((x) => ({
+        testKey: x.test_key,
+        valueLeft: x.value_left ?? undefined,
+        valueRight: x.value_right ?? undefined,
+        valueSingle: x.value_single ?? undefined,
+        notes: x.notes ?? undefined,
+      })),
+  }));
+}
