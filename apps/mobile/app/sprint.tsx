@@ -69,6 +69,7 @@ function reportError(err: any, fallback: string) {
 interface AssessmentPrefill {
   readonly draft: Map<string, AssessmentResultInput>;
   readonly from: string | null;
+  readonly key?: string;
 }
 
 /**
@@ -130,7 +131,11 @@ export default function SprintScreen() {
       if (inFlight && (inFlight.status === 'pending_baseline' || inFlight.status === 'pending_reassessment')) {
         const defs = await fetchAssessmentDefinitions(inFlight.painPointId);
         const phase = inFlight.status === 'pending_baseline' ? 'baseline' : 'reassessment';
-        setPrefill(await loadPrefill(inFlight.painPointId, inFlight.id, phase, defs));
+        const key = `${inFlight.id}-${phase}`;
+        const fresh = { ...(await loadPrefill(inFlight.painPointId, inFlight.id, phase, defs)), key };
+        // A silent focus reload must not swap the seed under a form the user
+        // is already typing into.
+        setPrefill((prev) => (mode === 'focus' && prev?.key === key ? prev : fresh));
         setDefinitions(defs);
       }
       if (inFlight && inFlight.status === 'active') {
@@ -308,7 +313,7 @@ export default function SprintScreen() {
   if (sprint.status === 'pending_baseline') {
     return (
       <AssessmentForm
-        key={`baseline-${sprint.id}-${prefill?.from ?? 'none'}`}
+        key={`${sprint.id}-baseline`}
         title="Baseline assessment"
         definitions={definitions}
         initialDraft={prefill?.draft}
@@ -330,7 +335,7 @@ export default function SprintScreen() {
           <Text style={sharedStyles.sectionTitle}>Your 14 days are up — time to reassess</Text>
         </View>
         <AssessmentForm
-          key={`reassessment-${sprint.id}-${prefill?.from ?? 'none'}`}
+          key={`${sprint.id}-reassessment`}
           title="Reassessment"
           definitions={definitions}
           initialDraft={prefill?.draft}

@@ -215,18 +215,49 @@ describe('startSprintWorkout', () => {
 describe('discardWorkout', () => {
   test('a sprint workout reverts the day and its exercises before deleting', async () => {
     const { tables, chains } = queue(
-      { table: 'workouts', result: { data: { sprint_day_id: 'd14' }, error: null } },
+      { table: 'workouts', result: { data: { sprint_day_id: 'd3' }, error: null } },
+      { table: 'sprint_days', result: { data: { day_number: 3, sprint_id: 's1' }, error: null } },
+      { table: 'sprints', result: { data: { status: 'active' }, error: null } },
       { table: 'sprint_days', result: OK },
       { table: 'sprint_day_exercises', result: OK },
       { table: 'workouts', result: OK }
     );
     await discardWorkout('w1');
-    expect(tables).toEqual(['workouts', 'sprint_days', 'sprint_day_exercises', 'workouts']);
-    expect(chains[1].update).toHaveBeenCalledWith({ completed_at: null });
-    expect(chains[1].eq).toHaveBeenCalledWith('id', 'd14');
-    expect(chains[2].update).toHaveBeenCalledWith({ completed_at: null });
-    expect(chains[2].eq).toHaveBeenCalledWith('sprint_day_id', 'd14');
-    expect(chains[3].delete).toHaveBeenCalled();
+    expect(tables).toEqual(['workouts', 'sprint_days', 'sprints', 'sprint_days', 'sprint_day_exercises', 'workouts']);
+    expect(chains[3].update).toHaveBeenCalledWith({ completed_at: null });
+    expect(chains[3].eq).toHaveBeenCalledWith('id', 'd3');
+    expect(chains[4].update).toHaveBeenCalledWith({ completed_at: null });
+    expect(chains[4].eq).toHaveBeenCalledWith('sprint_day_id', 'd3');
+    expect(chains[5].delete).toHaveBeenCalled();
+  });
+
+  test('day 14 left in pending_reassessment with no reassessment reactivates the sprint', async () => {
+    const { tables, chains } = queue(
+      { table: 'workouts', result: { data: { sprint_day_id: 'd14' }, error: null } },
+      { table: 'sprint_days', result: { data: { day_number: 14, sprint_id: 's1' }, error: null } },
+      { table: 'sprints', result: { data: { status: 'pending_reassessment' }, error: null } },
+      { table: 'sprint_assessments', result: { data: [], error: null } },
+      { table: 'sprint_days', result: OK },
+      { table: 'sprint_day_exercises', result: OK },
+      { table: 'sprints', result: OK },
+      { table: 'workouts', result: OK }
+    );
+    await discardWorkout('w1');
+    expect(tables[6]).toBe('sprints');
+    expect(chains[6].update).toHaveBeenCalledWith({ status: 'active' });
+    expect(chains[6].eq).toHaveBeenCalledWith('id', 's1');
+    expect(chains[7].delete).toHaveBeenCalled();
+  });
+
+  test('a completed sprint is not reverted, the workout is just deleted', async () => {
+    const { tables } = queue(
+      { table: 'workouts', result: { data: { sprint_day_id: 'd14' }, error: null } },
+      { table: 'sprint_days', result: { data: { day_number: 14, sprint_id: 's1' }, error: null } },
+      { table: 'sprints', result: { data: { status: 'completed' }, error: null } },
+      { table: 'workouts', result: OK }
+    );
+    await discardWorkout('w1');
+    expect(tables).toEqual(['workouts', 'sprint_days', 'sprints', 'workouts']);
   });
 
   test('a non-sprint workout only deletes', async () => {

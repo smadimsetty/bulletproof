@@ -201,6 +201,8 @@ export default function LoggerScreen() {
         if (userHoldGenRef.current !== gen) return;
         const again = findSet(fresh, setId);
         const partner = again ? rightPartner(again.exercise, again.set) : null;
+        // Another hold is already running: start neither rest nor switch.
+        if (holdRef.current.phase !== 'idle') return;
         if (partner && viaTimer && kind === 'hold') {
           applyRest(null);
           applyHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));

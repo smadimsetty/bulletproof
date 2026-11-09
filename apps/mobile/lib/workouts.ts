@@ -233,7 +233,12 @@ async function fetchPreviousSets(exerciseId: string): Promise<PreviousSet[]> {
     .limit(1);
   check(error);
   const latest = ((data ?? []) as any[])[0];
-  const sets = latest?.workout_exercises?.[0]?.workout_sets ?? [];
+  // The same exercise can appear twice in one workout; use a copy that has
+  // completed sets rather than whichever row happens to come first.
+  const withDone = ((latest?.workout_exercises ?? []) as any[]).find((we) =>
+    ((we.workout_sets ?? []) as any[]).some((s) => s.completed_at)
+  );
+  const sets = withDone?.workout_sets ?? [];
   return (sets as any[])
     .map(toSetRow)
     .filter((s) => s.completedAt)
@@ -397,6 +402,10 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
     });
   });
   const { error: setsError } = await supabase.from('workout_sets').insert(setRows);
+  if (setsError) {
+    // Don't leave set-less exercises behind.
+    await supabase.from('workout_exercises').delete().in('id', Array.from(idByPosition.values()));
+  }
   check(setsError);
 }
 
@@ -552,13 +561,54 @@ export async function discardWorkout(workoutId: string): Promise<void> {
   check(readError);
   const sprintDayId = (row as any)?.sprint_day_id as string | null | undefined;
   if (sprintDayId) {
-    const { error: dayError } = await supabase.from('sprint_days').update({ completed_at: null }).eq('id', sprintDayId);
-    check(dayError);
-    const { error: exError } = await supabase
-      .from('sprint_day_exercises')
-      .update({ completed_at: null })
-      .eq('sprint_day_id', sprintDayId);
-    check(exError);
+    const { data: day, error: dayReadError } = await supabase
+      .from('sprint_days')
+      .select('day_number, sprint_id')
+      .eq('id', sprintDayId)
+      .single();
+    check(dayReadError);
+    const dayNumber = (day as any).day_number as number;
+    const sprintId = (day as any).sprint_id as string;
+    const { data: sprint, error: sprintError } = await supabase
+      .from('sprints')
+      .select('status')
+      .eq('id', sprintId)
+      .single();
+    check(sprintError);
+    const status = (sprint as any).status as string;
+
+    let revert = status === 'active';
+    let reactivate = false;
+    if (status === 'pending_reassessment' && dayNumber === 14) {
+      // Day 14's Finish moved the sprint on before ended_at failed. Undo that
+      // only if the reassessment hasn't been done yet.
+      const { data: done, error: doneError } = await supabase
+        .from('sprint_assessments')
+        .select('id')
+        .eq('sprint_id', sprintId)
+        .eq('phase', 'reassessment')
+        .not('completed_at', 'is', null)
+        .limit(1);
+      check(doneError);
+      if (((done ?? []) as any[]).length === 0) {
+        revert = true;
+        reactivate = true;
+      }
+    }
+
+    if (revert) {
+      const { error: dayError } = await supabase.from('sprint_days').update({ completed_at: null }).eq('id', sprintDayId);
+      check(dayError);
+      const { error: exError } = await supabase
+        .from('sprint_day_exercises')
+        .update({ completed_at: null })
+        .eq('sprint_day_id', sprintDayId);
+      check(exError);
+      if (reactivate) {
+        const { error: reError } = await supabase.from('sprints').update({ status: 'active' }).eq('id', sprintId);
+        check(reError);
+      }
+    }
   }
   const { error } = await supabase.from('workouts').delete().eq('id', workoutId);
   check(error);
