@@ -8,19 +8,13 @@
 // carries the "Switch pain point" abandon escape hatch so the
 // one-in-flight-sprint DB constraint never traps a user for the full 14+ days.
 import { useCallback, useRef, useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { COLORS, SPACING } from '../lib/theme';
+import * as haptics from '../lib/haptics';
 import {
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  Text,
-  View,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-} from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
+  ConfirmSheet, EmptyState, ErrorState, ListRow, ScreenScroll, Sheet, SkeletonCard, SkeletonRow,
+} from '../components/ui';
 import {
   fetchPainPoints,
   fetchInFlightSprint,
@@ -109,6 +103,7 @@ export default function SprintScreen() {
   const [swapCandidates, setSwapCandidates] = useState<ReadonlyArray<SwapCandidate>>([]);
   const [lastAssessmentOpen, setLastAssessmentOpen] = useState(false);
   const [comparisons, setComparisons] = useState<AssessmentComparison[] | null>(null);
+  const [abandonOpen, setAbandonOpen] = useState(false);
   const startingRef = useRef(false);
   const loadedRef = useRef(false);
 
@@ -159,10 +154,6 @@ export default function SprintScreen() {
     }, [load])
   );
 
-  const refreshControl = (
-    <RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />
-  );
-
   async function handleSelectPainPoint(painPoint: PainPoint) {
     setLoading(true);
     try {
@@ -186,6 +177,7 @@ export default function SprintScreen() {
     try {
       await submitAssessment(sprint.id, 'baseline', results);
       await activateSprintAfterBaseline(sprint);
+      haptics.success();
       await load();
     } catch (err: any) {
       reportError(err, 'Could not save your baseline.');
@@ -260,133 +252,162 @@ export default function SprintScreen() {
     }
   }
 
+  // Opens the confirm sheet; the actual abandon happens in confirmAbandon.
   function handleAbandon() {
     if (!sprint) return;
-    const routineInProgress = !!activeWorkout && !!today && activeWorkout.sprintDayId === today.id;
-    const message = routineInProgress
-      ? "You'll lose this sprint's progress. Today's routine is still in progress: it will still save, as a plain workout, but won't count toward any sprint."
-      : "You'll lose this sprint's progress.";
-    Alert.alert('Switch pain point?', message, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Switch',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await abandonSprint(sprint.id);
-            await load();
-          } catch (err: any) {
-            reportError(err, 'Could not switch pain point.');
-          }
-        },
-      },
-    ]);
+    setAbandonOpen(true);
   }
+
+  async function confirmAbandon() {
+    if (!sprint) return;
+    setAbandonOpen(false);
+    try {
+      await abandonSprint(sprint.id);
+      await load();
+    } catch (err: any) {
+      reportError(err, 'Could not switch pain point.');
+    }
+  }
+
+  const routineInProgress = !!activeWorkout && !!today && activeWorkout.sprintDayId === today.id;
+  const abandonBody = routineInProgress
+    ? "You'll lose this sprint's progress. Today's routine is still in progress: it will still save, as a plain workout, but won't count toward any sprint."
+    : "You'll lose this sprint's progress.";
 
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        <Stack.Screen options={{ title: 'Sprint' }} />
+        <ScreenScroll>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonRow />
+        </ScreenScroll>
       </View>
     );
   }
 
   if (loadError) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={[sharedStyles.primaryButton, styles.retryButton]} onPress={() => load()}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <Stack.Screen options={{ title: 'Sprint' }} />
+        <ErrorState style={styles.centered} message={loadError} onRetry={() => load()} />
       </View>
     );
   }
 
   if (comparisons) {
-    return <AssessmentSummary comparisons={comparisons} onDone={() => { setSprint(null); setComparisons(null); }} />;
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Results' }} />
+        <AssessmentSummary comparisons={comparisons} onDone={() => { setSprint(null); setComparisons(null); }} />
+      </>
+    );
   }
 
   if (!sprint) {
-    return <PainPointPicker painPoints={painPoints} onSelect={handleSelectPainPoint} />;
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Choose a pain point' }} />
+        <PainPointPicker painPoints={painPoints} onSelect={handleSelectPainPoint} />
+      </>
+    );
   }
 
   if (sprint.status === 'pending_baseline') {
     return (
-      <AssessmentForm
-        key={`${sprint.id}-baseline`}
-        title="Baseline assessment"
-        definitions={definitions}
-        initialDraft={prefill?.draft}
-        prefilledFrom={prefill?.from}
-        submitting={submitting}
-        onSubmit={handleSubmitBaseline}
-      />
+      <>
+        <Stack.Screen options={{ title: 'Baseline' }} />
+        <AssessmentForm
+          key={`${sprint.id}-baseline`}
+          title="Baseline assessment"
+          phase="baseline"
+          definitions={definitions}
+          initialDraft={prefill?.draft}
+          prefilledFrom={prefill?.from}
+          submitting={submitting}
+          onSubmit={handleSubmitBaseline}
+        />
+      </>
     );
   }
 
   if (sprint.status === 'pending_reassessment') {
+    // Wording stays neutral about whether day 14 was actually ticked off: the
+    // sprint also lands here purely by the calendar passing day 14, per the
+    // design spec's "day 15 still triggers reassessment".
     return (
-      <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
-        <View style={sharedStyles.card}>
-          {/* Wording stays neutral about whether day 14 was actually ticked
-              off: the sprint also lands here purely by the calendar passing
-              day 14, per the design spec's "day 15 still triggers
-              reassessment". */}
-          <Text style={sharedStyles.sectionTitle}>Your 14 days are up — time to reassess</Text>
-        </View>
+      <>
+        <Stack.Screen options={{ title: 'Reassessment' }} />
         <AssessmentForm
           key={`${sprint.id}-reassessment`}
           title="Reassessment"
+          phase="reassessment"
           definitions={definitions}
           initialDraft={prefill?.draft}
           prefilledFrom={prefill?.from}
           submitting={submitting}
           onSubmit={handleSubmitReassessment}
         />
-      </ScrollView>
+      </>
     );
   }
+
+  const painPointName = painPoints.find((p) => p.id === sprint.painPointId)?.displayName ?? null;
+  const abandonSheet = (
+    <ConfirmSheet
+      visible={abandonOpen}
+      onClose={() => setAbandonOpen(false)}
+      title="Abandon this sprint?"
+      body={abandonBody}
+      confirmLabel="Switch pain point"
+      destructive
+      onConfirm={confirmAbandon}
+    />
+  );
 
   if (sprint.status === 'active' && today) {
     return (
       <>
         <SprintDayChecklist
           day={today}
+          painPointName={painPointName}
           onOpenSwap={handleOpenSwap}
           onOpenLastAssessment={() => setLastAssessmentOpen(true)}
           onStartRoutine={handleStartRoutine}
           onAbandon={handleAbandon}
           starting={starting}
-          routineInProgress={!!activeWorkout && activeWorkout.sprintDayId === today.id}
+          routineInProgress={routineInProgress}
           dayComplete={!!today.completedAt}
-          refreshControl={refreshControl}
+          refreshing={refreshing}
+          onRefresh={() => load('refresh')}
         />
         <LastAssessmentSheet
           visible={lastAssessmentOpen}
           painPointId={sprint.painPointId}
           onClose={() => setLastAssessmentOpen(false)}
         />
-        <Modal visible={!!swapExerciseTarget} animationType="slide" transparent onRequestClose={() => setSwapExerciseTarget(null)}>
-          <Pressable style={styles.backdrop} onPress={() => setSwapExerciseTarget(null)}>
-            <View style={styles.swapSheet}>
-              <Text style={sharedStyles.sectionTitle}>Swap exercise</Text>
-              {swapCandidates.length === 0 && (
-                <Text style={sharedStyles.helperText}>No alternatives for this slot yet.</Text>
-              )}
-              {swapCandidates.map((c) => (
-                <Pressable key={c.exerciseId} style={styles.swapOptionRow} onPress={() => handleSelectSwap(c)}>
-                  <Text style={TYPE.body}>{c.name}</Text>
-                  {(c.prescribedSets || c.prescribedRepsOrDuration) && (
-                    <Text style={sharedStyles.helperText}>
-                      {c.prescribedSets ? `${c.prescribedSets} x ` : ''}
-                      {c.prescribedRepsOrDuration ?? ''}
-                    </Text>
-                  )}
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
-        </Modal>
+        <Sheet
+          visible={!!swapExerciseTarget}
+          onClose={() => setSwapExerciseTarget(null)}
+          title="Swap exercise"
+          subtitle={swapExerciseTarget?.exerciseName}
+        >
+          {swapCandidates.length === 0 && <EmptyState compact icon="swap-horizontal-outline" title="No alternatives for this slot yet." />}
+          {swapCandidates.map((c) => (
+            <ListRow
+              key={c.exerciseId}
+              title={c.name}
+              subtitle={
+                c.prescribedSets || c.prescribedRepsOrDuration
+                  ? `${c.prescribedSets ? `${c.prescribedSets} × ` : ''}${c.prescribedRepsOrDuration ?? ''}`
+                  : undefined
+              }
+              onPress={() => handleSelectSwap(c)}
+            />
+          ))}
+        </Sheet>
+        {abandonSheet}
       </>
     );
   }
@@ -397,30 +418,21 @@ export default function SprintScreen() {
   // sprint to reassessment on its own, but this branch still has to offer a
   // real way out rather than asking for a pull-to-refresh that didn't exist.
   return (
-    <ScrollView
-      style={sharedStyles.screen}
-      contentContainerStyle={[sharedStyles.screenContent, styles.fallbackContent]}
-      refreshControl={refreshControl}
-    >
-      <View style={sharedStyles.card}>
-        <Text style={sharedStyles.sectionTitle}>No routine for today</Text>
-        <Text style={sharedStyles.helperText}>
-          This sprint doesn't have a session scheduled for today. Pull down to refresh, or switch to a different pain
-          point to start fresh.
-        </Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={handleAbandon}>
-          <Text style={sharedStyles.primaryButtonText}>Switch pain point</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+    <View style={styles.root}>
+      <Stack.Screen options={{ title: 'Sprint' }} />
+      <EmptyState
+        style={styles.centered}
+        icon="calendar-outline"
+        title="No routine scheduled today"
+        body="This sprint doesn't have a session for today's date."
+        action={{ label: 'Switch pain point', onPress: handleAbandon }}
+      />
+      {abandonSheet}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  retryButton: { alignSelf: 'center', paddingHorizontal: SPACING.lg },
-  fallbackContent: { flexGrow: 1, justifyContent: 'center' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' },
-  swapSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 8 },
-  swapOptionRow: { paddingVertical: 12 },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  centered: { flex: 1, alignSelf: 'center', justifyContent: 'center', padding: SPACING.lg },
 });

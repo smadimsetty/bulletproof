@@ -1,11 +1,21 @@
 // apps/mobile/components/SprintDayChecklist.tsx
-import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewProps } from 'react-native';
-import { DescriptionToggleButton, useToggle } from './DescriptionToggle';
-import { COLORS, sharedStyles, TYPE } from '../lib/theme';
+//
+// Active sprint day (visual spec 4.5c): hero with the day number and a
+// progress ring, today's routine as numbered exercise cards (eye toggle +
+// swap), a sticky Start / Resume footer, and a header menu for "Last
+// assessment" and "Switch pain point". Logic is unchanged: every action is a prop.
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { DescriptionBody, DescriptionToggleButton, useToggle } from './DescriptionToggle';
+import { COLORS, NUMERAL_MAX_FONT_SCALE, SPACING, TYPE } from '../lib/theme';
 import type { SprintDay, SprintDayExercise } from '../lib/sprintLifecycle';
+import { ActionSheet, Button, Card, IconButton, ProgressRing, ScreenScroll, SectionHeader, StickyFooter } from './ui';
 
 export default function SprintDayChecklist({
   day,
+  painPointName,
   onOpenSwap,
   onOpenLastAssessment,
   onStartRoutine,
@@ -13,9 +23,11 @@ export default function SprintDayChecklist({
   starting,
   routineInProgress,
   dayComplete = false,
-  refreshControl,
+  refreshing = false,
+  onRefresh,
 }: {
   day: SprintDay;
+  painPointName?: string | null;
   onOpenSwap: (exercise: SprintDayExercise) => void;
   onOpenLastAssessment: () => void;
   onStartRoutine: () => void;
@@ -24,105 +36,153 @@ export default function SprintDayChecklist({
   routineInProgress: boolean;
   /** Today is already logged: show what was done, but stop accepting edits. */
   dayComplete?: boolean;
-  refreshControl?: ScrollViewProps['refreshControl'];
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const daysLeft = Math.max(0, 14 - day.dayNumber);
   return (
-    <ScrollView
-      style={sharedStyles.screen}
-      contentContainerStyle={sharedStyles.screenContent}
-      refreshControl={refreshControl}
-    >
-      <View style={styles.headerRow}>
-        <Text style={TYPE.screenTitle}>Day {day.dayNumber} of 14</Text>
-        <View style={styles.headerLinks}>
-          <Pressable onPress={onOpenLastAssessment}>
-            <Text style={styles.link}>Last assessment</Text>
-          </Pressable>
-          <Pressable onPress={onAbandon}>
-            <Text style={styles.link}>Switch pain point</Text>
-          </Pressable>
-        </View>
-      </View>
-      {dayComplete && (
-        <View style={sharedStyles.card}>
-          <Text style={sharedStyles.sectionTitle}>Day {day.dayNumber} logged ✓</Text>
-          <Text style={sharedStyles.helperText}>
-            {day.dayNumber === 14
-              ? "That's the full 14 — your reassessment is up next."
-              : 'Nothing more to do today. Tomorrow’s routine unlocks in the morning.'}
-          </Text>
-        </View>
-      )}
-      {day.exercises.map((exercise) => (
-        <ExerciseRow
-          key={exercise.id}
-          exercise={exercise}
-          dayComplete={dayComplete}
-          routineInProgress={routineInProgress}
-          onOpenSwap={onOpenSwap}
-        />
-      ))}
+    <View style={styles.root}>
+      <Stack.Screen
+        options={{
+          title: `Day ${day.dayNumber} of 14`,
+          headerRight: () => (
+            <IconButton icon="ellipsis-horizontal" size="sm" accessibilityLabel="Sprint options" onPress={() => setMenuOpen(true)} />
+          ),
+        }}
+      />
+      <ScreenScroll refreshing={refreshing} onRefresh={onRefresh}>
+        <Card>
+          <View style={styles.hero}>
+            <View style={styles.heroText}>
+              <View style={styles.heroNumberRow}>
+                <Text style={styles.heroNumber} maxFontSizeMultiplier={NUMERAL_MAX_FONT_SCALE}>
+                  {day.dayNumber}
+                </Text>
+                <Text style={[TYPE.stat, { color: COLORS.textTertiary }]} maxFontSizeMultiplier={NUMERAL_MAX_FONT_SCALE}>
+                  /14
+                </Text>
+              </View>
+              <Text style={TYPE.overline}>
+                {`${painPointName ? `${painPointName} · ` : ''}${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}
+              </Text>
+            </View>
+            <ProgressRing progress={(dayComplete ? day.dayNumber : day.dayNumber - 1) / 14} size={72} stroke={8} label={<Text style={TYPE.stat}>{day.dayNumber}</Text>} />
+          </View>
+        </Card>
+        {dayComplete && (
+          <Card variant="outline" style={styles.doneCard}>
+            <View style={styles.doneRow}>
+              <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+              <Text style={[TYPE.title3, styles.flex]}>{`Day ${day.dayNumber} done. See you tomorrow.`}</Text>
+            </View>
+            {day.dayNumber === 14 ? <Text style={TYPE.callout}>That's the full 14 — your reassessment is up next.</Text> : null}
+          </Card>
+        )}
+        <SectionHeader title="Today's routine" inset={SPACING.xs} />
+        {day.exercises.map((exercise, i) => (
+          <ExerciseRow
+            key={exercise.id}
+            index={i + 1}
+            exercise={exercise}
+            dayComplete={dayComplete}
+            routineInProgress={routineInProgress}
+            onOpenSwap={onOpenSwap}
+          />
+        ))}
+      </ScreenScroll>
       {!dayComplete && (
-        <Pressable style={sharedStyles.primaryButton} disabled={starting} onPress={onStartRoutine}>
-          <Text style={sharedStyles.primaryButtonText}>
-            {starting ? 'Starting…' : routineInProgress ? "Resume today's routine" : "Start today's routine"}
-          </Text>
-        </Pressable>
+        <StickyFooter>
+          <Button
+            title={routineInProgress ? 'Resume routine' : "Start today's routine"}
+            icon="play"
+            size="lg"
+            fullWidth
+            loading={starting}
+            onPress={onStartRoutine}
+          />
+        </StickyFooter>
       )}
-    </ScrollView>
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        actions={[
+          { label: 'Last assessment', icon: 'clipboard-outline', onPress: () => setTimeout(onOpenLastAssessment, MENU_HANDOFF_MS) },
+          { label: 'Switch pain point', icon: 'swap-horizontal-outline', destructive: true, onPress: () => setTimeout(onAbandon, MENU_HANDOFF_MS) },
+        ]}
+      />
+    </View>
   );
 }
 
+// Let the ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
+const MENU_HANDOFF_MS = 300;
+
 // Own component so each exercise keeps its own description open/closed state.
 function ExerciseRow({
+  index,
   exercise,
   dayComplete,
   routineInProgress,
   onOpenSwap,
 }: {
+  index: number;
   exercise: SprintDayExercise;
   dayComplete: boolean;
   routineInProgress: boolean;
   onOpenSwap: (exercise: SprintDayExercise) => void;
 }) {
   const [open, toggle] = useToggle();
+  // Swapping an exercise that's already checked off would move its
+  // completed_at onto a different exercise -- falsely crediting the
+  // swap target and erasing the real one, which then pollutes the
+  // LRU picker's history. Simply don't offer it once it's done.
+  // Same while today's workout is in progress: the workout row
+  // still points at this sprint_day_exercise, so saving it would
+  // credit the swapped-in exercise instead.
+  const canSwap = !exercise.completedAt && !dayComplete && !routineInProgress;
   return (
-    <View style={sharedStyles.card}>
-      <View style={styles.titleRow}>
-        <Text style={[TYPE.body, styles.titleText, dayComplete && styles.mutedText]}>
-          {exercise.completedAt ? '✓ ' : ''}
-          {exercise.exerciseName}
-        </Text>
+    <Card>
+      <View style={styles.rowTop}>
+        <View style={styles.numberCircle}>
+          {exercise.completedAt ? (
+            <Ionicons name="checkmark" size={16} color={COLORS.success} />
+          ) : (
+            <Text style={[TYPE.callout, styles.numberText]}>{index}</Text>
+          )}
+        </View>
+        <View style={styles.flex}>
+          <Text style={[TYPE.bodyStrong, dayComplete ? { color: COLORS.textSecondary } : null]} numberOfLines={2}>
+            {exercise.exerciseName}
+          </Text>
+          {(exercise.prescribedSets || exercise.prescribedRepsOrDuration) && (
+            <Text style={[TYPE.callout, styles.tabular]}>
+              {exercise.prescribedSets ? `${exercise.prescribedSets} × ` : ''}
+              {exercise.prescribedRepsOrDuration ?? ''}
+            </Text>
+          )}
+        </View>
         {!!exercise.description && <DescriptionToggleButton open={open} onToggle={toggle} />}
+        {canSwap ? (
+          <IconButton icon="swap-horizontal-outline" size="sm" accessibilityLabel={`Swap ${exercise.exerciseName}`} onPress={() => onOpenSwap(exercise)} />
+        ) : null}
       </View>
-      {(exercise.prescribedSets || exercise.prescribedRepsOrDuration) && (
-        <Text style={sharedStyles.helperText}>
-          {exercise.prescribedSets ? `${exercise.prescribedSets} x ` : ''}
-          {exercise.prescribedRepsOrDuration ?? ''}
-        </Text>
-      )}
-      {open && !!exercise.description && <Text style={sharedStyles.helperText}>{exercise.description}</Text>}
-      {/* Swapping an exercise that's already checked off would move its
-          completed_at onto a different exercise -- falsely crediting the
-          swap target and erasing the real one, which then pollutes the
-          LRU picker's history. Simply don't offer it once it's done.
-          Same while today's workout is in progress: the workout row
-          still points at this sprint_day_exercise, so saving it would
-          credit the swapped-in exercise instead. */}
-      {!exercise.completedAt && !dayComplete && !routineInProgress && (
-        <Pressable onPress={() => onOpenSwap(exercise)}>
-          <Text style={styles.link}>Swap</Text>
-        </Pressable>
-      )}
-    </View>
+      {!!exercise.description && <DescriptionBody open={open} text={exercise.description} />}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  titleText: { flex: 1 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerLinks: { alignItems: 'flex-end', gap: 4 },
-  link: { color: COLORS.accent, fontWeight: '600' },
-  mutedText: { color: COLORS.muted },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  flex: { flex: 1 },
+  hero: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md },
+  heroText: { flex: 1, gap: SPACING.xs },
+  heroNumberRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACING.xs },
+  heroNumber: { ...TYPE.display },
+  doneCard: { borderColor: COLORS.success },
+  doneRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  numberCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.elevated, alignItems: 'center', justifyContent: 'center' },
+  numberText: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  tabular: { fontVariant: ['tabular-nums'] },
 });
