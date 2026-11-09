@@ -4,8 +4,8 @@
 // chart of the exercise's primary metric (and ROM when logged), and recent
 // sets grouped by workout. Reused by the library in Stage 2.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { DescriptionToggleButton, useToggle } from '../../components/DescriptionToggle';
@@ -18,6 +18,7 @@ import { fetchUserSettings, DEFAULT_SETTINGS } from '../../lib/userSettings';
 import { fieldsForExercise } from '../../lib/setFields';
 import { formatSetLines } from '../../lib/setFormatting';
 import { kgToDisplayUnit, type WeightUnit } from '../../lib/units';
+import { deleteCustomExercise } from '../../lib/library';
 
 const RECENT_WORKOUTS = 10;
 
@@ -57,6 +58,7 @@ function chartPoints(series: MetricPoint[], weightUnit: WeightUnit) {
 
 export default function ExerciseDetailScreen() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<ExerciseInfo | null>(null);
@@ -128,6 +130,25 @@ export default function ExerciseDetailScreen() {
     );
   }
 
+  function confirmDelete() {
+    Alert.alert('Delete exercise?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteCustomExercise(info!.id);
+            router.back();
+          } catch (err: any) {
+            // Includes the clear "used in your history" message for FK 23503.
+            Alert.alert('Cannot delete', err?.message ?? 'Could not delete this exercise.');
+          }
+        },
+      },
+    ]);
+  }
+
   const { kind } = fieldsForExercise({ exerciseType: info.exerciseType, unilateral: info.unilateral });
   const metricUnit = derived.series[0]?.unit;
   const romUnit = derived.rom[0]?.unit;
@@ -157,6 +178,16 @@ export default function ExerciseDetailScreen() {
           <Pressable style={sharedStyles.primaryButton} onPress={() => WebBrowser.openBrowserAsync(info.demoVideoUrl!)}>
             <Text style={sharedStyles.primaryButtonText}>Watch demo</Text>
           </Pressable>
+        ) : null}
+        {info.isMine ? (
+          <View style={styles.ownerActions}>
+            <Pressable style={[sharedStyles.chip, styles.actionChip]} onPress={() => router.push(`/library/new?id=${info.id}`)}>
+              <Text style={sharedStyles.chipText}>Edit</Text>
+            </Pressable>
+            <Pressable style={[sharedStyles.chip, styles.actionChip]} onPress={confirmDelete}>
+              <Text style={[sharedStyles.chipText, styles.deleteText]}>Delete</Text>
+            </Pressable>
+          </View>
         ) : null}
       </View>
 
@@ -224,5 +255,8 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   flex: { flex: 1 },
   chips: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
+  ownerActions: { flexDirection: 'row', gap: SPACING.sm },
+  actionChip: { paddingHorizontal: SPACING.md },
+  deleteText: { color: COLORS.danger },
   recentGroup: { gap: 2, paddingTop: SPACING.xs },
 });

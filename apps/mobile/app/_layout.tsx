@@ -123,6 +123,8 @@ export default function RootLayout() {
         <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
         <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
         <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="library/index" options={{ title: 'Exercises', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="library/new" options={{ title: 'New exercise', headerBackTitle: 'Back' }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />

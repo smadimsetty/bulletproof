@@ -1,40 +1,32 @@
+// apps/mobile/components/logger/ExercisePickerSheet.tsx
+//
+// Picks from the mobility library (+ the user's own exercises); never the old
+// gym rows. "+ Create exercise" hands off to the library form via onCreate.
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
-import { filterExercises, type CatalogExercise } from '../../lib/exerciseSearch';
+import { EMPTY_FILTER, facetValues, filterLibrary, type LibraryExercise, type LibraryFilter } from '../../lib/library';
+import FilterChips from '../library/FilterChips';
+import { typeLabel } from '../library/ExerciseListRow';
 
 export interface ExercisePickerSheetProps {
   visible: boolean;
-  catalog: readonly CatalogExercise[];
-  onPick: (e: CatalogExercise) => void;
+  catalog: readonly LibraryExercise[];
+  onPick: (e: LibraryExercise) => void;
   onClose: () => void;
+  /** Shows a "+ Create exercise" row; the caller closes the sheet and opens the form. */
+  onCreate?: () => void;
 }
 
-const CHIPS: { label: string; type: string | null }[] = [
-  { label: 'All', type: null },
-  { label: 'Mobility', type: 'mobility_stretch' },
-  { label: 'Balance', type: 'balance' },
-  { label: 'Strength', type: 'strength' },
-  { label: 'Plyo', type: 'plyometric' },
-  { label: 'Cardio', type: 'cardio' },
-];
-
-function typeLabel(type: string | null): string {
-  return CHIPS.find((c) => c.type !== null && c.type === type)?.label ?? '';
-}
-
-export default function ExercisePickerSheet({ visible, catalog, onPick, onClose }: ExercisePickerSheetProps) {
-  const [query, setQuery] = useState('');
-  const [type, setType] = useState<string | null>(null);
+export default function ExercisePickerSheet({ visible, catalog, onPick, onClose, onCreate }: ExercisePickerSheetProps) {
+  const [filter, setFilter] = useState<LibraryFilter>(EMPTY_FILTER);
 
   useEffect(() => {
-    if (!visible) {
-      setQuery('');
-      setType(null);
-    }
+    if (!visible) setFilter(EMPTY_FILTER);
   }, [visible]);
 
-  const rows = filterExercises(catalog, query, type);
+  const facets = facetValues(catalog);
+  const rows = filterLibrary(catalog, filter);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -47,37 +39,38 @@ export default function ExercisePickerSheet({ visible, catalog, onPick, onClose 
         </View>
         <TextInput
           style={sharedStyles.textInput}
-          value={query}
-          onChangeText={setQuery}
+          value={filter.query}
+          onChangeText={(query) => setFilter((f) => ({ ...f, query }))}
           placeholder="Search exercises"
           placeholderTextColor={COLORS.muted}
           autoCorrect={false}
         />
-        <FlatList
-          horizontal
-          data={CHIPS}
-          keyExtractor={(c) => c.label}
-          showsHorizontalScrollIndicator={false}
-          style={styles.chips}
-          contentContainerStyle={styles.chipsContent}
-          renderItem={({ item }) => {
-            const active = item.type === type;
-            return (
-              <Pressable onPress={() => setType(item.type)} style={[sharedStyles.chip, active && styles.chipActive]}>
-                <Text style={[sharedStyles.chipText, active && styles.chipTextActive]}>{item.label}</Text>
-              </Pressable>
-            );
-          }}
+        <FilterChips
+          options={facets.types.map((t) => ({ label: typeLabel(t) || t, value: t }))}
+          value={filter.exerciseType}
+          onChange={(exerciseType) => setFilter((f) => ({ ...f, exerciseType }))}
+        />
+        <FilterChips
+          options={facets.bodyParts.map((b) => ({ label: b, value: b }))}
+          value={filter.bodyPart}
+          onChange={(bodyPart) => setFilter((f) => ({ ...f, bodyPart }))}
         />
         <FlatList
           data={rows}
           keyExtractor={(e) => e.id}
           keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            onCreate ? (
+              <Pressable style={styles.row} onPress={onCreate}>
+                <Text style={[TYPE.body, styles.create]}>+ Create exercise</Text>
+              </Pressable>
+            ) : null
+          }
           ListEmptyComponent={<Text style={sharedStyles.helperText}>No exercises match.</Text>}
           renderItem={({ item }) => (
             <Pressable style={styles.row} onPress={() => onPick(item)}>
               <Text style={TYPE.body}>{item.name}</Text>
-              <Text style={sharedStyles.helperText}>{typeLabel(item.exerciseType)}</Text>
+              <Text style={sharedStyles.helperText}>{item.isMine ? 'Mine' : typeLabel(item.exerciseType)}</Text>
             </Pressable>
           )}
         />
@@ -90,10 +83,7 @@ const styles = StyleSheet.create({
   body: { padding: SPACING.md, gap: SPACING.sm },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   close: { ...TYPE.label, color: COLORS.accent },
-  chips: { flexGrow: 0 },
-  chipsContent: { gap: SPACING.sm, paddingVertical: SPACING.xs },
-  chipActive: { backgroundColor: COLORS.accent },
-  chipTextActive: { color: COLORS.card },
+  create: { color: COLORS.accent, fontWeight: '600' },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import {
@@ -40,7 +40,7 @@ import {
 import { formatSeconds } from '../../lib/setFormatting';
 import { fetchWeightUnit } from '../../lib/userPreferences';
 import type { WeightUnit } from '../../lib/units';
-import type { CatalogExercise } from '../../lib/exerciseSearch';
+import { takePendingPickedExercise, type LibraryExercise } from '../../lib/library';
 import SetRow from '../../components/logger/SetRow';
 import ExerciseCard from '../../components/logger/ExerciseCard';
 import RestBar from '../../components/logger/RestBar';
@@ -72,7 +72,7 @@ export default function LoggerScreen() {
   const [hold, setHold] = useState<HoldTimer>(IDLE);
   const [rest, setRest] = useState<RestTimer | null>(null);
   const [prevByExercise, setPrevByExercise] = useState<Record<string, PreviousSet[]>>({});
-  const [catalog, setCatalog] = useState<CatalogExercise[]>([]);
+  const [catalog, setCatalog] = useState<LibraryExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
@@ -387,13 +387,33 @@ export default function LoggerScreen() {
     }
   }
 
-  async function pickExercise(e: CatalogExercise) {
+  async function pickExercise(e: LibraryExercise) {
     setPickerOpen(false);
     await run(
       () => addExercisesToWorkout(workoutId, [{ exerciseId: e.id, sprintDayExerciseId: null, targetText: null, prescribedSets: null }]),
       'Could not add that exercise.'
     );
   }
+
+  function createExercise() {
+    setPickerOpen(false);
+    router.push('/library/new?returnTo=picker');
+  }
+
+  // Coming back from "+ Create exercise": add the new exercise to this
+  // workout (it was left on the pending-pick channel) and drop the cached
+  // catalog so the next picker open includes it.
+  useFocusEffect(
+    useCallback(() => {
+      const pending = takePendingPickedExercise();
+      if (!pending) return;
+      setCatalog([]);
+      run(
+        () => addExercisesToWorkout(workoutId, [{ exerciseId: pending, sprintDayExerciseId: null, targetText: null, prescribedSets: null }]),
+        'Could not add that exercise.'
+      );
+    }, [workoutId]) // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   /** The ROM unit is per exercise: change every row's draft, persist for the exercise. */
   function changeRomUnit(exercise: WorkoutExerciseRow, romUnit: RomUnit) {
@@ -609,7 +629,7 @@ export default function LoggerScreen() {
           )}
         </Ticker>
       )}
-      <ExercisePickerSheet visible={pickerOpen} catalog={catalog} onPick={pickExercise} onClose={() => setPickerOpen(false)} />
+      <ExercisePickerSheet visible={pickerOpen} catalog={catalog} onPick={pickExercise} onClose={() => setPickerOpen(false)} onCreate={createExercise} />
       <LastAssessmentSheet visible={assessmentOpen} painPointId={painPointId} onClose={() => setAssessmentOpen(false)} />
       <FinishSheet
         visible={finishOpen}

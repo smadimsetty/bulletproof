@@ -15,12 +15,14 @@ export interface ExerciseInfo {
   demoVideoUrl: string | null;
   bodyParts: string[];
   equipment: string[];
+  /** True for the user's own custom exercises (editable / deletable). */
+  isMine: boolean;
 }
 
 export async function fetchExerciseInfo(id: string): Promise<ExerciseInfo> {
   const { data, error } = await supabase
     .from('exercises')
-    .select('id, name, exercise_type, unilateral, evidence_rationale, demo_video_url, body_parts, equipment_needed')
+    .select('id, name, exercise_type, unilateral, evidence_rationale, description, owner_id, demo_video_url, body_parts, equipment_needed')
     .eq('id', id)
     .single();
   if (error) throw new Error(error.message);
@@ -30,10 +32,11 @@ export async function fetchExerciseInfo(id: string): Promise<ExerciseInfo> {
     name: r.name,
     exerciseType: r.exercise_type ?? null,
     unilateral: !!r.unilateral,
-    description: r.evidence_rationale ?? null,
+    description: r.description ?? r.evidence_rationale ?? null,
     demoVideoUrl: r.demo_video_url ?? null,
     bodyParts: r.body_parts ?? [],
     equipment: r.equipment_needed ?? [],
+    isMine: !!r.owner_id,
   };
 }
 

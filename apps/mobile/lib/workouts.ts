@@ -9,8 +9,7 @@ import { defaultSetCount, fieldsForExercise, type RomUnit, type SetValues, type 
 import { plannedRows, prefillValues, previousMatch, type PreviousSet } from './previousValues';
 import { planFinish } from './finishPlan';
 import { sprintTargetText, sprintWorkoutTitle } from './workoutTitles';
-import type { CatalogExercise } from './exerciseSearch';
-import { fetchLibrary } from './library';
+import { fetchLibrary, type LibraryExercise } from './library';
 
 export type WorkoutSource = 'empty' | 'sprint' | 'routine' | 'copy';
 
@@ -276,7 +275,7 @@ export async function fetchPreviousSetsForExercises(
 }
 
 /** The picker catalog: mobility content plus the user's own exercises (see library.ts). */
-export async function fetchExerciseCatalog(): Promise<CatalogExercise[]> {
+export async function fetchExerciseCatalog(): Promise<LibraryExercise[]> {
   return fetchLibrary();
 }
 

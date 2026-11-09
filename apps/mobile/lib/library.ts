@@ -198,3 +198,34 @@ export function takePendingPickedExercise(): string | null {
 export function parseTagList(text: string): string[] {
   return Array.from(new Set(text.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)));
 }
+
+/** Loads one of the user's custom exercises into form shape (for editing). */
+export async function fetchCustomExercise(id: string): Promise<CustomExerciseInput> {
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('name, exercise_type, movement_pattern, unilateral, body_parts, equipment_needed, description, demo_video_url')
+    .eq('id', id)
+    .single();
+  check(error);
+  const r: any = data;
+  return {
+    name: r.name,
+    exerciseType: r.exercise_type ?? 'strength',
+    unilateral: !!r.unilateral,
+    bodyParts: r.body_parts ?? [],
+    equipment: r.equipment_needed ?? [],
+    description: r.description ?? null,
+    demoVideoUrl: r.demo_video_url ?? null,
+    movementPattern: r.movement_pattern,
+  };
+}
+
+/** Form validation; returns the first problem or null. */
+export function validateCustomExercise(input: CustomExerciseInput): string | null {
+  const name = input.name.trim();
+  if (!name) return 'Give the exercise a name.';
+  if (name.length > 80) return 'Keep the name to 80 characters or fewer.';
+  const url = input.demoVideoUrl?.trim();
+  if (url && !url.startsWith('https://')) return 'The demo link must start with https://';
+  return null;
+}
