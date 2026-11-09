@@ -564,7 +564,13 @@ function Logger() {
           Alert.alert('Some photos did not upload', photoFailureMessage(photoUris.length) ?? '');
         }
       }
-      router.replace(workout?.routineId ? `/workout-summary/${workoutId}?checkRoutine=1` : `/workout-summary/${workoutId}`);
+      haptics.success();
+      // From a fullScreenModal this swaps the logger for the summary: stack becomes [tabs, summary], back lands on tabs.
+      router.replace(
+        workout?.routineId
+          ? `/workout-summary/${workoutId}?checkRoutine=1&justFinished=1`
+          : `/workout-summary/${workoutId}?justFinished=1`
+      );
     } catch (err) {
       reportError(err, 'Could not save this workout. Your sets are still here — try again.');
     } finally {
@@ -584,11 +590,11 @@ function Logger() {
     }
   }
 
+  // From the Finish sheet: close it, then confirm in a ConfirmSheet once the sheet has finished dismissing
+  // (iOS drops overlapping Modal presentations). Cancelling leaves the workout running.
   function handleDiscard() {
-    Alert.alert('Discard this workout?', 'Every set logged in it will be deleted.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Discard', style: 'destructive', onPress: handleDiscardConfirmed },
-    ]);
+    setFinishOpen(false);
+    setTimeout(() => setDiscardOpen(true), 300);
   }
 
   const painPointId = workout?.painPointId ?? null;
@@ -761,6 +767,7 @@ function Logger() {
         onSave={handleSave}
         onDiscard={handleDiscard}
         onClose={() => setFinishOpen(false)}
+        stats={{ time: formatClock(Math.max(0, Date.now() - startedMs)), exercises: workout.exercises.length, sets: doneSets }}
       />
       <ConfirmSheet
         visible={discardOpen}

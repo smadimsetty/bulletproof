@@ -7,13 +7,14 @@
 // the same screen). Visibility itself is enforced by RLS, not here: if the
 // caller can't read the workout the fetch simply finds nothing.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, ELEVATION, MOTION, RADII, SPACING, TYPE } from '../../lib/theme';
+import * as haptics from '../../lib/haptics';
 import { deleteWorkout, fetchWorkout, updateWorkoutMeta, type Workout } from '../../lib/workouts';
-import { fetchRoutine, mergeRoutineUpdate, routineDiffers, routineFromWorkout, saveRoutine } from '../../lib/routines';
+import { fetchRoutine, mergeRoutineUpdate, routineDiffers, routineFromWorkout, saveRoutine, type Routine } from '../../lib/routines';
 import { durationLabel } from '../../lib/historyGrouping';
 import { fieldsForExercise } from '../../lib/setFields';
 import { formatSetLines } from '../../lib/setFormatting';
@@ -38,6 +39,14 @@ import { fetchSocialSummary, setLiked, type SocialSummary } from '../../lib/soci
 import { copyWorkout } from '../../lib/social/copyWorkout';
 import { useSafety } from '../../components/social/ReportSheet';
 import { hideWorkout } from '../../lib/social/safety';
+import { useToast } from '../../components/Toast';
+import {
+  ActionSheet, type ActionSheetAction, Badge, Button, Card, Chip, ConfirmSheet, EmptyState, ErrorState, IconButton, PressableScale, ScreenScroll,
+  SectionHeader, Sheet, SkeletonCard, Skeleton, Stat, StickyFooter, TextField,
+} from '../../components/ui';
+
+// Let an ActionSheet finish dismissing before the next Modal or Alert presents (iOS drops overlapping presentations).
+const MENU_HANDOFF_MS = 300;
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -50,7 +59,8 @@ function loadMessage(err: any): string {
 }
 
 export default function WorkoutSummaryScreen() {
-  const { workoutId, checkRoutine } = useLocalSearchParams<{ workoutId: string; checkRoutine?: string }>();
+  const { workoutId, checkRoutine, justFinished } = useLocalSearchParams<{ workoutId: string; checkRoutine?: string; justFinished?: string }>();
+  const toast = useToast();
   const router = useRouter();
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
@@ -79,6 +89,12 @@ export default function WorkoutSummaryScreen() {
   const sharingRef = useRef(false);
   const shareCardRef = useRef<View>(null);
   const safety = useSafety();
+  // Sheets replacing the old Alerts.
+  const [routinePrompt, setRoutinePrompt] = useState<{ routine: Routine; saved: Workout } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isOwner = !!workout && workout.ownerId === meId;
 
@@ -132,19 +148,7 @@ export default function WorkoutSummaryScreen() {
     (async () => {
       const routine = await fetchRoutine(saved.routineId!);
       if (!routine || !routineDiffers(routine, saved)) return;
-      Alert.alert('Update routine?', `This workout differs from "${routine.title}". Update the routine to match?`, [
-        { text: 'Keep original', style: 'cancel' },
-        {
-          text: 'Update',
-          onPress: async () => {
-            try {
-              await saveRoutine(mergeRoutineUpdate(routine, saved));
-            } catch (err) {
-              reportError(err, 'Could not update the routine.');
-            }
-          },
-        },
-      ]);
+      setRoutinePrompt({ routine, saved });
     })().catch(() => undefined);
   }, [checkRoutine, workout]);
 
@@ -159,7 +163,7 @@ export default function WorkoutSummaryScreen() {
     setSavingRoutine(true);
     try {
       await saveRoutine({ folderId: null, title: draft.title, notes: draft.notes, exercises: draft.exercises });
-      Alert.alert('Saved to Routines', `"${draft.title}" is on your Workout tab.`);
+      toast.show({ message: `Saved to Routines: `, tone: 'success' });
     } catch (err) {
       reportError(err, 'Could not save the routine.');
     } finally {
@@ -172,7 +176,7 @@ export default function WorkoutSummaryScreen() {
     if (!workout || !social || likingRef.current) return;
     likingRef.current = true;
     const next = !social.likedByMe;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    if (next) haptics.tap(); // like: light tap; unlike: none (spec 2.6)
     setSocial({ ...social, likedByMe: next, likeCount: Math.max(0, social.likeCount + (next ? 1 : -1)) });
     try {
       await setLiked(workout.id, next);
@@ -193,7 +197,7 @@ export default function WorkoutSummaryScreen() {
       if (result.kind === 'started') {
         router.push(`/workout/${result.workoutId}`);
       } else if (result.kind === 'routine') {
-        Alert.alert('Saved to Routines', `"${workout.title}" is on your Workout tab.`);
+        toast.show({ message: `Saved to Routines: `, tone: 'success' });
       } else {
         const activeId = result.activeWorkoutId;
         Alert.alert('You already have a workout in progress', 'Finish or discard it before starting another.', [
@@ -210,11 +214,7 @@ export default function WorkoutSummaryScreen() {
   }
 
   function handleCopy() {
-    Alert.alert('Copy workout', 'Start it now, or keep it as a routine to use later.', [
-      { text: 'Start now', onPress: () => runCopy('start') },
-      { text: 'Save as routine', onPress: () => runCopy('routine') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setCopyMenuOpen(true);
   }
 
   async function handleShare() {
@@ -231,16 +231,24 @@ export default function WorkoutSummaryScreen() {
     }
   }
 
+  // Header menu: owner (Edit / Save as routine / Share / Delete) or others (Report / Hide / Block).
   function openMenu() {
     if (!workout) return;
+    setMenuOpen(true);
+  }
+
+  function otherMenuActions() {
+    if (!workout) return [];
     const w = workout;
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+    const actions: ActionSheetAction[] = [
       {
-        text: 'Report workout',
-        onPress: () => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', after: () => router.back() }),
+        label: 'Report workout',
+        icon: 'flag-outline',
+        onPress: () => setTimeout(() => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', after: () => router.back() }), MENU_HANDOFF_MS),
       },
       {
-        text: 'Hide from my feed',
+        label: 'Hide from my feed',
+        icon: 'eye-off-outline',
         onPress: async () => {
           try {
             await hideWorkout(w.id);
@@ -252,14 +260,14 @@ export default function WorkoutSummaryScreen() {
       },
     ];
     if (author) {
-      buttons.push({
-        text: `Block @${author.handle}`,
-        style: 'destructive',
-        onPress: () => safety.confirmBlock(author, () => router.back()),
+      actions.push({
+        label: `Block @${author.handle}`,
+        icon: 'ban-outline',
+        destructive: true,
+        onPress: () => setTimeout(() => safety.confirmBlock(author, () => router.back()), MENU_HANDOFF_MS),
       });
     }
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert('Workout', undefined, buttons);
+    return actions;
   }
 
   function toggleEdit() {
@@ -305,253 +313,400 @@ export default function WorkoutSummaryScreen() {
     }
   }
 
-  function handleDelete() {
-    if (!workout) return;
-    Alert.alert('Delete workout?', 'This permanently removes the workout and all its sets.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteWorkout(workout.id);
-            router.back();
-          } catch (err) {
-            reportError(err, 'Could not delete the workout.');
-          }
-        },
-      },
-    ]);
+  async function handleDeleteConfirmed() {
+    if (!workout || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteWorkout(workout.id);
+      setDeleteOpen(false);
+      router.back();
+    } catch (err) {
+      setDeleteOpen(false);
+      reportError(err, 'Could not delete the workout.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   if (loadError) {
+    const unavailable = loadError === 'This workout is unavailable.';
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load(); // failure puts the new message in loadError
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <Stack.Screen options={{ title: '' }} />
+        {unavailable ? (
+          <EmptyState
+            style={styles.centered}
+            icon="eye-off-outline"
+            title="This workout isn't available"
+            body="It may be private or deleted."
+            action={{ label: 'Go back', onPress: () => router.back() }}
+          />
+        ) : (
+          <ErrorState
+            style={styles.centered}
+            message={loadError}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load(); // failure puts the new message in loadError
+              setRetrying(false);
+            }}
+          />
+        )}
       </View>
     );
   }
   if (!workout) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        <Stack.Screen options={{ title: '' }} />
+        <View style={styles.skeletons}>
+          <Skeleton width="60%" height={28} />
+          <Skeleton width="40%" height={14} />
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
 
   const dateText = new Date(workout.startedAt).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  const metaText = `${new Date(workout.startedAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · ${new Date(
+    workout.startedAt
+  ).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   const keptMedia = workout.media.filter((m) => !removedMediaIds.includes(m.id));
-  const topExercises = workout.exercises.filter((e) => e.sets.length > 0).slice(0, 3).map((e) => e.exerciseName);
+  const shownExercises = workout.exercises.filter((e) => e.sets.length > 0);
+  const setCount = shownExercises.reduce((n, e) => n + e.sets.length, 0);
+  const topExercises = shownExercises.slice(0, 3).map((e) => e.exerciseName);
   const shareStats = [
     { label: 'Duration', value: durationLabel(workout.startedAt, workout.endedAt) || '—' },
-    { label: 'Exercises', value: String(workout.exercises.filter((e) => e.sets.length > 0).length) },
+    { label: 'Exercises', value: String(shownExercises.length) },
     ...(isOwner ? [{ label: 'Personal records', value: String(prs.length) }] : []),
   ];
+  const celebrate = isOwner && justFinished === '1';
+
+  const socialBar = (
+    <View style={styles.socialRow}>
+      <LikeButton liked={!!social?.likedByMe} count={social?.likeCount ?? 0} disabled={!social} onPress={handleToggleLike} />
+      <PressableScale style={styles.socialBtn} hitSlop={8} onPress={() => router.push(`/comments/${workout.id}`)} accessibilityLabel="Comments">
+        <Ionicons name="chatbubble-outline" size={22} color={COLORS.textSecondary} />
+        <Text style={styles.socialCount}>{social?.commentCount ?? 0}</Text>
+      </PressableScale>
+    </View>
+  );
 
   return (
-    <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
+    <View style={styles.root}>
       <Stack.Screen
         options={{
-          title: workout.title,
-          headerRight: () =>
-            isOwner ? (
-              <Pressable onPress={toggleEdit} hitSlop={8}>
-                <Text style={styles.headerAction}>{editing ? 'Cancel' : 'Edit'}</Text>
-              </Pressable>
-            ) : (
-              <Pressable onPress={openMenu} hitSlop={8} accessibilityLabel="More options">
-                <Ionicons name="ellipsis-horizontal" size={22} color={COLORS.accent} />
-              </Pressable>
-            ),
+          title: '',
+          headerRight: () => (
+            <View style={styles.headerActions}>
+              <IconButton icon="share-outline" size="sm" accessibilityLabel="Share workout card" disabled={sharing} onPress={handleShare} />
+              <IconButton icon="ellipsis-horizontal" size="sm" accessibilityLabel="More options" onPress={openMenu} />
+            </View>
+          ),
         }}
       />
-
-      {!isOwner && author && (
-        <Pressable style={[sharedStyles.card, styles.authorRow]} onPress={() => router.push(`/profile/${author.id}`)}>
-          <Avatar path={author.avatarPath} name={author.displayName} size={40} />
-          <View style={styles.authorText}>
-            <Text style={TYPE.label}>{author.displayName}</Text>
-            <Text style={sharedStyles.helperText}>@{author.handle}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
-        </Pressable>
-      )}
-
-      {!editing && workout.media.length > 0 && <PhotoPager paths={workout.media.map((m) => m.path)} />}
-
-      <View style={sharedStyles.card}>
-        {editing ? (
-          <>
-            <TextInput style={sharedStyles.textInput} value={titleDraft} onChangeText={setTitleDraft} placeholder="Title" />
-            <TextInput
-              style={[sharedStyles.textInput, styles.notesInput]}
-              value={notesDraft}
-              onChangeText={setNotesDraft}
-              placeholder="Notes"
-              multiline
-            />
-            <Text style={TYPE.sectionTitle}>Who can see this?</Text>
-            <VisibilityPicker value={visibilityDraft} onChange={setVisibilityDraft} canPublic={profileIsPublic || workout.visibility === 'public'} />
-            <Text style={TYPE.sectionTitle}>Photos</Text>
-            <View style={styles.photoRow}>
-              {keptMedia.map((m) => (
-                <View key={m.id} style={styles.thumb}>
-                  <SignedImage path={m.path} style={styles.thumbImage} />
-                  <Pressable
-                    style={styles.thumbRemove}
-                    onPress={() => setRemovedMediaIds((prev) => [...prev, m.id])}
-                    hitSlop={6}
-                    accessibilityLabel="Remove photo"
-                  >
-                    <Ionicons name="close" size={14} color={COLORS.card} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-            <PhotoStrip
-              uris={newPhotoUris}
-              max={Math.max(0, MAX_PHOTOS - keptMedia.length)}
-              onChange={setNewPhotoUris}
-              disabled={saving}
-            />
-            <Pressable style={[sharedStyles.primaryButton, saving && styles.retryingButton]} disabled={saving} onPress={handleSave}>
-              <Text style={sharedStyles.primaryButtonText}>{saving ? 'Saving…' : 'Save'}</Text>
-            </Pressable>
-            <Pressable onPress={toggleEdit} hitSlop={8} style={styles.cancelButton}>
-              <Text style={styles.headerAction}>Cancel</Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <View style={styles.titleRow}>
-              <Text style={TYPE.body}>{dateText}</Text>
-              <View style={styles.chips}>
-                {isOwner && (
-                  <View style={sharedStyles.chip}>
-                    <Text style={styles.chipLabel}>{visibilityLabel(workout.visibility)}</Text>
-                  </View>
-                )}
-                {workout.source === 'sprint' && (
-                  <View style={sharedStyles.chip}>
-                    <Text style={styles.chipLabel}>Sprint</Text>
-                  </View>
-                )}
+      <ScreenScroll keyboardShouldPersistTaps="handled">
+        {!isOwner && author && (
+          <Card onPress={() => router.push(`/profile/${author.id}`)} accessibilityLabel={`${author.displayName}, profile`}>
+            <View style={styles.authorRow}>
+              <Avatar path={author.avatarPath} name={author.displayName} size={44} />
+              <View style={styles.authorText}>
+                <Text style={TYPE.bodyStrong}>{author.displayName}</Text>
+                <Text style={TYPE.footnote}>@{author.handle}</Text>
               </View>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
             </View>
-            <Text style={sharedStyles.helperText}>{durationLabel(workout.startedAt, workout.endedAt)}</Text>
-            {!!workout.notes && <Text style={TYPE.body}>{workout.notes}</Text>}
-          </>
+          </Card>
         )}
-      </View>
-      {!editing && (
-        <View style={[sharedStyles.card, styles.socialRow]}>
-          <Pressable style={styles.socialBtn} onPress={handleToggleLike} disabled={!social} hitSlop={8} accessibilityLabel={social?.likedByMe ? 'Unlike' : 'Like'}>
-            <Ionicons
-              name={social?.likedByMe ? 'heart' : 'heart-outline'}
-              size={22}
-              color={social?.likedByMe ? COLORS.danger : COLORS.muted}
-            />
-            <Text style={styles.socialCount}>{social?.likeCount ?? 0}</Text>
-          </Pressable>
-          <Pressable style={styles.socialBtn} onPress={() => router.push(`/comments/${workout.id}`)} hitSlop={8} accessibilityLabel="Comments">
-            <Ionicons name="chatbubble-outline" size={20} color={COLORS.muted} />
-            <Text style={styles.socialCount}>{social?.commentCount ?? 0}</Text>
-          </Pressable>
-          <View style={styles.flexSpacer} />
-          <Pressable style={styles.socialBtn} onPress={handleShare} disabled={sharing} hitSlop={8} accessibilityLabel="Share workout card">
-            <Ionicons name="share-outline" size={22} color={COLORS.accent} />
-            <Text style={styles.shareLabel}>{sharing ? 'Preparing…' : 'Share'}</Text>
-          </Pressable>
+
+        {celebrate ? (
+          <Card variant="accent" style={ELEVATION.glow}>
+            <View style={styles.heroRow}>
+              <PopCheck />
+              <Text style={TYPE.title2}>Workout saved</Text>
+            </View>
+          </Card>
+        ) : null}
+
+        <View style={styles.titleBlock}>
+          <Text style={TYPE.title1}>{workout.title}</Text>
+          <View style={styles.metaRow}>
+            <Text style={TYPE.footnote}>{metaText}</Text>
+            {isOwner ? (
+              <Chip
+                label={visibilityLabel(workout.visibility)}
+                icon={workout.visibility === 'private' ? 'lock-closed' : workout.visibility === 'followers' ? 'people' : 'globe-outline'}
+              />
+            ) : null}
+            {workout.source === 'sprint' ? <Badge label="Sprint" tone="tint" /> : null}
+          </View>
+          {!!workout.notes && <Text style={TYPE.body}>{workout.notes}</Text>}
         </View>
-      )}
-      {!isOwner && (
-        <Pressable style={[sharedStyles.primaryButton, copying && styles.retryingButton]} disabled={copying} onPress={handleCopy}>
-          <Text style={sharedStyles.primaryButtonText}>{copying ? 'Copying…' : 'Copy workout'}</Text>
-        </Pressable>
-      )}
-      {prs.length > 0 && (
-        <View style={sharedStyles.card}>
-          <Text style={TYPE.sectionTitle}>Personal records</Text>
-          {prs.map((e) => (
-            <Text key={`${e.exerciseId}-${e.kind}-${e.side ?? ''}-${e.unit}`} style={TYPE.body}>
-              {describePrEvent(e, unit)}
-            </Text>
-          ))}
+
+        {workout.media.length > 0 && (
+          <View style={styles.photos}>
+            <PhotoPager paths={workout.media.map((m) => m.path)} aspectRatio={4 / 5} />
+          </View>
+        )}
+
+        <View style={styles.tiles}>
+          <Card padding={14} style={styles.tile}>
+            <Stat size="md" label="Time" value={durationLabel(workout.startedAt, workout.endedAt) || '—'} />
+          </Card>
+          <Card padding={14} style={styles.tile}>
+            <Stat size="md" label="Exercises" value={shownExercises.length} />
+          </Card>
+          <Card padding={14} style={styles.tile}>
+            <Stat size="md" label="Sets" value={setCount} />
+          </Card>
         </View>
-      )}
-      {workout.exercises
-        .filter((ex) => ex.sets.length > 0)
-        .map((ex) => {
+
+        {prs.length > 0 && (
+          <Card variant="accent" style={celebrate ? ELEVATION.glow : undefined}>
+            <Text style={TYPE.overline}>{`Personal records (${prs.length})`}</Text>
+            {prs.map((e) => (
+              <View key={`${e.exerciseId}-${e.kind}-${e.side ?? ''}-${e.unit}`} style={styles.prRow}>
+                <Ionicons name="trophy" size={16} color={COLORS.accent} />
+                <Text style={[TYPE.callout, styles.prText, { color: COLORS.textPrimary }]}>{describePrEvent(e, unit)}</Text>
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {isOwner ? <Card padding={12}>{socialBar}</Card> : null}
+
+        {shownExercises.length > 0 ? <SectionHeader title="Exercises" inset={SPACING.xs} /> : null}
+        {shownExercises.map((ex) => {
           const kind = fieldsForExercise({ exerciseType: ex.exerciseType, unilateral: ex.unilateral }).kind;
           const lines = formatSetLines(ex.sets, kind, unit);
           return (
-            <View key={ex.id} style={sharedStyles.card}>
-              <Text style={TYPE.sectionTitle}>{ex.exerciseName}</Text>
-              {lines.map((line, i) => (
-                <Text key={i} style={TYPE.body}>{`Set ${i + 1}  ${line}`}</Text>
-              ))}
-            </View>
+            <Card key={ex.id}>
+              <PressableScale scaleTo={0.98} onPress={() => router.push(`/exercise/${ex.exerciseId}`)} accessibilityLabel={`${ex.exerciseName} details`}>
+                <Text style={TYPE.title3}>{ex.exerciseName}</Text>
+              </PressableScale>
+              <View style={styles.setGrid}>
+                {lines.map((line, i) => (
+                  <Text key={i} style={styles.setLine}>{`${i + 1}  ${line}`}</Text>
+                ))}
+              </View>
+            </Card>
           );
         })}
-      {safety.element}
-      {/* Rendered off-screen and captured to an image by the Share button. */}
-      <View style={styles.offscreen} pointerEvents="none">
-        <ShareCard
-          ref={shareCardRef}
-          title={workout.title}
-          subtitle={dateText}
-          stats={shareStats}
-          footer={topExercises.join(' · ')}
-        />
-      </View>
-      {isOwner && (
-        <>
-          <Pressable style={[sharedStyles.primaryButton, savingRoutine && styles.retryingButton]} disabled={savingRoutine} onPress={handleSaveAsRoutine}>
-            <Text style={sharedStyles.primaryButtonText}>{savingRoutine ? 'Saving…' : 'Save as routine'}</Text>
-          </Pressable>
-          <Pressable onPress={handleDelete} style={styles.deleteButton}>
-            <Text style={styles.deleteText}>Delete workout</Text>
-          </Pressable>
-        </>
+        {safety.element}
+        {/* Rendered off-screen and captured to an image by the Share button. */}
+        <View style={styles.offscreen} pointerEvents="none">
+          <ShareCard
+            ref={shareCardRef}
+            title={workout.title}
+            subtitle={dateText}
+            stats={shareStats}
+            footer={topExercises.join(' · ')}
+          />
+        </View>
+      </ScreenScroll>
+
+      {isOwner ? (
+        <StickyFooter style={styles.footerRow}>
+          <Button
+            title="Save as routine"
+            variant="secondary"
+            style={styles.footerBtn}
+            loading={savingRoutine}
+            onPress={handleSaveAsRoutine}
+          />
+          {celebrate ? (
+            <Button title="Done" style={styles.footerBtn} onPress={() => router.dismissTo('/')} />
+          ) : (
+            <Button title="Start again" icon="play" style={styles.footerBtn} loading={copying} onPress={() => runCopy('start')} />
+          )}
+        </StickyFooter>
+      ) : (
+        <StickyFooter style={styles.footerRow}>
+          {socialBar}
+          <View style={styles.flexSpacer} />
+          <Button title="Copy workout" size="sm" loading={copying} onPress={handleCopy} />
+        </StickyFooter>
       )}
-    </ScrollView>
+
+      {/* Owner menu / other's menu */}
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        actions={
+          isOwner
+            ? [
+                { label: 'Edit', icon: 'create-outline', onPress: () => setTimeout(toggleEdit, MENU_HANDOFF_MS) },
+                { label: 'Save as routine', icon: 'albums-outline', onPress: handleSaveAsRoutine },
+                { label: 'Share card', icon: 'share-outline', onPress: handleShare },
+                { label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => setTimeout(() => setDeleteOpen(true), MENU_HANDOFF_MS) },
+              ]
+            : otherMenuActions()
+        }
+      />
+      <ActionSheet
+        visible={copyMenuOpen}
+        onClose={() => setCopyMenuOpen(false)}
+        title="Copy workout"
+        actions={[
+          { label: 'Start now', icon: 'play-outline', onPress: () => runCopy('start') },
+          { label: 'Save as routine', icon: 'albums-outline', onPress: () => runCopy('routine') },
+        ]}
+      />
+      <ConfirmSheet
+        visible={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Delete workout?"
+        body="This permanently removes the workout and all its sets."
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+        onConfirm={handleDeleteConfirmed}
+      />
+      <ConfirmSheet
+        visible={routinePrompt !== null}
+        onClose={() => setRoutinePrompt(null)}
+        title="Update routine?"
+        body={routinePrompt ? `This workout changed exercises or sets. Update "${routinePrompt.routine.title}" to match?` : undefined}
+        confirmLabel="Update routine"
+        cancelLabel="Keep original"
+        onConfirm={async () => {
+          const p = routinePrompt;
+          setRoutinePrompt(null);
+          if (!p) return;
+          try {
+            await saveRoutine(mergeRoutineUpdate(p.routine, p.saved));
+          } catch (err) {
+            reportError(err, 'Could not update the routine.');
+          }
+        }}
+      />
+
+      {/* Edit (owner): title / notes / visibility / photos */}
+      <Sheet
+        visible={editing}
+        onClose={() => {
+          if (!saving) toggleEdit();
+        }}
+        title="Edit workout"
+        snap="tall"
+        dismissable={!saving}
+        footer={<Button title="Save" size="lg" fullWidth loading={saving} onPress={handleSave} />}
+      >
+        <TextField label="Title" value={titleDraft} onChangeText={setTitleDraft} placeholder="Title" />
+        <TextField label="Notes" value={notesDraft} onChangeText={setNotesDraft} placeholder="Notes" multiline />
+        <View style={styles.editBlock}>
+          <Text style={TYPE.overline}>Visibility</Text>
+          <VisibilityPicker value={visibilityDraft} onChange={setVisibilityDraft} canPublic={profileIsPublic || workout.visibility === 'public'} />
+        </View>
+        <View style={styles.editBlock}>
+          <Text style={TYPE.overline}>Photos</Text>
+          <View style={styles.photoRow}>
+            {keptMedia.map((m) => (
+              <View key={m.id} style={styles.thumb}>
+                <SignedImage path={m.path} style={styles.thumbImage} />
+                <Pressable
+                  style={styles.thumbRemove}
+                  onPress={() => setRemovedMediaIds((prev) => [...prev, m.id])}
+                  hitSlop={6}
+                  accessibilityLabel="Remove photo"
+                >
+                  <Ionicons name="close" size={14} color={COLORS.textPrimary} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+          <PhotoStrip
+            uris={newPhotoUris}
+            max={Math.max(0, MAX_PHOTOS - keptMedia.length)}
+            onChange={setNewPhotoUris}
+            disabled={saving}
+          />
+        </View>
+      </Sheet>
+    </View>
   );
 }
 
-const THUMB = 80;
+/** Heart that pops (1 -> 1.3 -> 1) when it becomes liked. */
+function LikeButton({ liked, count, disabled, onPress }: { liked: boolean; count: number; disabled: boolean; onPress: () => void }) {
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(1);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (liked && !reduced) {
+      scale.value = 1.3;
+      scale.value = withSpring(1, { ...MOTION.popSpring });
+    }
+  }, [liked, reduced, scale]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <PressableScale
+      style={styles.socialBtn}
+      haptic="none" // the like handler fires its own light tap (like only)
+      disabled={disabled}
+      hitSlop={8}
+      onPress={onPress}
+      accessibilityLabel={liked ? 'Unlike' : 'Like'}
+    >
+      <Animated.View style={style}>
+        <Ionicons name={liked ? 'heart' : 'heart-outline'} size={24} color={liked ? COLORS.accent : COLORS.textSecondary} />
+      </Animated.View>
+      <Text style={styles.socialCount}>{count}</Text>
+    </PressableScale>
+  );
+}
+
+/** Success check that pops in on mount (the "Workout saved" hero). */
+function PopCheck() {
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(reduced ? 1 : 0.4);
+  useEffect(() => {
+    if (!reduced) scale.value = withSpring(1, { ...MOTION.popSpring });
+  }, [reduced, scale]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={style}>
+      <Ionicons name="checkmark-circle" size={32} color={COLORS.success} />
+    </Animated.View>
+  );
+}
+
+const THUMB = 72;
 
 const styles = StyleSheet.create({
-  socialRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
-  socialBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  socialCount: { ...TYPE.label, color: COLORS.muted },
-  shareLabel: { ...TYPE.label, color: COLORS.accent },
-  flexSpacer: { flex: 1 },
-  offscreen: { position: 'absolute', left: -10000, top: 0 },
-  retryingButton: { opacity: 0.6 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  centered: { flex: 1, alignSelf: 'center', justifyContent: 'center' },
+  skeletons: { padding: SPACING.lg, gap: SPACING.md },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   authorText: { flex: 1 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
-  chips: { flexDirection: 'row', gap: SPACING.xs },
-  chipLabel: { ...TYPE.helper, color: COLORS.accent, fontWeight: '600' },
-  headerAction: { color: COLORS.accent, fontWeight: '600', fontSize: 16 },
-  notesInput: { minHeight: 80, textAlignVertical: 'top' },
-  cancelButton: { alignItems: 'center', paddingVertical: SPACING.xs },
-  deleteButton: { alignItems: 'center', paddingVertical: SPACING.md },
-  deleteText: { color: COLORS.danger, fontWeight: '600', fontSize: 16 },
+  heroRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  titleBlock: { gap: SPACING.sm },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: SPACING.sm },
+  photos: { borderRadius: RADII.lg, overflow: 'hidden' },
+  tiles: { flexDirection: 'row', gap: SPACING.md },
+  tile: { flex: 1, minHeight: 96, justifyContent: 'center' },
+  prRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm },
+  prText: { flex: 1 },
+  setGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: SPACING.xs },
+  setLine: { ...TYPE.callout, width: '50%', color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
+  socialRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xl },
+  socialBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, minHeight: 44 },
+  socialCount: { ...TYPE.callout, color: COLORS.textSecondary, fontVariant: ['tabular-nums'] },
+  flexSpacer: { flex: 1 },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  footerBtn: { flex: 1 },
+  offscreen: { position: 'absolute', left: -10000, top: 0 },
+  editBlock: { gap: SPACING.sm },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  thumb: { width: THUMB, height: THUMB, borderRadius: 12, overflow: 'hidden' },
+  thumb: { width: THUMB, height: THUMB, borderRadius: RADII.sm, overflow: 'hidden' },
   thumbImage: { width: THUMB, height: THUMB },
   thumbRemove: {
     position: 'absolute',

@@ -5,7 +5,7 @@
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, RADII, LEGACY_SPACING as SPACING } from '../../lib/theme';
+import { COLORS, RADII, SPACING } from '../../lib/theme';
 
 /** Opens the picker for up to `limit` more images; returns their local URIs ([] if cancelled). */
 export async function pickPhotos(limit: number): Promise<string[]> {
@@ -52,7 +52,7 @@ export default function PhotoStrip({
             hitSlop={6}
             accessibilityLabel="Remove photo"
           >
-            <Ionicons name="close" size={14} color={COLORS.card} />
+            <Ionicons name="close" size={14} color={COLORS.textPrimary} />
           </Pressable>
         </View>
       ))}
@@ -68,10 +68,10 @@ export default function PhotoStrip({
 
 const styles = StyleSheet.create({
   row: { gap: SPACING.sm, paddingVertical: SPACING.xs },
-  tile: { width: 80, height: 80, borderRadius: RADII.button, overflow: 'hidden' },
-  image: { width: 80, height: 80, backgroundColor: COLORS.accentMuted },
-  add: { borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  addText: { fontSize: 11, color: COLORS.muted },
+  tile: { width: 72, height: 72, borderRadius: RADII.sm, overflow: 'hidden' },
+  image: { width: 72, height: 72, backgroundColor: COLORS.elevated },
+  add: { borderWidth: 1, borderColor: COLORS.borderStrong, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  addText: { fontSize: 11, color: COLORS.textTertiary },
   remove: {
     position: 'absolute',
     top: 4,
