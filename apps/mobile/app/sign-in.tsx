@@ -14,7 +14,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as WebBrowser from 'expo-web-browser';
 import * as haptics from '../lib/haptics';
 import { supabase } from '../lib/supabase';
-import { COLORS, RADII, SPACING, TYPE } from '../lib/theme';
+import { COLORS, NUMERAL_MAX_FONT_SCALE, RADII, SPACING, TYPE } from '../lib/theme';
 import { PRIVACY_URL, TERMS_URL } from '../lib/links';
 import { AnimatedBrandMark } from '../components/BrandMark';
 import { Button, IconButton, TextField } from '../components/ui';
@@ -215,7 +215,7 @@ export default function SignIn() {
                       key={i}
                       style={[styles.cell, i === Math.min(code.length, 5) && !busy ? styles.cellActive : null, error ? styles.cellError : null]}
                     >
-                      <Text style={TYPE.stat}>{code[i] ?? ''}</Text>
+                      <Text style={TYPE.stat} maxFontSizeMultiplier={NUMERAL_MAX_FONT_SCALE}>{code[i] ?? ''}</Text>
                     </View>
                   ))}
                   <TextInput
@@ -228,6 +228,7 @@ export default function SignIn() {
                     maxLength={6}
                     autoFocus
                     caretHidden
+                    editable={!busy}
                     style={styles.hiddenInput}
                   />
                 </Pressable>
@@ -268,7 +269,7 @@ const styles = StyleSheet.create({
   cells: { flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm },
   cell: {
     width: 48,
-    height: 56,
+    minHeight: 56,
     borderRadius: RADII.sm,
     backgroundColor: COLORS.elevated,
     borderWidth: 1,

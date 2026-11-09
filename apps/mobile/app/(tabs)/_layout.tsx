@@ -31,8 +31,9 @@ function TabButton(props: any) {
       scaleTo={0.94}
       onPress={() => props.onPress?.()}
       onLongPress={props.onLongPress ?? undefined}
+      accessibilityRole="tab"
       accessibilityLabel={props.accessibilityLabel}
-      accessibilityState={props.accessibilityState}
+      accessibilityState={{ ...props.accessibilityState, selected: props.accessibilityState?.selected ?? !!props['aria-selected'] }}
       testID={props.testID}
       style={props.style}
     >

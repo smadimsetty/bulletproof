@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    height: 28,
+    minHeight: 28,
     paddingHorizontal: 10,
     borderRadius: RADII.pill,
     alignSelf: 'flex-start',

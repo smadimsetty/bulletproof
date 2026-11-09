@@ -44,6 +44,8 @@ export default function WorkoutTab() {
   const [retrying, setRetrying] = useState(false);
   // Synchronous guard: two taps can land before `starting` re-renders.
   const startingRef = useRef(false);
+  // A fast double tap would push two logger screens.
+  const lastPushRef = useRef(0);
   const loadedRef = useRef(false);
 
   // 'initial' blanks to an error screen on failure, 'refresh' (pull) shows the
@@ -188,7 +190,12 @@ export default function WorkoutTab() {
       >
         {header}
         {active ? (
-          <Card variant="accent" onPress={() => router.push(`/workout/${active.id}`)} accessibilityLabel={`Resume ${active.title}`}>
+          <Card variant="accent" onPress={() => {
+              const t = Date.now();
+              if (t - lastPushRef.current < 1000) return;
+              lastPushRef.current = t;
+              router.push(`/workout/${active.id}`);
+            }} accessibilityLabel={`Resume ${active.title}`}>
             <View style={styles.activeRow}>
               <Ionicons name="radio-button-on" size={14} color={COLORS.accent} />
               <Text style={[TYPE.bodyStrong, styles.activeTitle]} numberOfLines={1}>

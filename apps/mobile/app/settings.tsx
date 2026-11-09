@@ -143,7 +143,7 @@ export default function SettingsScreen() {
     } catch (err: any) {
       setSignOutOpen(false);
       haptics.error();
-      Alert.alert('Error', err?.message ?? 'Could not sign out.');
+      toast.show({ message: err?.message ?? 'Could not sign out.', tone: 'danger' });
     } finally {
       setSigningOut(false);
     }
@@ -356,7 +356,7 @@ export default function SettingsScreen() {
         visible={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title="Delete account?"
-        body="This permanently deletes your workouts, sprints, photos and profile. This can't be undone."
+        body="This permanently deletes your workouts, sprints, routines, photos and profile. This can't be undone."
         confirmLabel="Delete my account"
         destructive
         requireText="DELETE"

@@ -55,6 +55,8 @@ export interface SetRowProps {
   isNextUp?: boolean;
   /** This set beat a previous best during this logger session. */
   isPr?: boolean;
+  /** Skip the completion haptic: the hold timer or a PR toast already plays its own. */
+  quietComplete?: boolean;
 }
 
 const ROM_CYCLE: Record<RomUnit, RomUnit> = { cm: 'deg', deg: 'in', in: 'cm' };
@@ -141,7 +143,9 @@ function NumField({ display, onText, onCommit, decimal = false, placeholder, wid
 const BG_STOPS = ['rgba(30,33,40,0)', COLORS.elevated, COLORS.accentTint];
 
 export default function SetRow(props: SetRowProps) {
-  const { set, kind, measureRom, unit, draft, onChange, onCommitEdit, timerLabel, onStartHold, onStopHold, hint, prevHint, timer, isNextUp, isPr } = props;
+  const { set, kind, measureRom, unit, draft, onChange, onCommitEdit, timerLabel, onStartHold, onStopHold, hint, prevHint, timer, isNextUp, isPr, quietComplete } = props;
+  const quietRef = useRef(quietComplete);
+  quietRef.current = quietComplete;
   const reduced = useReducedMotion();
   const commit = () => onCommitEdit();
   const completed = !!set.completedAt;
@@ -174,7 +178,7 @@ export default function SetRow(props: SetRowProps) {
   const wasCompleted = useRef(completed);
   useEffect(() => {
     if (completed && !wasCompleted.current) {
-      haptics.rigid();
+      if (!quietRef.current) haptics.rigid();
       if (!reduced) {
         pop.value = 0.6;
         pop.value = withSpring(1, { ...MOTION.popSpring });

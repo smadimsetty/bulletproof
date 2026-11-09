@@ -5,7 +5,7 @@
 // logger; the x asks (ConfirmSheet) before discarding. Nothing discards on a
 // gesture.
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, {
   Easing,
@@ -17,9 +17,9 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { COLORS, ELEVATION, MOTION, RADII, SPACING, TYPE } from '../lib/theme';
+import { COLORS, ELEVATION, MOTION, NUMERAL_MAX_FONT_SCALE, RADII, SPACING, TYPE } from '../lib/theme';
 import { discardWorkout, type ActiveWorkoutSummary } from '../lib/workouts';
-import { ConfirmSheet, IconButton, PressableScale } from './ui';
+import { ConfirmSheet, IconButton, PressableScale, useToast } from './ui';
 
 function elapsedLabel(startedAt: string): string {
   const total = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
@@ -56,6 +56,7 @@ export default function ActiveWorkoutBanner({
   bottom: number;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [, setTick] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -77,7 +78,7 @@ export default function ActiveWorkoutBanner({
       })
       .catch((err: any) => {
         setConfirming(false);
-        Alert.alert('Error', err?.message ?? 'Could not discard.');
+        toast.show({ message: err?.message ?? 'Could not discard.', tone: 'danger' });
       })
       .finally(() => setDiscarding(false));
   }
@@ -101,10 +102,10 @@ export default function ActiveWorkoutBanner({
           }}
         >
           <PulseDot />
-          <Text style={[TYPE.bodyStrong, styles.title]} numberOfLines={1}>
+          <Text style={[TYPE.bodyStrong, styles.title]} numberOfLines={1} maxFontSizeMultiplier={NUMERAL_MAX_FONT_SCALE}>
             {workout.title}
           </Text>
-          <Text style={styles.elapsed}>{elapsedLabel(workout.startedAt)}</Text>
+          <Text style={styles.elapsed} maxFontSizeMultiplier={NUMERAL_MAX_FONT_SCALE}>{elapsedLabel(workout.startedAt)}</Text>
         </PressableScale>
         <IconButton icon="close" size="sm" accessibilityLabel="Discard workout" onPress={() => setConfirming(true)} />
       </Animated.View>
@@ -127,7 +128,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: SPACING.sm,
     right: SPACING.sm,
-    height: 52,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.sheet,
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   bar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: COLORS.accent },
-  tapArea: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingLeft: SPACING.lg, height: 52 },
+  tapArea: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingLeft: SPACING.lg, minHeight: 52 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.accent },
   title: { flex: 1 },
   elapsed: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, fontVariant: ['tabular-nums'] },
