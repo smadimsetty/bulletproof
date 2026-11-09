@@ -17,6 +17,7 @@ import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import DropdownAddSection, { type DropdownOption } from '../../components/DropdownAddSection';
 import PainEntryRow, { type PainEntry } from '../../components/PainEntryRow';
 import HealthKitSection from '../../components/HealthKitSection';
+import { updateUserSettings } from '../../lib/userSettings';
 import { displayUnitToKg, formatWeightForDisplay, type WeightUnit } from '../../lib/units';
 
 interface SplitTaxonomyRow {
@@ -250,6 +251,8 @@ export default function Settings() {
 
   function handleSetWeightUnit(unit: WeightUnit) {
     saveProfileFields({ weight_unit: unit });
+    // user_settings is now the source of truth; the profile write above keeps the old column in sync.
+    updateUserSettings({ weightUnit: unit }).catch((err) => console.warn('user_settings unit write failed:', err));
   }
 
   async function handleSaveLocationLabel() {
