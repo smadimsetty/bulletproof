@@ -1,14 +1,16 @@
 // apps/mobile/app/routines/[routineId].tsx
 //
-// Routine editor. The id "new" creates; any other id edits that routine.
-// Drafts are text (so typing never fights number parsing); lib/routineDraft.ts
-// converts to the stored numbers on save.
+// Routine editor (visual spec 4.14), presented as a modal. The id "new" creates; any other
+// id edits that routine. Drafts are text (so typing never fights number parsing);
+// lib/routineDraft.ts converts to the stored numbers on save.
+// TODO(stage4): save problems stay a plain Alert -- a native modal covers the root toasts.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
-import { fetchRoutine, fetchRoutinesAndFolders, saveRoutine, type RoutineFolder } from '../../lib/routines';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import * as haptics from '../../lib/haptics';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
+import { createFolder, fetchRoutine, fetchRoutinesAndFolders, saveRoutine, type RoutineFolder } from '../../lib/routines';
 import {
   draftFromRoutineExercise, draftKind, draftToInput, moveItem, newDraft, validateRoutine, type RoutineExerciseDraft,
 } from '../../lib/routineDraft';
@@ -16,16 +18,23 @@ import { fetchLibrary, takePendingPickedExercise, type LibraryExercise } from '.
 import { DEFAULT_SETTINGS, fetchUserSettings } from '../../lib/userSettings';
 import type { WeightUnit } from '../../lib/units';
 import ExercisePickerSheet from '../../components/logger/ExercisePickerSheet';
-import FilterChips from '../../components/library/FilterChips';
+import FolderSheet, { type FolderSheetMode } from '../../components/routines/FolderSheet';
+import {
+  Button, Card, ConfirmSheet, EmptyState, ErrorState, IconButton, ListGroup, ListRow, NumberField, PressableScale, ScreenScroll,
+  SectionHeader, SkeletonCard, TextField,
+} from '../../components/ui';
 
 export default function RoutineEditorScreen() {
   const { routineId } = useLocalSearchParams<{ routineId: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const isNew = routineId === 'new';
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState('');
+  const [titleFocused, setTitleFocused] = useState(false);
   const [notes, setNotes] = useState('');
   const [folderId, setFolderId] = useState<string | null>(null);
   const [folders, setFolders] = useState<RoutineFolder[]>([]);
@@ -33,9 +42,33 @@ export default function RoutineEditorScreen() {
   const [unit, setUnit] = useState<WeightUnit>(DEFAULT_SETTINGS.weightUnit);
   const [catalog, setCatalog] = useState<LibraryExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [folderSheet, setFolderSheet] = useState<FolderSheetMode | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const savingRef = useRef(false);
   const keyCounter = useRef(0);
   const nextKey = () => `d${keyCounter.current++}`;
+
+  // Unsaved-changes guard for the modal's swipe-down / Cancel (visual spec 5).
+  const baseline = useRef<string | null>(null);
+  const dirtyRef = useRef(false);
+  const leaveOk = useRef(false);
+  const pendingLeave = useRef<any>(null);
+  const snapshot = JSON.stringify({ title, notes, folderId, drafts });
+  useEffect(() => {
+    if (loading || loadError) return;
+    if (baseline.current === null) baseline.current = snapshot;
+    dirtyRef.current = snapshot !== baseline.current;
+  }, [loading, loadError, snapshot]);
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', (e: any) => {
+        if (leaveOk.current || !dirtyRef.current) return;
+        e.preventDefault();
+        pendingLeave.current = e.data.action;
+        setDiscardOpen(true);
+      }),
+    [navigation]
+  );
 
   const load = useCallback(async () => {
     try {
@@ -105,6 +138,7 @@ export default function RoutineEditorScreen() {
     if (savingRef.current) return;
     const problem = validateRoutine(title, drafts);
     if (problem) {
+      haptics.error();
       Alert.alert('Check the routine', problem);
       return;
     }
@@ -118,8 +152,11 @@ export default function RoutineEditorScreen() {
         notes: notes.trim() || null,
         exercises: drafts.map((d, i) => draftToInput(d, i + 1, unit)),
       });
+      haptics.success();
+      leaveOk.current = true;
       router.back();
     } catch (err: any) {
+      haptics.error();
       Alert.alert('Error', err?.message ?? 'Could not save this routine.');
     } finally {
       savingRef.current = false;
@@ -127,81 +164,147 @@ export default function RoutineEditorScreen() {
     }
   }
 
+  const header = (
+    <Stack.Screen
+      options={{
+        title: isNew ? 'New routine' : 'Edit routine',
+        headerLeft: () => <Button title="Cancel" variant="ghost" size="sm" onPress={() => router.back()} />,
+        headerRight: () => (
+          <PressableScale
+            haptic="primary"
+            disabled={saving || loading || !!loadError}
+            onPress={save}
+            hitSlop={12}
+            accessibilityLabel="Save routine"
+            style={styles.save}
+          >
+            <Text style={[TYPE.bodyStrong, { color: COLORS.accent }]}>{saving ? '…' : 'Save'}</Text>
+          </PressableScale>
+        ),
+      }}
+    />
+  );
+
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        {header}
+        <ScreenScroll>
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScreenScroll>
       </View>
     );
   }
   if (loadError) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={load}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
-        </Pressable>
+      <View style={styles.root}>
+        {header}
+        <ScreenScroll>
+          <ErrorState
+            message={loadError}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load();
+              setRetrying(false);
+            }}
+          />
+        </ScreenScroll>
       </View>
     );
   }
 
+  const folderName = folders.find((f) => f.id === folderId)?.name ?? 'Unfiled';
+
   return (
-    <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
-      <Stack.Screen options={{ title: isNew ? 'New routine' : 'Edit routine' }} />
-      <View style={sharedStyles.card}>
-        <TextInput style={sharedStyles.textInput} value={title} onChangeText={setTitle} maxLength={80} placeholder="Routine title" placeholderTextColor={COLORS.muted} />
+    <View style={styles.root}>
+      {header}
+      <ScreenScroll keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <TextInput
-          style={[sharedStyles.textInput, styles.notes]}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          placeholder="Notes"
-          placeholderTextColor={COLORS.muted}
+          value={title}
+          onChangeText={setTitle}
+          maxLength={80}
+          placeholder="Routine title"
+          placeholderTextColor={COLORS.textTertiary}
+          selectionColor={COLORS.accent}
+          keyboardAppearance="dark"
+          accessibilityLabel="Routine title"
+          onFocus={() => setTitleFocused(true)}
+          onBlur={() => setTitleFocused(false)}
+          style={[TYPE.title2, styles.title, { borderBottomColor: titleFocused ? COLORS.accent : COLORS.border }]}
         />
-        {folders.length > 0 ? (
-          <>
-            <Text style={TYPE.label}>Folder</Text>
-            <FilterChips options={folders.map((f) => ({ label: f.name, value: f.id }))} value={folderId} onChange={setFolderId} />
-            <Text style={sharedStyles.helperText}>{folderId ? 'Tap the selected folder again for Unfiled.' : 'Unfiled'}</Text>
-          </>
+        <TextField label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Notes" />
+        <ListGroup>
+          <ListRow
+            title="Folder"
+            value={folderName}
+            trailing="chevron"
+            onPress={() =>
+              setFolderSheet({
+                kind: 'pick',
+                folders,
+                current: folderId,
+                onPick: setFolderId,
+                onCreate: async (name) => {
+                  const id = await createFolder(name);
+                  setFolders((await fetchRoutinesAndFolders()).folders);
+                  setFolderId(id);
+                },
+              })
+            }
+          />
+        </ListGroup>
+
+        <SectionHeader title="Exercises" inset={SPACING.xs} />
+        {drafts.length === 0 ? (
+          <EmptyState
+            compact
+            icon="list-outline"
+            title="No exercises yet"
+            body="Add the moves you want in this routine."
+            action={{ label: 'Add exercises', onPress: openPicker }}
+          />
         ) : null}
-      </View>
+        {drafts.map((d, i) => {
+          const kind = draftKind(d);
+          return (
+            <Animated.View key={d.key} layout={LinearTransition.duration(200)} entering={FadeInDown.duration(200)} exiting={FadeOut.duration(120)}>
+              <Card>
+                <View style={styles.exerciseHeader}>
+                  <Text style={[TYPE.title3, styles.flex]} numberOfLines={2}>
+                    {d.exerciseName}
+                  </Text>
+                  <IconButton icon="chevron-up" size="sm" disabled={i === 0} accessibilityLabel="Move up" onPress={() => setDrafts((ds) => moveItem(ds, i, i - 1))} />
+                  <IconButton
+                    icon="chevron-down"
+                    size="sm"
+                    disabled={i === drafts.length - 1}
+                    accessibilityLabel="Move down"
+                    onPress={() => setDrafts((ds) => moveItem(ds, i, i + 1))}
+                  />
+                  <IconButton icon="close" size="sm" accessibilityLabel={`Remove ${d.exerciseName}`} onPress={() => setDrafts((ds) => ds.filter((x) => x.key !== d.key))} />
+                </View>
+                <View style={styles.fields}>
+                  <SetsStepper value={d.sets} onChange={(v) => patchDraft(d.key, { sets: v })} />
+                  {kind === 'weight_reps' || kind === 'reps' ? (
+                    <Field label="Reps" value={d.reps} onChange={(v) => patchDraft(d.key, { reps: v })} />
+                  ) : null}
+                  {kind === 'weight_reps' ? (
+                    <Field label={`Weight (${unit})`} value={d.weight} onChange={(v) => patchDraft(d.key, { weight: v })} decimal />
+                  ) : null}
+                  {kind === 'hold' || kind === 'duration' ? (
+                    <Field label={kind === 'hold' ? 'Hold s' : 'Time s'} value={d.durationS} onChange={(v) => patchDraft(d.key, { durationS: v })} />
+                  ) : null}
+                  <Field label="Rest s" value={d.restS} onChange={(v) => patchDraft(d.key, { restS: v })} />
+                </View>
+              </Card>
+            </Animated.View>
+          );
+        })}
 
-      {drafts.map((d, i) => {
-        const kind = draftKind(d);
-        return (
-          <View key={d.key} style={sharedStyles.card}>
-            <View style={styles.exerciseHeader}>
-              <Text style={[TYPE.sectionTitle, styles.flex]}>{d.exerciseName}</Text>
-              <Pressable hitSlop={8} disabled={i === 0} onPress={() => setDrafts((ds) => moveItem(ds, i, i - 1))} accessibilityLabel="Move up">
-                <Ionicons name="chevron-up" size={22} color={i === 0 ? COLORS.border : COLORS.muted} />
-              </Pressable>
-              <Pressable hitSlop={8} disabled={i === drafts.length - 1} onPress={() => setDrafts((ds) => moveItem(ds, i, i + 1))} accessibilityLabel="Move down">
-                <Ionicons name="chevron-down" size={22} color={i === drafts.length - 1 ? COLORS.border : COLORS.muted} />
-              </Pressable>
-              <Pressable hitSlop={8} onPress={() => setDrafts((ds) => ds.filter((x) => x.key !== d.key))} accessibilityLabel="Remove">
-                <Ionicons name="close-circle" size={22} color={COLORS.muted} />
-              </Pressable>
-            </View>
-            <View style={styles.fields}>
-              <Field label="Sets" value={d.sets} onChange={(v) => patchDraft(d.key, { sets: v })} />
-              {kind === 'weight_reps' || kind === 'reps' ? <Field label="Reps" value={d.reps} onChange={(v) => patchDraft(d.key, { reps: v })} /> : null}
-              {kind === 'weight_reps' ? <Field label={`Weight (${unit})`} value={d.weight} onChange={(v) => patchDraft(d.key, { weight: v })} decimal /> : null}
-              {kind === 'hold' || kind === 'duration' ? (
-                <Field label={kind === 'hold' ? 'Hold (s)' : 'Duration (s)'} value={d.durationS} onChange={(v) => patchDraft(d.key, { durationS: v })} />
-              ) : null}
-              <Field label="Rest (s)" value={d.restS} onChange={(v) => patchDraft(d.key, { restS: v })} />
-            </View>
-          </View>
-        );
-      })}
-
-      <Pressable style={styles.addButton} onPress={openPicker}>
-        <Text style={styles.addText}>+ Add exercise</Text>
-      </Pressable>
-      <Pressable style={[sharedStyles.primaryButton, saving && styles.disabled]} onPress={save} disabled={saving}>
-        <Text style={sharedStyles.primaryButtonText}>{saving ? 'Saving…' : 'Save routine'}</Text>
-      </Pressable>
+        {drafts.length > 0 ? <Button title="Add exercises" icon="add" variant="secondary" size="lg" fullWidth onPress={openPicker} /> : null}
+      </ScreenScroll>
 
       <ExercisePickerSheet
         visible={pickerOpen}
@@ -216,35 +319,71 @@ export default function RoutineEditorScreen() {
           router.push('/library/new?returnTo=picker');
         }}
       />
-    </ScrollView>
+      <FolderSheet mode={folderSheet} onClose={() => setFolderSheet(null)} />
+      <ConfirmSheet
+        visible={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        title="Discard changes?"
+        body="You have unsaved changes to this routine."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        destructive
+        onConfirm={() => {
+          setDiscardOpen(false);
+          leaveOk.current = true;
+          const action = pendingLeave.current;
+          if (action) navigation.dispatch(action);
+          else router.back();
+        }}
+      />
+    </View>
+  );
+}
+
+/** Compact sets stepper: text draft in, text draft out (the draft stays a string so typing never fights parsing). */
+function SetsStepper({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const n = Number.parseInt(value, 10);
+  const current = Number.isFinite(n) ? n : 0;
+  const bump = (delta: number) => {
+    const next = Math.min(20, Math.max(1, current + delta));
+    if (next === current) {
+      haptics.warning();
+      return;
+    }
+    haptics.select();
+    onChange(String(next));
+  };
+  return (
+    <View style={styles.field}>
+      <Text style={TYPE.overline}>Sets</Text>
+      <View style={styles.stepper}>
+        <IconButton icon="remove" size="sm" variant="filled" disabled={current <= 1} accessibilityLabel="Fewer sets" onPress={() => bump(-1)} />
+        <Text style={[TYPE.stat, styles.setsValue]} maxFontSizeMultiplier={1.2}>
+          {current || '-'}
+        </Text>
+        <IconButton icon="add" size="sm" variant="filled" disabled={current >= 20} accessibilityLabel="More sets" onPress={() => bump(1)} />
+      </View>
+    </View>
   );
 }
 
 function Field({ label, value, onChange, decimal }: { label: string; value: string; onChange: (v: string) => void; decimal?: boolean }) {
   return (
     <View style={styles.field}>
-      <Text style={sharedStyles.helperText}>{label}</Text>
-      <TextInput
-        style={[sharedStyles.textInput, styles.fieldInput]}
-        value={value}
-        onChangeText={onChange}
-        keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
-        placeholder="-"
-        placeholderTextColor={COLORS.muted}
-      />
+      <Text style={TYPE.overline}>{label}</Text>
+      <NumberField value={value} onChangeText={onChange} decimal={decimal} placeholder="-" accessibilityLabel={label} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  save: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { borderBottomWidth: 1, paddingVertical: SPACING.sm },
   flex: { flex: 1 },
-  notes: { minHeight: 60, textAlignVertical: 'top' },
-  exerciseHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  fields: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  field: { width: 88, gap: 2 },
-  fieldInput: { textAlign: 'center' },
-  addButton: { alignItems: 'center', paddingVertical: SPACING.sm },
-  addText: { ...TYPE.body, color: COLORS.accent, fontWeight: '600' },
-  disabled: { opacity: 0.6 },
+  exerciseHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  fields: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
+  field: { gap: SPACING.xs },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, height: 44 },
+  setsValue: { minWidth: 28, textAlign: 'center' },
 });

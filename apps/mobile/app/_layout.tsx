@@ -180,7 +180,7 @@ export default function RootLayout() {
           <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
           <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
           <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
-          <Stack.Screen name="routines/[routineId]" options={{ title: 'Routine', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="routines/[routineId]" options={{ presentation: 'modal', title: 'Routine' }} />
           <Stack.Screen name="library/index" options={{ title: 'Exercises', headerBackTitle: 'Back' }} />
           <Stack.Screen name="library/new" options={{ presentation: 'modal', title: 'New exercise' }} />
           <Stack.Screen name="profile/[userId]" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
