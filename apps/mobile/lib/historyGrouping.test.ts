@@ -33,3 +33,26 @@ test('durationLabel', () => {
   expect(durationLabel('2026-11-07T10:00:00Z', '2026-11-07T10:00:20Z')).toBe('1 min');
   expect(durationLabel('2026-11-07T10:00:00Z', null)).toBe('');
 });
+
+import { groupByMonth, countThisWeekAndMonth } from './historyGrouping';
+
+test('groupByMonth groups by local month, newest first', () => {
+  const items = [
+    { id: 'a', startedAt: new Date(2026, 10, 6, 18).toISOString() },
+    { id: 'b', startedAt: new Date(2026, 10, 1, 9).toISOString() },
+    { id: 'c', startedAt: new Date(2026, 9, 30, 18).toISOString() },
+  ];
+  expect(groupByMonth(items)).toEqual([
+    { label: 'November 2026', items: [items[0], items[1]] },
+    { label: 'October 2026', items: [items[2]] },
+  ]);
+});
+
+test('countThisWeekAndMonth', () => {
+  const items = [
+    { startedAt: new Date(2026, 10, 6, 18).toISOString() }, // this week + month
+    { startedAt: new Date(2026, 10, 1, 9).toISOString() }, // Sunday: last week, this month
+    { startedAt: new Date(2026, 9, 30, 18).toISOString() }, // last month
+  ];
+  expect(countThisWeekAndMonth(items, now)).toEqual({ week: 1, month: 2 });
+});
