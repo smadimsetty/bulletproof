@@ -1,42 +1,51 @@
 // apps/mobile/app/settings.tsx
 //
-// Settings (reached from the Profile tab's gear): profile, units, weekly
-// goal, default post visibility, public/private profile, blocked users,
-// notification toggles, Apple Health write, legal links, account (sign out,
-// delete). The old training-engine fields (split, pains, diet, location...)
-// are no longer shown; their data stays in user_profile untouched.
+// Settings (visual spec 4.22), reached from the Profile tab's gear: profile, units, weekly
+// goal, default post visibility, public/private profile, blocked users, notification toggles,
+// Apple Health write, legal links, account (sign out, delete). The old training-engine fields
+// (split, pains, diet, location...) are no longer shown; their data stays in user_profile.
+// TODO(stage4): spec shows the blocked-user count beside "Blocked users"; that needs an extra
+// query this screen doesn't make, so only the chevron is shown.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View,
-} from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
+import * as haptics from '../lib/haptics';
+import { COLORS, SPACING, TYPE } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/signOut';
 import { DEFAULT_SETTINGS, fetchUserSettings, updateUserSettings, type UserSettings, type Visibility } from '../lib/userSettings';
 import { fetchMyProfile, updateProfile, type Profile } from '../lib/social/profiles';
 import { requestHealthWriteAccess } from '../lib/healthkitWrite';
-import { accountLabel, canConfirmDelete } from '../lib/settingsFormat';
+import { accountLabel } from '../lib/settingsFormat';
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from '../lib/links';
+import { PUBLIC_DISABLED_HINT, VISIBILITY_OPTIONS, visibilityLabel } from '../lib/social/visibility';
 import type { WeightUnit } from '../lib/units';
 import Avatar from '../components/social/Avatar';
-import VisibilityPicker from '../components/social/VisibilityPicker';
+import WeeklyGoalSheet from '../components/progress/WeeklyGoalSheet';
+import {
+  ConfirmSheet, ErrorState, ListGroup, ListRow, ScreenScroll, SectionHeader, SegmentedControl, Sheet, SkeletonCard, SwitchRow, useToast,
+} from '../components/ui';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const toast = useToast();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [account, setAccount] = useState('Signed in');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [unitsOpen, setUnitsOpen] = useState(false);
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [visibilityOpen, setVisibilityOpen] = useState(false);
+  const [privateConfirmOpen, setPrivateConfirmOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteText, setDeleteText] = useState('');
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const deletingRef = useRef(false);
   // Settings writes are serialized so a quick second tap can't race the first.
   const savingRef = useRef(false);
@@ -64,52 +73,54 @@ export default function SettingsScreen() {
     load();
   }, [load]);
 
-  /** Optimistic settings save with rollback and a visible error. */
+  /** Optimistic settings save: reverts and shows a danger toast with Retry on failure. */
   async function saveSettings(patch: Partial<UserSettings>): Promise<boolean> {
     if (savingRef.current) return false;
     savingRef.current = true;
     const before = settings;
     setSettings({ ...settings, ...patch });
-    setSaveError(null);
     try {
       setSettings(await updateUserSettings(patch));
       return true;
     } catch (err: any) {
       setSettings(before);
-      setSaveError(err?.message ?? 'Could not save that change.');
+      toast.show({
+        message: `Couldn't save: ${err?.message ?? 'that change'}`,
+        tone: 'danger',
+        action: { label: 'Retry', onPress: () => void saveSettings(patch) },
+      });
       return false;
     } finally {
       savingRef.current = false;
     }
   }
 
-  async function setPublic(next: boolean) {
+  async function applyPublic(next: boolean) {
     if (!profile || savingRef.current) return;
-    const apply = async () => {
-      savingRef.current = true;
-      setSaveError(null);
-      try {
-        await updateProfile({ isPublic: next });
-        setProfile({ ...profile, isPublic: next });
-        // A Public default makes no sense for a private profile.
-        if (!next && settings.defaultVisibility === 'public') {
-          savingRef.current = false;
-          await saveSettings({ defaultVisibility: 'followers' });
-        }
-      } catch (err: any) {
-        setSaveError(err?.message ?? 'Could not update your profile.');
-      } finally {
+    savingRef.current = true;
+    try {
+      await updateProfile({ isPublic: next });
+      setProfile({ ...profile, isPublic: next });
+      // A Public default makes no sense for a private profile.
+      if (!next && settings.defaultVisibility === 'public') {
         savingRef.current = false;
+        await saveSettings({ defaultVisibility: 'followers' });
       }
-    };
-    if (!next) {
-      Alert.alert('Make your profile private?', 'Only approved followers will see your workouts.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Make private', onPress: apply },
-      ]);
-    } else {
-      await apply();
+    } catch (err: any) {
+      toast.show({
+        message: err?.message ?? 'Could not update your profile.',
+        tone: 'danger',
+        action: { label: 'Retry', onPress: () => void applyPublic(next) },
+      });
+    } finally {
+      savingRef.current = false;
     }
+  }
+
+  function setPublic(next: boolean) {
+    if (!profile || savingRef.current) return;
+    if (!next) setPrivateConfirmOpen(true);
+    else void applyPublic(true);
   }
 
   async function toggleHealth(next: boolean) {
@@ -123,42 +134,25 @@ export default function SettingsScreen() {
     await saveSettings({ healthkitWriteEnabled: next });
   }
 
-  function confirmSignOut() {
-    Alert.alert('Sign out?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: () =>
-          signOut().catch((err) => Alert.alert('Error', err?.message ?? 'Could not sign out.')),
-      },
-    ]);
+  async function doSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      await signOut();
+      setSignOutOpen(false);
+    } catch (err: any) {
+      setSignOutOpen(false);
+      haptics.error();
+      Alert.alert('Error', err?.message ?? 'Could not sign out.');
+    } finally {
+      setSigningOut(false);
+    }
   }
 
-  function startDelete() {
-    Alert.alert(
-      'Delete account?',
-      'This permanently deletes your profile, workouts, photos, routines and everything else tied to your account. It cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          style: 'destructive',
-          onPress: () => {
-            setDeleteText('');
-            setDeleteError(null);
-            setDeleteOpen(true);
-          },
-        },
-      ]
-    );
-  }
-
-  async function confirmDelete() {
-    if (deletingRef.current || !canConfirmDelete(deleteText)) return;
+  async function doDelete() {
+    if (deletingRef.current) return;
     deletingRef.current = true;
     setDeleting(true);
-    setDeleteError(null);
     try {
       const { error } = await supabase.functions.invoke('delete-account');
       if (error) throw new Error(error.message);
@@ -166,7 +160,8 @@ export default function SettingsScreen() {
       // The auth user is gone server-side; just clear the local session.
       await supabase.auth.signOut({ scope: 'local' });
     } catch (err: any) {
-      setDeleteError(err?.message ?? "Deletion didn't finish — please try again.");
+      haptics.error();
+      Alert.alert('Error', err?.message ?? "Deletion didn't finish — please try again.");
     } finally {
       deletingRef.current = false;
       setDeleting(false);
@@ -174,216 +169,207 @@ export default function SettingsScreen() {
   }
 
   const openUrl = (url: string) => WebBrowser.openBrowserAsync(url).catch(() => undefined);
+  const open = <Ionicons name="open-outline" size={18} color={COLORS.textTertiary} />;
+  const build = Constants.nativeBuildVersion;
+  const version = `Bulletproof ${Constants.expoConfig?.version ?? ''}${build ? ` (${build})` : ''}`.trim();
 
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
+      <View style={styles.root}>
         <Stack.Screen options={{ title: 'Settings' }} />
-        <ActivityIndicator color={COLORS.accent} />
+        <ScreenScroll>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScreenScroll>
       </View>
     );
   }
   if (loadError) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
+      <View style={styles.root}>
         <Stack.Screen options={{ title: 'Settings' }} />
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.dim]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load();
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+        <ScreenScroll>
+          <ErrorState
+            message={loadError}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load();
+              setRetrying(false);
+            }}
+          />
+        </ScreenScroll>
       </View>
     );
   }
 
-  const switchRow = (label: string, value: boolean, onChange: (v: boolean) => void, hint?: string) => (
-    <View style={styles.switchRow}>
-      <View style={styles.flex}>
-        <Text style={TYPE.body}>{label}</Text>
-        {!!hint && <Text style={sharedStyles.helperText}>{hint}</Text>}
-      </View>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: COLORS.accent }} />
-    </View>
-  );
-
-  const linkRow = (label: string, onPress: () => void, icon: keyof typeof Ionicons.glyphMap = 'chevron-forward') => (
-    <Pressable style={styles.linkRow} onPress={onPress}>
-      <Text style={TYPE.body}>{label}</Text>
-      <Ionicons name={icon} size={18} color={COLORS.muted} />
-    </Pressable>
-  );
-
   return (
-    <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
+    <View style={styles.root}>
       <Stack.Screen options={{ title: 'Settings' }} />
-
-      {saveError && (
-        <View style={[sharedStyles.card, styles.errorCard]}>
-          <Text style={[sharedStyles.warningText, styles.flex]}>Couldn't save: {saveError}</Text>
-          <Pressable onPress={() => setSaveError(null)}>
-            <Text style={styles.link}>Dismiss</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {profile && (
-        <Pressable style={[sharedStyles.card, styles.profileRow]} onPress={() => router.push('/edit-profile')}>
-          <Avatar path={profile.avatarPath} name={profile.displayName} size={52} />
-          <View style={styles.flex}>
-            <Text style={TYPE.sectionTitle}>{profile.displayName}</Text>
-            <Text style={sharedStyles.helperText}>@{profile.handle}</Text>
-          </View>
-          <Text style={styles.link}>Edit</Text>
-        </Pressable>
-      )}
-
-      <View style={sharedStyles.card}>
-        <Text style={TYPE.sectionTitle}>Training</Text>
-        <Text style={sharedStyles.helperText}>Weight units</Text>
-        <View style={styles.chipRow}>
-          {(['lbs', 'kg'] as WeightUnit[]).map((u) => (
-            <Pressable
-              key={u}
-              style={[styles.chip, settings.weightUnit === u && styles.chipActive]}
-              onPress={() => saveSettings({ weightUnit: u })}
-            >
-              <Text style={settings.weightUnit === u ? styles.chipTextActive : styles.chipText}>{u}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={sharedStyles.helperText}>Weekly goal (workouts per week)</Text>
-        <View style={styles.stepper}>
-          <Pressable
-            style={styles.stepBtn}
-            onPress={() => settings.weeklyGoal > 1 && saveSettings({ weeklyGoal: settings.weeklyGoal - 1 })}
-            accessibilityLabel="Decrease goal"
-          >
-            <Ionicons name="remove" size={22} color={COLORS.accent} />
-          </Pressable>
-          <Text style={styles.goalValue}>{settings.weeklyGoal}</Text>
-          <Pressable
-            style={styles.stepBtn}
-            onPress={() => settings.weeklyGoal < 14 && saveSettings({ weeklyGoal: settings.weeklyGoal + 1 })}
-            accessibilityLabel="Increase goal"
-          >
-            <Ionicons name="add" size={22} color={COLORS.accent} />
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={sharedStyles.card}>
-        <Text style={TYPE.sectionTitle}>Privacy</Text>
-        {switchRow(
-          'Public profile',
-          !!profile?.isPublic,
-          setPublic,
-          profile?.isPublic ? 'Anyone can follow you and see your public workouts.' : 'Only approved followers see your workouts.'
-        )}
-        <Text style={sharedStyles.helperText}>Default for new posts</Text>
-        <VisibilityPicker
-          value={settings.defaultVisibility}
-          onChange={(v: Visibility) => saveSettings({ defaultVisibility: v })}
-          canPublic={!!profile?.isPublic}
-        />
-        {linkRow('Blocked users', () => router.push('/blocked'))}
-      </View>
-
-      <View style={sharedStyles.card}>
-        <Text style={TYPE.sectionTitle}>Notifications</Text>
-        {switchRow('Follows and requests', settings.notifyFollows, (v) => saveSettings({ notifyFollows: v }))}
-        {switchRow('Likes', settings.notifyLikes, (v) => saveSettings({ notifyLikes: v }))}
-        {switchRow('Comments', settings.notifyComments, (v) => saveSettings({ notifyComments: v }))}
-        {profile?.isModerator && switchRow('Reports', settings.notifyReports, (v) => saveSettings({ notifyReports: v }), 'Moderator alerts')}
-      </View>
-
-      <View style={sharedStyles.card}>
-        <Text style={TYPE.sectionTitle}>Apple Health</Text>
-        {switchRow(
-          'Save workouts to Apple Health',
-          settings.healthkitWriteEnabled,
-          toggleHealth,
-          'Bulletproof only writes finished workouts. It never reads your Health data.'
-        )}
-      </View>
-
-      <View style={sharedStyles.card}>
-        <Text style={TYPE.sectionTitle}>About</Text>
-        {linkRow('Terms of Use', () => openUrl(TERMS_URL), 'open-outline')}
-        {linkRow('Privacy Policy', () => openUrl(PRIVACY_URL), 'open-outline')}
-        {linkRow('Support', () => openUrl(SUPPORT_URL), 'open-outline')}
-      </View>
-
-      <View style={sharedStyles.card}>
-        <Text style={TYPE.sectionTitle}>Account</Text>
-        <Text style={sharedStyles.helperText}>{account}</Text>
-        <Pressable style={styles.linkRow} onPress={confirmSignOut}>
-          <Text style={styles.link}>Sign out</Text>
-        </Pressable>
-        <Pressable style={styles.linkRow} onPress={startDelete}>
-          <Text style={styles.danger}>Delete account</Text>
-        </Pressable>
-      </View>
-
-      <Modal visible={deleteOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => !deleting && setDeleteOpen(false)}>
-        <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
-            <Text style={TYPE.screenTitle}>Delete account</Text>
-            <Text style={TYPE.body}>
-              This permanently deletes your account, workouts, photos and routines. Type DELETE to confirm.
-            </Text>
-            <TextInput
-              style={sharedStyles.textInput}
-              value={deleteText}
-              onChangeText={setDeleteText}
-              placeholder="DELETE"
-              placeholderTextColor={COLORS.muted}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              editable={!deleting}
+      <ScreenScroll contentContainerStyle={styles.content}>
+        {profile ? (
+          <ListGroup>
+            <ListRow
+              title={profile.displayName}
+              subtitle={`@${profile.handle} · Edit profile`}
+              leading={<Avatar path={profile.avatarPath} name={profile.displayName} size="sm" />}
+              trailing="chevron"
+              onPress={() => router.push('/edit-profile')}
             />
-            {deleteError && <Text style={sharedStyles.warningText}>{deleteError}</Text>}
-            <Pressable
-              style={[styles.deleteBtn, (!canConfirmDelete(deleteText) || deleting) && styles.dim]}
-              disabled={!canConfirmDelete(deleteText) || deleting}
-              onPress={confirmDelete}
-            >
-              <Text style={sharedStyles.primaryButtonText}>{deleting ? 'Deleting…' : 'Delete my account'}</Text>
-            </Pressable>
-            <Pressable style={styles.cancel} disabled={deleting} onPress={() => setDeleteOpen(false)}>
-              <Text style={styles.link}>Cancel</Text>
-            </Pressable>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
-    </ScrollView>
+          </ListGroup>
+        ) : null}
+
+        <SectionHeader title="Training" inset={SPACING.xs} />
+        <ListGroup>
+          <ListRow title="Units" leading={{ icon: 'barbell-outline' }} value={settings.weightUnit} trailing="chevron" onPress={() => setUnitsOpen(true)} />
+          <ListRow
+            title="Weekly goal"
+            leading={{ icon: 'flag-outline' }}
+            value={`${settings.weeklyGoal} / week`}
+            trailing="chevron"
+            onPress={() => setGoalOpen(true)}
+          />
+        </ListGroup>
+
+        <SectionHeader title="Privacy" inset={SPACING.xs} />
+        <ListGroup>
+          <SwitchRow
+            title="Public profile"
+            subtitle={profile?.isPublic ? 'Anyone can see your public workouts' : 'Only approved followers see your workouts'}
+            leading={{ icon: 'globe-outline' }}
+            value={!!profile?.isPublic}
+            onValueChange={setPublic}
+          />
+          <ListRow
+            title="Default post visibility"
+            leading={{ icon: 'eye-outline' }}
+            value={visibilityLabel(settings.defaultVisibility)}
+            trailing="chevron"
+            onPress={() => setVisibilityOpen(true)}
+          />
+          <ListRow title="Blocked users" leading={{ icon: 'ban-outline' }} trailing="chevron" onPress={() => router.push('/blocked')} />
+        </ListGroup>
+
+        <SectionHeader title="Notifications" inset={SPACING.xs} />
+        <ListGroup>
+          <SwitchRow title="Follows and requests" value={settings.notifyFollows} onValueChange={(v) => saveSettings({ notifyFollows: v })} />
+          <SwitchRow title="Likes" value={settings.notifyLikes} onValueChange={(v) => saveSettings({ notifyLikes: v })} />
+          <SwitchRow title="Comments" value={settings.notifyComments} onValueChange={(v) => saveSettings({ notifyComments: v })} />
+          {profile?.isModerator ? (
+            <SwitchRow title="Reports" subtitle="Moderator alerts" value={settings.notifyReports} onValueChange={(v) => saveSettings({ notifyReports: v })} />
+          ) : null}
+        </ListGroup>
+
+        <SectionHeader title="Apple Health" inset={SPACING.xs} />
+        <ListGroup>
+          <SwitchRow
+            title="Save workouts to Apple Health"
+            subtitle="Bulletproof only writes finished workouts. It never reads your Health data."
+            value={settings.healthkitWriteEnabled}
+            onValueChange={toggleHealth}
+          />
+        </ListGroup>
+
+        <SectionHeader title="About" inset={SPACING.xs} />
+        <ListGroup>
+          <ListRow title="Terms of Use" trailing={open} onPress={() => openUrl(TERMS_URL)} />
+          <ListRow title="Privacy Policy" trailing={open} onPress={() => openUrl(PRIVACY_URL)} />
+          <ListRow title="Support" trailing={open} onPress={() => openUrl(SUPPORT_URL)} />
+        </ListGroup>
+
+        <SectionHeader title="Account" inset={SPACING.xs} />
+        <ListGroup>
+          <ListRow title={account} leading={{ icon: 'person-circle-outline' }} />
+          <ListRow title="Sign out" leading={{ icon: 'log-out-outline' }} onPress={() => setSignOutOpen(true)} />
+          <ListRow title="Delete account" destructive leading={{ icon: 'trash-outline' }} onPress={() => setDeleteOpen(true)} />
+        </ListGroup>
+
+        <Text style={[TYPE.footnote, styles.version]}>{version}</Text>
+      </ScreenScroll>
+
+      <Sheet visible={unitsOpen} onClose={() => setUnitsOpen(false)} title="Units" subtitle="Weight shown in the logger and stats">
+        <View style={styles.sheetBody}>
+          <SegmentedControl
+            options={[
+              { value: 'lbs', label: 'lbs' },
+              { value: 'kg', label: 'kg' },
+            ]}
+            value={settings.weightUnit}
+            onChange={(u) => {
+              void saveSettings({ weightUnit: u as WeightUnit });
+              setUnitsOpen(false);
+            }}
+          />
+        </View>
+      </Sheet>
+      <WeeklyGoalSheet
+        visible={goalOpen}
+        current={settings.weeklyGoal}
+        onClose={() => setGoalOpen(false)}
+        onSave={async (goal) => {
+          if (!(await saveSettings({ weeklyGoal: goal }))) throw new Error('Could not save your weekly goal.');
+        }}
+      />
+      <Sheet visible={visibilityOpen} onClose={() => setVisibilityOpen(false)} title="Default post visibility">
+        <View>
+          {VISIBILITY_OPTIONS.map((o) => {
+            const blocked = o.value === 'public' && !profile?.isPublic;
+            return (
+              <ListRow
+                key={o.value}
+                title={o.label}
+                subtitle={blocked ? PUBLIC_DISABLED_HINT : undefined}
+                disabled={blocked}
+                trailing={
+                  settings.defaultVisibility === o.value ? <Ionicons name="checkmark" size={18} color={COLORS.accent} /> : undefined
+                }
+                onPress={() => {
+                  void saveSettings({ defaultVisibility: o.value as Visibility });
+                  setVisibilityOpen(false);
+                }}
+              />
+            );
+          })}
+        </View>
+      </Sheet>
+      <ConfirmSheet
+        visible={privateConfirmOpen}
+        onClose={() => setPrivateConfirmOpen(false)}
+        title="Make your profile private?"
+        body="Only approved followers will see your workouts."
+        confirmLabel="Make private"
+        onConfirm={() => {
+          setPrivateConfirmOpen(false);
+          void applyPublic(false);
+        }}
+      />
+      <ConfirmSheet
+        visible={signOutOpen}
+        onClose={() => setSignOutOpen(false)}
+        title="Sign out?"
+        confirmLabel="Sign out"
+        loading={signingOut}
+        onConfirm={doSignOut}
+      />
+      <ConfirmSheet
+        visible={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Delete account?"
+        body="This permanently deletes your workouts, sprints, photos and profile. This can't be undone."
+        confirmLabel="Delete my account"
+        destructive
+        requireText="DELETE"
+        loading={deleting}
+        onConfirm={doDelete}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  dim: { opacity: 0.5 },
-  flex: { flex: 1 },
-  errorCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  link: { color: COLORS.accent, fontWeight: '600', fontSize: 15 },
-  danger: { color: COLORS.danger, fontWeight: '600', fontSize: 15 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.xs },
-  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: SPACING.sm },
-  chipRow: { flexDirection: 'row', gap: SPACING.sm },
-  chip: { paddingVertical: SPACING.xs, paddingHorizontal: SPACING.md, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border },
-  chipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  chipText: { color: COLORS.ink },
-  chipTextActive: { color: COLORS.card, fontWeight: '600' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
-  stepBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  goalValue: { fontSize: 24, fontWeight: '700', color: COLORS.ink, minWidth: 36, textAlign: 'center' },
-  deleteBtn: { backgroundColor: COLORS.danger, borderRadius: 12, paddingVertical: SPACING.sm, alignItems: 'center' },
-  cancel: { alignItems: 'center', paddingVertical: SPACING.sm },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  content: { paddingBottom: SPACING.xxl },
+  sheetBody: { paddingVertical: SPACING.lg },
+  version: { textAlign: 'center', paddingTop: SPACING.lg },
 });
