@@ -182,7 +182,7 @@ export default function RootLayout() {
           <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
           <Stack.Screen name="routines/[routineId]" options={{ title: 'Routine', headerBackTitle: 'Back' }} />
           <Stack.Screen name="library/index" options={{ title: 'Exercises', headerBackTitle: 'Back' }} />
-          <Stack.Screen name="library/new" options={{ title: 'New exercise', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="library/new" options={{ presentation: 'modal', title: 'New exercise' }} />
           <Stack.Screen name="profile/[userId]" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
           <Stack.Screen name="people" options={{ title: 'Find people', headerBackTitle: 'Back' }} />
           <Stack.Screen name="follow-list" options={{ title: 'Followers', headerBackTitle: 'Back' }} />

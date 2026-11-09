@@ -1,7 +1,12 @@
 // apps/mobile/components/library/ExerciseListRow.tsx
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
+//
+// Library row (visual spec 4.12): name, "Stretch/hold · ankle, calf" subtitle and a
+// person glyph for the user's own exercises. Built on ListRow.
+import { StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING } from '../../lib/theme';
 import type { LibraryExercise } from '../../lib/library';
+import { ListRow } from '../ui';
 
 export const TYPE_LABELS: Record<string, string> = {
   mobility_stretch: 'Stretch/hold',
@@ -18,28 +23,20 @@ export function typeLabel(type: string | null): string {
 export default function ExerciseListRow({ exercise, onPress }: { exercise: LibraryExercise; onPress: () => void }) {
   const sub = [typeLabel(exercise.exerciseType), exercise.bodyParts.join(', ')].filter(Boolean).join(' · ');
   return (
-    <Pressable style={styles.row} onPress={onPress}>
-      <View style={styles.text}>
-        <Text style={TYPE.body}>{exercise.name}</Text>
-        {sub ? <Text style={sharedStyles.helperText}>{sub}</Text> : null}
-      </View>
-      {exercise.isMine ? (
-        <View style={sharedStyles.chip}>
-          <Text style={sharedStyles.chipText}>Mine</Text>
+    <ListRow
+      title={exercise.name}
+      subtitle={sub || undefined}
+      onPress={onPress}
+      trailing={
+        <View style={styles.trailing}>
+          {exercise.isMine ? <Ionicons name="person-circle-outline" size={16} color={COLORS.textTertiary} accessibilityLabel="Mine" /> : null}
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
         </View>
-      ) : null}
-    </Pressable>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingVertical: SPACING.sm + 2,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  text: { flex: 1, gap: 2 },
+  trailing: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
 });

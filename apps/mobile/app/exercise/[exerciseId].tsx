@@ -1,15 +1,21 @@
 // apps/mobile/app/exercise/[exerciseId].tsx
 //
-// Exercise detail: info + demo link, the user's current bests (per side), a
-// chart of the exercise's primary metric (and ROM when logged), and recent
-// sets grouped by workout. Reused by the library in Stage 2.
+// Exercise detail (visual spec 4.11): info + demo link, the user's current bests (per
+// side), a chart of the exercise's primary metric (and ROM when logged), and recent
+// sets grouped by workout.
+// TODO(stage4): spec's "+ Add to workout" footer (when a workout is active and the screen was
+// opened from the library) and the PR trophy on recent sets need context/data this screen
+// doesn't have; not added.
+// TODO(stage4): spec says deleting an exercise used in history shows "in N workouts" in the
+// sheet; deleteCustomExercise only surfaces that as an error message, so it stays a plain Alert.
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
-import { DescriptionToggleButton, useToggle } from '../../components/DescriptionToggle';
-import TrendLineChart from '../../components/progress/TrendLineChart';
+import * as haptics from '../../lib/haptics';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
+import { DescriptionBody, DescriptionToggleButton, useToggle } from '../../components/DescriptionToggle';
+import { typeLabel } from '../../components/library/ExerciseListRow';
 import { fetchExerciseInfo, metricSeries, romSeries, type ExerciseInfo, type MetricPoint } from '../../lib/exerciseDetail';
 import { fetchStatsDataset, type StatsExercise, type StatsWorkout } from '../../lib/stats/dataset';
 import { computePrEvents, prKey, type PrKind } from '../../lib/stats/prs';
@@ -19,6 +25,10 @@ import { fieldsForExercise } from '../../lib/setFields';
 import { formatSetLines } from '../../lib/setFormatting';
 import { kgToDisplayUnit, type WeightUnit } from '../../lib/units';
 import { deleteCustomExercise } from '../../lib/library';
+import {
+  ActionSheet, Button, Card, Chip, ConfirmSheet, EmptyState, ErrorState, IconButton, LineChartCard, ScreenScroll, SectionHeader,
+  Skeleton, SkeletonCard, Stat, type ChartSeries,
+} from '../../components/ui';
 
 const RECENT_WORKOUTS = 10;
 
@@ -47,24 +57,45 @@ function toFormattable(ex: StatsExercise) {
   });
 }
 
-function chartPoints(series: MetricPoint[], weightUnit: WeightUnit) {
+/** L/R (or single) chart series; a side with no data is dropped rather than drawn as zero. */
+function chartSeries(series: MetricPoint[], weightUnit: WeightUnit, sided: boolean): ChartSeries[] {
   const conv = (n?: number, unit?: string) => (n === undefined ? undefined : unit === 'kg' ? Math.round(kgToDisplayUnit(n, weightUnit) * 10) / 10 : n);
-  return series.map((p) => ({
-    label: shortDate(p.date),
-    a: p.value !== undefined ? conv(p.value, p.unit) : conv(p.left, p.unit),
-    b: conv(p.right, p.unit),
-  }));
+  const pick = (get: (p: MetricPoint) => number | undefined) =>
+    series.flatMap((p) => {
+      const v = conv(get(p), p.unit);
+      return v === undefined ? [] : [{ value: v, label: shortDate(p.date) }];
+    });
+  if (sided) {
+    return [
+      { name: 'L', color: COLORS.chartLeft, data: pick((p) => p.left) },
+      { name: 'R', color: COLORS.chartRight, data: pick((p) => p.right) },
+    ].filter((s) => s.data.length > 0);
+  }
+  return [{ color: COLORS.accent, data: pick((p) => p.value ?? p.left) }];
+}
+
+interface BestTile {
+  key: string;
+  label: string;
+  value: string;
+  side: 'left' | 'right' | null;
 }
 
 export default function ExerciseDetailScreen() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<ExerciseInfo | null>(null);
   const [workouts, setWorkouts] = useState<StatsWorkout[]>([]);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(DEFAULT_SETTINGS.weightUnit);
   const [descOpen, toggleDesc] = useToggle(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
 
   const loadedOnce = useRef(false);
 
@@ -98,10 +129,17 @@ export default function ExerciseDetailScreen() {
     if (!info) return null;
     const bests = computePrEvents(workouts).bests;
     const sides = info.unilateral ? (['left', 'right'] as const) : ([null] as const);
-    const bestRows = bestKinds(info).flatMap((kind) =>
+    const bestTiles: BestTile[] = bestKinds(info).flatMap((kind) =>
       sides.flatMap((side) => {
         const b = bests.get(prKey(info.id, side, kind));
-        return b ? [`${PR_KIND_LABEL[kind]}${sideSuffix(side)}: ${formatPrValue(kind, b.value, kind === 'heaviest_weight' ? 'kg' : '', weightUnit)}`] : [];
+        return b
+          ? [{
+              key: `${kind}-${side ?? '-'}`,
+              label: `${PR_KIND_LABEL[kind]}${sideSuffix(side)}`,
+              value: formatPrValue(kind, b.value, kind === 'heaviest_weight' ? 'kg' : '', weightUnit),
+              side,
+            }]
+          : [];
       })
     );
     const rom = romSeries(workouts, info.id);
@@ -110,7 +148,7 @@ export default function ExerciseDetailScreen() {
       return acc;
     }, {});
     return {
-      bestRows,
+      bestTiles,
       romBest,
       series: metricSeries(workouts, info.id),
       rom,
@@ -118,151 +156,199 @@ export default function ExerciseDetailScreen() {
     };
   }, [info, workouts, weightUnit]);
 
+  async function retry() {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        <Stack.Screen options={{ title: '' }} />
+        <ScreenScroll>
+          <Skeleton width="60%" height={34} />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScreenScroll>
       </View>
     );
   }
   if (error || !info || !derived) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{error ?? 'Exercise not found.'}</Text>
-        <Pressable style={sharedStyles.primaryButton} onPress={load}>
-          <Text style={sharedStyles.primaryButtonText}>Try again</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <Stack.Screen options={{ title: '' }} />
+        <ScreenScroll>
+          <ErrorState message={error ?? 'Exercise not found.'} retrying={retrying} onRetry={retry} />
+        </ScreenScroll>
       </View>
     );
   }
 
-  function confirmDelete() {
-    Alert.alert('Delete exercise?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteCustomExercise(info!.id);
-            router.back();
-          } catch (err: any) {
-            // Includes the clear "used in your history" message for FK 23503.
-            Alert.alert('Cannot delete', err?.message ?? 'Could not delete this exercise.');
-          }
-        },
-      },
-    ]);
+  async function doDelete() {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
+    try {
+      await deleteCustomExercise(info!.id);
+      setConfirmOpen(false);
+      haptics.success();
+      router.back();
+    } catch (err: any) {
+      setConfirmOpen(false);
+      haptics.error();
+      // Includes the clear "used in your history" message for FK 23503.
+      Alert.alert('Cannot delete', err?.message ?? 'Could not delete this exercise.');
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+    }
   }
 
   const { kind } = fieldsForExercise({ exerciseType: info.exerciseType, unilateral: info.unilateral });
   const metricUnit = derived.series[0]?.unit;
   const romUnit = derived.rom[0]?.unit;
+  const metricTitle = `${kind === 'hold' || kind === 'duration' ? 'Hold time' : kind === 'reps' ? 'Reps' : 'Weight'} over time${
+    metricUnit === 'kg' ? ` (${weightUnit})` : metricUnit === 's' ? ' (s)' : ''
+  }`;
+  const romEntries = Object.entries(derived.romBest);
+  const hasBests = derived.bestTiles.length > 0 || romEntries.length > 0;
 
   return (
-    <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent}>
-      <Stack.Screen options={{ title: info.name }} />
-      <View style={sharedStyles.card}>
-        <View style={styles.titleRow}>
-          <Text style={[TYPE.screenTitle, styles.flex]}>{info.name}</Text>
-          {info.description ? <DescriptionToggleButton open={descOpen} onToggle={toggleDesc} /> : null}
-        </View>
+    <View style={styles.root}>
+      <Stack.Screen
+        options={{
+          title: '',
+          headerRight: info.isMine
+            ? () => <IconButton icon="ellipsis-horizontal" size="sm" accessibilityLabel="Exercise options" onPress={() => setMenuOpen(true)} />
+            : undefined,
+        }}
+      />
+      <ScreenScroll refreshing={refreshing} onRefresh={refresh}>
+        <Text style={TYPE.title1}>{info.name}</Text>
         <View style={styles.chips}>
-          {info.exerciseType && (
-            <View style={sharedStyles.chip}>
-              <Text style={sharedStyles.chipText}>{info.exerciseType.replace('_', ' ')}</Text>
-            </View>
-          )}
-          {info.unilateral && (
-            <View style={sharedStyles.chip}>
-              <Text style={sharedStyles.chipText}>one side at a time</Text>
-            </View>
-          )}
+          {info.exerciseType ? <Chip label={typeLabel(info.exerciseType) || info.exerciseType.replace('_', ' ')} tone="accent" /> : null}
+          {info.unilateral ? <Chip label="Unilateral" /> : null}
+          {info.bodyParts.map((b) => (
+            <Chip key={b} label={b} />
+          ))}
         </View>
-        {descOpen && info.description ? <Text style={TYPE.body}>{info.description}</Text> : null}
+
+        {info.description ? (
+          <View>
+            <View style={styles.descHead}>
+              <Text style={TYPE.title3}>Description</Text>
+              <DescriptionToggleButton open={descOpen} onToggle={toggleDesc} />
+            </View>
+            <DescriptionBody open={descOpen} text={info.description} />
+          </View>
+        ) : null}
+
         {info.demoVideoUrl ? (
-          <Pressable style={sharedStyles.primaryButton} onPress={() => WebBrowser.openBrowserAsync(info.demoVideoUrl!)}>
-            <Text style={sharedStyles.primaryButtonText}>Watch demo</Text>
-          </Pressable>
+          <Button title="Watch demo" icon="play-circle" variant="secondary" onPress={() => WebBrowser.openBrowserAsync(info.demoVideoUrl!)} />
         ) : null}
-        {info.isMine ? (
-          <View style={styles.ownerActions}>
-            <Pressable style={[sharedStyles.chip, styles.actionChip]} onPress={() => router.push(`/library/new?id=${info.id}`)}>
-              <Text style={sharedStyles.chipText}>Edit</Text>
-            </Pressable>
-            <Pressable style={[sharedStyles.chip, styles.actionChip]} onPress={confirmDelete}>
-              <Text style={[sharedStyles.chipText, styles.deleteText]}>Delete</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
 
-      {workouts.length === 0 ? (
-        <View style={sharedStyles.card}>
-          <Text style={sharedStyles.helperText}>You haven't logged this yet.</Text>
-        </View>
-      ) : (
-        <>
-          <View style={sharedStyles.card}>
-            <Text style={TYPE.sectionTitle}>Current bests</Text>
-            {derived.bestRows.map((r) => (
-              <Text key={r} style={TYPE.body}>{r}</Text>
-            ))}
-            {Object.entries(derived.romBest).map(([k, v]) => (
-              <Text key={k} style={TYPE.body}>
-                Best ROM{k === 'left' ? ' (L)' : k === 'right' ? ' (R)' : ''}: {Math.round(v * 10) / 10} {romUnit}
-              </Text>
-            ))}
-            {derived.bestRows.length === 0 && Object.keys(derived.romBest).length === 0 && (
-              <Text style={sharedStyles.helperText}>No completed working sets yet.</Text>
+        {workouts.length === 0 ? (
+          <Card>
+            <EmptyState
+              compact
+              icon="stats-chart-outline"
+              title="You haven't logged this yet"
+              body="Add it to a workout to start tracking bests."
+            />
+          </Card>
+        ) : (
+          <>
+            <SectionHeader title="Your bests" inset={SPACING.xs} />
+            {hasBests ? (
+              <View style={styles.tiles}>
+                {derived.bestTiles.map((t) => (
+                  <Card key={t.key} padding={14} style={[styles.tile, tileAccent(t.side)]}>
+                    <Stat size="md" label={t.label} value={t.value} animate={false} />
+                  </Card>
+                ))}
+                {romEntries.map(([k, v]) => (
+                  <Card key={k} padding={14} style={[styles.tile, tileAccent(k === 'left' ? 'left' : k === 'right' ? 'right' : null)]}>
+                    <Stat
+                      size="md"
+                      label={`Best ROM${k === 'left' ? ' (L)' : k === 'right' ? ' (R)' : ''}`}
+                      value={`${Math.round(v * 10) / 10} ${romUnit ?? ''}`.trim()}
+                      animate={false}
+                    />
+                  </Card>
+                ))}
+              </View>
+            ) : (
+              <Text style={TYPE.footnote}>No completed working sets yet.</Text>
             )}
-          </View>
 
-          {derived.series.length > 0 && (
-            <View style={sharedStyles.card}>
-              <Text style={TYPE.sectionTitle}>
-                {kind === 'hold' || kind === 'duration' ? 'Hold time' : kind === 'reps' ? 'Reps' : 'Weight'} over time
-                {metricUnit === 'kg' ? ` (${weightUnit})` : metricUnit === 's' ? ' (s)' : ''}
-              </Text>
-              <TrendLineChart points={chartPoints(derived.series, weightUnit)} twoSeries={info.unilateral} />
-            </View>
-          )}
+            {derived.series.length > 0 ? (
+              <>
+                <SectionHeader title="Trend" inset={SPACING.xs} />
+                <LineChartCard title={metricTitle} series={chartSeries(derived.series, weightUnit, info.unilateral)} />
+              </>
+            ) : null}
 
-          {derived.rom.length > 0 && (
-            <View style={sharedStyles.card}>
-              <Text style={TYPE.sectionTitle}>Range of motion ({romUnit})</Text>
-              <TrendLineChart points={chartPoints(derived.rom, weightUnit)} twoSeries={info.unilateral} />
-            </View>
-          )}
+            {derived.rom.length > 0 ? (
+              <LineChartCard title={`Range of motion (${romUnit})`} series={chartSeries(derived.rom, weightUnit, info.unilateral)} />
+            ) : null}
 
-          <View style={sharedStyles.card}>
-            <Text style={TYPE.sectionTitle}>Recent sets</Text>
+            <SectionHeader title="Recent" inset={SPACING.xs} />
             {derived.recent.map((w) => {
               const ex = w.exercises.filter((e) => e.exerciseId === info.id);
               const lines = ex.flatMap((e) => formatSetLines(toFormattable(e), kind, weightUnit));
               return (
-                <View key={w.id} style={styles.recentGroup}>
-                  <Text style={TYPE.label}>{shortDate(w.endedAt)}</Text>
-                  {lines.map((l, i) => (
-                    <Text key={i} style={TYPE.body}>{l}</Text>
-                  ))}
-                </View>
+                <Card key={w.id} onPress={() => router.push(`/workout-summary/${w.id}`)} accessibilityLabel={`${w.title}, ${shortDate(w.endedAt)}`}>
+                  <Text style={TYPE.bodyStrong} numberOfLines={2}>
+                    {`${shortDate(w.endedAt)} · ${w.title}`}
+                  </Text>
+                  <Text style={[TYPE.callout, styles.sets]}>{lines.join(' · ')}</Text>
+                </Card>
               );
             })}
-          </View>
-        </>
-      )}
-    </ScrollView>
+          </>
+        )}
+      </ScreenScroll>
+
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        actions={[
+          { label: 'Edit', icon: 'create-outline', onPress: () => setTimeout(() => router.push(`/library/new?id=${info.id}`), 350) },
+          { label: 'Delete', icon: 'trash-outline', destructive: true, onPress: () => setTimeout(() => setConfirmOpen(true), 350) },
+        ]}
+      />
+      <ConfirmSheet
+        visible={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Delete exercise?"
+        body="This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+        onConfirm={doDelete}
+      />
+    </View>
   );
 }
 
+function tileAccent(side: 'left' | 'right' | null) {
+  if (side === 'left') return { borderLeftWidth: 3, borderLeftColor: COLORS.chartLeft };
+  if (side === 'right') return { borderLeftWidth: 3, borderLeftColor: COLORS.chartRight };
+  return null;
+}
+
 const styles = StyleSheet.create({
-  centered: { alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.lg },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  flex: { flex: 1 },
-  chips: { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' },
-  ownerActions: { flexDirection: 'row', gap: SPACING.sm },
-  actionChip: { paddingHorizontal: SPACING.md },
-  deleteText: { color: COLORS.danger },
-  recentGroup: { gap: 2, paddingTop: SPACING.xs },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  descHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: SPACING.sm },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
+  tile: { flexGrow: 1, flexBasis: '45%', minHeight: 96, justifyContent: 'center' },
+  sets: { fontVariant: ['tabular-nums'] },
 });

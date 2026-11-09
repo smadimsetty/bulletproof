@@ -1,9 +1,9 @@
 // apps/mobile/components/library/FilterChips.tsx
 //
 // One horizontally scrolling row of single-select chips; tapping the active
-// chip clears it. Shared by the library screen and the exercise picker.
-import { FlatList, Pressable, StyleSheet, Text } from 'react-native';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles } from '../../lib/theme';
+// chip clears it. Shared by the routine editor's folder picker (the library and
+// the exercise picker use FilterChip directly).
+import { FilterChip, FilterChipRow } from '../ui';
 
 export interface ChipOption {
   label: string;
@@ -19,28 +19,10 @@ export interface FilterChipsProps {
 export default function FilterChips({ options, value, onChange }: FilterChipsProps) {
   if (options.length === 0) return null;
   return (
-    <FlatList
-      horizontal
-      data={options}
-      keyExtractor={(o) => o.value}
-      showsHorizontalScrollIndicator={false}
-      style={styles.row}
-      contentContainerStyle={styles.content}
-      renderItem={({ item }) => {
-        const active = item.value === value;
-        return (
-          <Pressable onPress={() => onChange(active ? null : item.value)} style={[sharedStyles.chip, active && styles.chipActive]}>
-            <Text style={[sharedStyles.chipText, active && styles.chipTextActive]}>{item.label}</Text>
-          </Pressable>
-        );
-      }}
-    />
+    <FilterChipRow>
+      {options.map((o) => (
+        <FilterChip key={o.value} label={o.label} selected={o.value === value} onToggle={() => onChange(o.value === value ? null : o.value)} />
+      ))}
+    </FilterChipRow>
   );
 }
-
-const styles = StyleSheet.create({
-  row: { flexGrow: 0 },
-  content: { gap: SPACING.sm, paddingVertical: SPACING.xs },
-  chipActive: { backgroundColor: COLORS.accent },
-  chipTextActive: { color: COLORS.card },
-});
