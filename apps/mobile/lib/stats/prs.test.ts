@@ -97,3 +97,19 @@ test('isNewBest: absent key is false; present key compares', () => {
   expect(isNewBest(bests, 'k', { value: 11 })).toBe(true);
   expect(isNewBest(bests, 'k', { value: 10 })).toBe(false);
 });
+
+test('weights are rounded to storage precision before comparing', () => {
+  const key = prKey('e1', null, 'heaviest_weight');
+  const bests = new Map([[key, { value: 61.23, reps: 5 }]]);
+  const c1 = setCandidates('strength', false, set({ weightKg: 61.2349, reps: 5 }))[0];
+  expect(isNewBest(bests, key, c1)).toBe(false);
+  const bests2 = new Map([[key, { value: 102.06, reps: 5 }]]);
+  const c2 = setCandidates('strength', false, set({ weightKg: 102.0583, reps: 8 }))[0];
+  expect(isNewBest(bests2, key, c2)).toBe(true);
+});
+
+test('weight tie-break events carry reps and previousReps', () => {
+  const mk = (reps: number) => workout([set({ weightKg: 50, reps })], { type: 'strength' });
+  const { events } = computePrEvents([mk(5), mk(8)]);
+  expect(events).toMatchObject([{ kind: 'heaviest_weight', value: 50, previous: 50, reps: 8, previousReps: 5 }]);
+});

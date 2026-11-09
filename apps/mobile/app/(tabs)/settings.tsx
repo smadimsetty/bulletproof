@@ -17,7 +17,7 @@ import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import DropdownAddSection, { type DropdownOption } from '../../components/DropdownAddSection';
 import PainEntryRow, { type PainEntry } from '../../components/PainEntryRow';
 import HealthKitSection from '../../components/HealthKitSection';
-import { updateUserSettings } from '../../lib/userSettings';
+import { fetchUserSettings, updateUserSettings } from '../../lib/userSettings';
 import { displayUnitToKg, formatWeightForDisplay, type WeightUnit } from '../../lib/units';
 
 interface SplitTaxonomyRow {
@@ -69,6 +69,8 @@ export default function Settings() {
 
   const [profile, setProfile] = useState<UserProfileRow | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('lbs');
+  const [unitSaving, setUnitSaving] = useState(false);
   const [splits, setSplits] = useState<SplitTaxonomyRow[]>([]);
   const [activityOptions, setActivityOptions] = useState<ActivityTaxonomyRow[]>([]);
   const [goalOptions, setGoalOptions] = useState<GoalTaxonomyRow[]>([]);
@@ -102,7 +104,14 @@ export default function Settings() {
         return;
       }
 
-      setProfile(profileRes.data as UserProfileRow);
+      const loaded = profileRes.data as UserProfileRow;
+      try {
+        // user_settings is the single source of truth for the unit.
+        setWeightUnit((await fetchUserSettings()).weightUnit);
+      } catch {
+        setWeightUnit(loaded.weight_unit);
+      }
+      setProfile(loaded);
       setSplits((splitsRes.data ?? []) as SplitTaxonomyRow[]);
       setActivityOptions((activitiesRes.data ?? []) as ActivityTaxonomyRow[]);
       setGoalOptions((goalsRes.data ?? []) as GoalTaxonomyRow[]);
@@ -116,7 +125,7 @@ export default function Settings() {
   useEffect(() => {
     if (!profile) return;
     setDietDraft(profile.diet_preference ?? '');
-    setWeightDraft(formatWeightForDisplay(profile.weight_kg, profile.weight_unit));
+    setWeightDraft(formatWeightForDisplay(profile.weight_kg, weightUnit));
     setBirthDateDraft(profile.birth_date ?? '');
     setLocationLabelDraft(profile.location?.label ?? '');
     const targets = profile.training_frequency_manual?.targets ?? {};
@@ -130,7 +139,7 @@ export default function Settings() {
       const split = splits.find((s) => s.id === profile?.preferred_split);
       return split?.day_labels ?? [];
     }
-  }, [profile, splits]);
+  }, [profile, splits, weightUnit]);
 
   const saveProfileFields = useCallback(
     async (fields: Partial<UserProfileRow>): Promise<boolean> => {
@@ -236,7 +245,7 @@ export default function Settings() {
     const weightKg =
       weightDraft.trim() === '' || Number.isNaN(parsedWeight)
         ? null
-        : displayUnitToKg(parsedWeight, profile?.weight_unit ?? 'lbs');
+        : displayUnitToKg(parsedWeight, weightUnit);
     // Both fields share one Save button -- await both before confirming,
     // rather than firing them and forgetting, so "Saved." only appears
     // once both columns actually landed (these are two separate UPDATE
@@ -249,10 +258,22 @@ export default function Settings() {
     if (weightOk && birthDateOk) setSavedSection('weight');
   }
 
-  function handleSetWeightUnit(unit: WeightUnit) {
-    saveProfileFields({ weight_unit: unit });
-    // user_settings is now the source of truth; the profile write above keeps the old column in sync.
-    updateUserSettings({ weightUnit: unit }).catch((err) => console.warn('user_settings unit write failed:', err));
+  async function handleSetWeightUnit(unit: WeightUnit) {
+    if (unitSaving || unit === weightUnit) return; // serialize rapid toggles
+    const previous = weightUnit;
+    setUnitSaving(true);
+    setSaveError(null);
+    setWeightUnit(unit);
+    try {
+      await updateUserSettings({ weightUnit: unit });
+      // Keep the legacy user_profile column in sync.
+      await saveProfileFields({ weight_unit: unit });
+    } catch (err) {
+      setWeightUnit(previous);
+      setSaveError(err instanceof Error ? err.message : 'Could not save weight unit');
+    } finally {
+      setUnitSaving(false);
+    }
   }
 
   async function handleSaveLocationLabel() {
@@ -448,19 +469,19 @@ export default function Settings() {
         <Text style={sharedStyles.sectionTitle}>Weight & Birth Date</Text>
         <View style={styles.modeRow}>
           <Pressable
-            style={[styles.modeButton, profile.weight_unit === 'lbs' && styles.modeButtonActive]}
+            style={[styles.modeButton, weightUnit === 'lbs' && styles.modeButtonActive]}
             onPress={() => handleSetWeightUnit('lbs')}
           >
-            <Text style={profile.weight_unit === 'lbs' ? styles.modeTextActive : styles.modeText}>lbs</Text>
+            <Text style={weightUnit === 'lbs' ? styles.modeTextActive : styles.modeText}>lbs</Text>
           </Pressable>
           <Pressable
-            style={[styles.modeButton, profile.weight_unit === 'kg' && styles.modeButtonActive]}
+            style={[styles.modeButton, weightUnit === 'kg' && styles.modeButtonActive]}
             onPress={() => handleSetWeightUnit('kg')}
           >
-            <Text style={profile.weight_unit === 'kg' ? styles.modeTextActive : styles.modeText}>kg</Text>
+            <Text style={weightUnit === 'kg' ? styles.modeTextActive : styles.modeText}>kg</Text>
           </Pressable>
         </View>
-        <Text style={sharedStyles.helperText}>Weight ({profile.weight_unit})</Text>
+        <Text style={sharedStyles.helperText}>Weight ({weightUnit})</Text>
         <TextInput
           style={sharedStyles.textInput}
           value={weightDraft}

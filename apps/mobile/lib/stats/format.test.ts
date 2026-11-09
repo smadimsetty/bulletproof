@@ -18,3 +18,12 @@ test('headline and description include side and previous', () => {
     )
   ).toBe('Ankle CARs · Longest hold (L) · 75s ↑ from 60s');
 });
+
+test('weight tie-break shows reps', () => {
+  expect(
+    describePrEvent(
+      { workoutId: 'w', exerciseId: 'e', exerciseName: 'Squat', side: null, kind: 'heaviest_weight', value: 100, unit: 'kg', previous: 100, reps: 8, previousReps: 5, at: '2026-11-01T00:00:00Z' },
+      'kg'
+    )
+  ).toBe('Squat · Heaviest · 100 kg × 8 ↑ from 100 kg × 5');
+});

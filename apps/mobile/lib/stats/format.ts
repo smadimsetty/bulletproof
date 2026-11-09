@@ -26,11 +26,11 @@ function trim(n: number): string {
   return String(Math.round(n * 10) / 10);
 }
 
-export function formatPrValue(kind: PrKind, value: number, unit: string, weightUnit: WeightUnit): string {
+export function formatPrValue(kind: PrKind, value: number, unit: string, weightUnit: WeightUnit, reps?: number): string {
   switch (kind) {
     case 'longest_hold': return `${trim(value)}s`;
     case 'most_reps': return `${trim(value)} reps`;
-    case 'heaviest_weight': return `${trim(kgToDisplayUnit(value, weightUnit))} ${weightUnit}`;
+    case 'heaviest_weight': return `${trim(kgToDisplayUnit(value, weightUnit))} ${weightUnit}${reps != null && reps > 0 ? ` × ${reps}` : ''}`;
     case 'best_rom': return `${trim(value)} ${unit}`;
   }
 }
@@ -40,11 +40,15 @@ export function sideSuffix(side: 'left' | 'right' | null): string {
 }
 
 /** `Longest hold (L) · 75s` */
-export function prHeadline(kind: PrKind, side: 'left' | 'right' | null, value: number, unit: string, weightUnit: WeightUnit): string {
-  return `${PR_KIND_LABEL[kind]}${sideSuffix(side)} · ${formatPrValue(kind, value, unit, weightUnit)}`;
+export function prHeadline(kind: PrKind, side: 'left' | 'right' | null, value: number, unit: string, weightUnit: WeightUnit, reps?: number): string {
+  return `${PR_KIND_LABEL[kind]}${sideSuffix(side)} · ${formatPrValue(kind, value, unit, weightUnit, reps)}`;
 }
 
 /** `Ankle CARs · Longest hold (L) · 75s ↑ from 60s` */
 export function describePrEvent(e: PrEvent, weightUnit: WeightUnit): string {
-  return `${e.exerciseName} · ${prHeadline(e.kind, e.side, e.value, e.unit, weightUnit)} ↑ from ${formatPrValue(e.kind, e.previous, e.unit, weightUnit)}`;
+  // Weight tie-break (same weight, more reps): show reps on both sides.
+  const tie = e.kind === 'heaviest_weight' && e.value === e.previous;
+  const reps = tie ? e.reps : undefined;
+  const prevReps = tie ? e.previousReps : undefined;
+  return `${e.exerciseName} · ${prHeadline(e.kind, e.side, e.value, e.unit, weightUnit, reps)} ↑ from ${formatPrValue(e.kind, e.previous, e.unit, weightUnit, prevReps)}`;
 }

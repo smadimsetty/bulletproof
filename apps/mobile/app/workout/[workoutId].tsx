@@ -206,11 +206,13 @@ export default function LoggerScreen() {
       for (const cand of candidates) {
         const key = prKey(exercise.exerciseId, set.side, cand.kind, cand.romUnit);
         if (!isNewBest(bestsRef.current, key, cand)) continue;
-        // Don't re-toast the same (or a lower) value after an untick/retick.
-        if (toastedRef.current.has(key) && !isNewBest(toastedRef.current, key, cand)) continue;
+        // Toast each key at most once per logger session.
+        if (toastedRef.current.has(key)) continue;
         toastedRef.current.set(key, { value: cand.value, reps: cand.reps });
         const unitLabel = cand.kind === 'heaviest_weight' ? 'kg' : cand.kind === 'best_rom' ? (cand.romUnit ?? '') : '';
-        toast.show(`New PR — ${prHeadline(cand.kind, set.side, cand.value, unitLabel, unit)}`);
+        const prior = bestsRef.current.get(key);
+        const tieReps = cand.kind === 'heaviest_weight' && prior && prior.value === cand.value ? cand.reps : undefined;
+        toast.show(`New PR — ${prHeadline(cand.kind, set.side, cand.value, unitLabel, unit, tieReps)}`);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
     } catch {

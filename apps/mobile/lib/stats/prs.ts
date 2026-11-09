@@ -22,6 +22,9 @@ export interface PrEvent {
   /** 's' for holds, the ROM unit, 'reps', or 'kg' (screens convert weight). */
   unit: string;
   previous: number;
+  /** heaviest_weight only: reps at this PR / at the previous best (for tie-breaks). */
+  reps?: number;
+  previousReps?: number;
   at: string;
 }
 
@@ -43,16 +46,18 @@ export function prKey(exerciseId: string, side: string | null, kind: PrKind, rom
 export function setCandidates(exerciseType: string | null, unilateral: boolean, set: StatsSet): PrCandidate[] {
   if (set.setType === 'warmup' || set.completedAt == null) return [];
   const out: PrCandidate[] = [];
+  // Storage is numeric(6,2); round so a retyped value equals what was stored.
+  const r2 = (x: number) => Math.round(x * 100) / 100;
   const { kind } = fieldsForExercise({ exerciseType, unilateral: unilateral });
   if ((kind === 'hold' || kind === 'duration') && set.durationS != null && set.durationS > 0) {
     out.push({ kind: 'longest_hold', value: set.durationS });
   } else if (kind === 'reps' && set.reps != null && set.reps > 0) {
     out.push({ kind: 'most_reps', value: set.reps });
   } else if (kind === 'weight_reps' && set.weightKg != null && set.weightKg > 0) {
-    out.push({ kind: 'heaviest_weight', value: set.weightKg, reps: set.reps ?? 0 });
+    out.push({ kind: 'heaviest_weight', value: r2(set.weightKg), reps: set.reps ?? 0 });
   }
   if (set.romValue != null && set.romUnit != null) {
-    out.push({ kind: 'best_rom', value: set.romValue, romUnit: set.romUnit });
+    out.push({ kind: 'best_rom', value: r2(set.romValue), romUnit: set.romUnit });
   }
   return out;
 }
@@ -98,6 +103,7 @@ export function computePrEvents(workouts: readonly StatsWorkout[]): { events: Pr
           value: hit.cand.value,
           unit: unitFor(hit.cand),
           previous: prior.value,
+          ...(hit.cand.kind === 'heaviest_weight' ? { reps: hit.cand.reps, previousReps: prior.reps } : {}),
           at: w.endedAt,
         });
       }

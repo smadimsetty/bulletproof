@@ -3,7 +3,8 @@
 // Thin wrapper over react-native-gifted-charts' LineChart used by the
 // assessment trends and the exercise detail screen. One or two series
 // (two = left/right). Points missing a value are dropped rather than drawn
-// as zero. Fewer than one usable point renders nothing.
+// as zero; when only some points have both sides, each side that has data
+// is drawn as its own series. No usable point renders nothing.
 import { StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { COLORS, SPACING } from '../../lib/theme';
@@ -29,7 +30,25 @@ export default function TrendLineChart({
   height?: number;
   width?: number;
 }) {
-  const usable = points.filter((p) => (twoSeries ? p.a !== undefined && p.b !== undefined : p.a !== undefined));
+  const complete = twoSeries && points.every((p) => p.a !== undefined && p.b !== undefined);
+  if (twoSeries && !complete) {
+    const sides = [
+      { key: 'a' as const, name: seriesNames[0], color: COLORS.accent },
+      { key: 'b' as const, name: seriesNames[1], color: COLOR_B },
+    ].filter((s) => points.some((p) => p[s.key] !== undefined));
+    if (sides.length === 0) return null;
+    return (
+      <View style={styles.wrap}>
+        {sides.map((s) => (
+          <View key={s.key} style={styles.wrap}>
+            <Text style={[styles.legendText, { color: s.color }]}>● {s.name}</Text>
+            {renderSingle(points.filter((p) => p[s.key] !== undefined).map((p) => ({ label: p.label, value: p[s.key] as number })), s.color, height, width)}
+          </View>
+        ))}
+      </View>
+    );
+  }
+  const usable = points.filter((p) => p.a !== undefined);
   if (usable.length === 0) return null;
 
   const dataA = usable.map((p) => ({ value: p.a as number }));
@@ -66,6 +85,29 @@ export default function TrendLineChart({
         </View>
       )}
     </View>
+  );
+}
+
+function renderSingle(rows: { label: string; value: number }[], color: string, height: number, width: number) {
+  const spacing = rows.length > 1 ? Math.max(36, (width - 30) / (rows.length - 1)) : 0;
+  return (
+    <LineChart
+      data={rows.map((r) => ({ value: r.value }))}
+      height={height}
+      width={width}
+      spacing={spacing}
+      initialSpacing={12}
+      endSpacing={12}
+      color1={color}
+      dataPointsColor1={color}
+      thickness1={2}
+      noOfSections={3}
+      hideRules
+      yAxisTextStyle={styles.axis}
+      xAxisLabelTexts={rows.map((r) => r.label)}
+      xAxisLabelTextStyle={styles.axis}
+      disableScroll={rows.length < 6}
+    />
   );
 }
 
