@@ -47,6 +47,10 @@ import RestBar from '../../components/logger/RestBar';
 import Ticker from '../../components/logger/Ticker';
 import ExercisePickerSheet from '../../components/logger/ExercisePickerSheet';
 import FinishSheet from '../../components/logger/FinishSheet';
+import { useToast } from '../../components/Toast';
+import { fetchStatsDataset } from '../../lib/stats/dataset';
+import { computePrEvents, isNewBest, prKey, setCandidates, type Bests } from '../../lib/stats/prs';
+import { prHeadline } from '../../lib/stats/format';
 import LastAssessmentSheet from '../../components/LastAssessmentSheet';
 
 function reportError(err: any, fallback: string) {
@@ -84,6 +88,11 @@ export default function LoggerScreen() {
   const restRef = useRef<RestTimer | null>(null);
   const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
   const prevRequestedRef = useRef<Set<string>>(new Set());
+  const toast = useToast();
+  // Prior bests from FINISHED workouts only (the in-progress one is excluded by
+  // construction), and what this session has already toasted per key.
+  const bestsRef = useRef<Bests>(new Map());
+  const toastedRef = useRef<Bests>(new Map());
 
   function applyHold(next: HoldTimer) {
     holdRef.current = next;
@@ -139,6 +148,21 @@ export default function LoggerScreen() {
       .catch(() => missing.forEach((id) => prevRequestedRef.current.delete(id)));
   }, [exerciseIdsKey]);
 
+  // PR baselines for the exercises in this workout. A failed load just means no
+  // toasts -- never an error.
+  useEffect(() => {
+    if (!exerciseIdsKey) return;
+    let cancelled = false;
+    fetchStatsDataset({ exerciseIds: exerciseIdsKey.split(',') })
+      .then((dataset) => {
+        if (!cancelled) bestsRef.current = computePrEvents(dataset).bests;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseIdsKey]);
+
   // ---- lookups ----
   function findSet(w: Workout, setId: string): { exercise: WorkoutExerciseRow; set: WorkoutSetRow } | null {
     for (const exercise of w.exercises) {
@@ -171,6 +195,29 @@ export default function LoggerScreen() {
     }
   }
 
+  /** Toast + haptic for each kind this just-completed set newly beats (never throws). */
+  function announcePrs(exercise: WorkoutExerciseRow, set: WorkoutSetRow, values: SetValues) {
+    try {
+      const candidates = setCandidates(exercise.exerciseType, exercise.unilateral, {
+        side: set.side, setType: set.setType, reps: values.reps, weightKg: values.weightKg,
+        durationS: values.durationS, romValue: values.romValue, romUnit: values.romUnit,
+        completedAt: new Date().toISOString(),
+      });
+      for (const cand of candidates) {
+        const key = prKey(exercise.exerciseId, set.side, cand.kind, cand.romUnit);
+        if (!isNewBest(bestsRef.current, key, cand)) continue;
+        // Don't re-toast the same (or a lower) value after an untick/retick.
+        if (toastedRef.current.has(key) && !isNewBest(toastedRef.current, key, cand)) continue;
+        toastedRef.current.set(key, { value: cand.value, reps: cand.reps });
+        const unitLabel = cand.kind === 'heaviest_weight' ? 'kg' : cand.kind === 'best_rom' ? (cand.romUnit ?? '') : '';
+        toast.show(`New PR — ${prHeadline(cand.kind, set.side, cand.value, unitLabel, unit)}`);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+    } catch {
+      // PR detection must never break logging.
+    }
+  }
+
   function completeRow(setId: string, overrideDurationS?: number, viaTimer = false): Promise<void> {
     const pending = inFlightRef.current.get(setId);
     if (pending) return pending; // single-shot per row
@@ -194,6 +241,7 @@ export default function LoggerScreen() {
       try {
         await updateSet(setId, { ...values, completedAt: new Date().toISOString() });
         setDrafts((d) => ({ ...d, [setId]: values }));
+        announcePrs(found.exercise, found.set, values);
         await flushDirtyCompleted(setId).catch(() => {}); // Finish flushes again
         const fresh = await reload();
         // The user started another hold meanwhile: leave their timer alone
@@ -486,6 +534,7 @@ export default function LoggerScreen() {
   return (
     <View style={sharedStyles.screen}>
       <Stack.Screen options={screenOptions} />
+      {toast.element}
       <ScrollView
         contentContainerStyle={[sharedStyles.screenContent, styles.bottomPad]}
         keyboardShouldPersistTaps="handled"

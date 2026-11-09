@@ -12,6 +12,9 @@ import { fieldsForExercise } from '../../lib/setFields';
 import { formatSetLines } from '../../lib/setFormatting';
 import { fetchWeightUnit } from '../../lib/userPreferences';
 import type { WeightUnit } from '../../lib/units';
+import { fetchStatsDataset } from '../../lib/stats/dataset';
+import { computePrEvents, type PrEvent } from '../../lib/stats/prs';
+import { describePrEvent } from '../../lib/stats/format';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -28,6 +31,7 @@ export default function WorkoutSummaryScreen() {
   const [notesDraft, setNotesDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [prs, setPrs] = useState<PrEvent[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -35,6 +39,10 @@ export default function WorkoutSummaryScreen() {
       setWorkout(w);
       setUnit(u);
       setLoadError(null);
+      // PRs earned in this workout: best effort, the summary works without them.
+      fetchStatsDataset({ exerciseIds: Array.from(new Set(w.exercises.map((e) => e.exerciseId))) })
+        .then((dataset) => setPrs(computePrEvents(dataset).events.filter((e) => e.workoutId === w.id)))
+        .catch(() => setPrs([]));
     } catch (err: any) {
       setLoadError(err?.message ?? 'Failed to load.');
     }
@@ -164,6 +172,16 @@ export default function WorkoutSummaryScreen() {
           </>
         )}
       </View>
+      {prs.length > 0 && (
+        <View style={sharedStyles.card}>
+          <Text style={TYPE.sectionTitle}>Personal records</Text>
+          {prs.map((e) => (
+            <Text key={`${e.exerciseId}-${e.kind}-${e.side ?? ''}-${e.unit}`} style={TYPE.body}>
+              {describePrEvent(e, unit)}
+            </Text>
+          ))}
+        </View>
+      )}
       {workout.exercises
         .filter((ex) => ex.sets.length > 0)
         .map((ex) => {
