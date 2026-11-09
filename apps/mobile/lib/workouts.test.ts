@@ -6,6 +6,7 @@ import {
 import type { SprintDay } from './sprintLifecycle';
 
 jest.mock('./supabase', () => ({ supabase: { from: jest.fn() } }));
+jest.mock('./session', () => ({ getMyId: jest.fn(() => Promise.resolve('me')) }));
 import { supabase } from './supabase';
 
 function chain(result: any) {

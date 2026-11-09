@@ -83,17 +83,16 @@ export async function fetchLibrary(): Promise<LibraryExercise[]> {
     'is_corrective.eq.true',
   ].join(',');
 
-  const [globalRes, mineRes, sessionRes] = await Promise.all([
+  const myId = (await supabase.auth.getSession()).data.session?.user.id ?? null;
+  if (!myId) throw new Error('Sign in to see exercises.');
+  const [globalRes, mineRes] = await Promise.all([
     supabase.from('exercises').select(LIBRARY_COLUMNS).is('owner_id', null).or(mobilityClauses),
-    // RLS already limits non-global rows to the caller's own; the filter keeps
-    // this query from also re-fetching every global row.
-    supabase.from('exercises').select(LIBRARY_COLUMNS).not('owner_id', 'is', null),
-    supabase.auth.getSession(),
+    // RLS also exposes other users' custom exercises that appear in workouts I
+    // can read (stage 3), so filter to mine explicitly.
+    supabase.from('exercises').select(LIBRARY_COLUMNS).eq('owner_id', myId),
   ]);
   check(globalRes.error);
   check(mineRes.error);
-  const myId = sessionRes.data.session?.user.id ?? null;
-
   const byId = new Map<string, LibraryExercise>();
   for (const r of [...((globalRes.data ?? []) as any[]), ...((mineRes.data ?? []) as any[])]) {
     byId.set(r.id, toLibrary(r, myId));

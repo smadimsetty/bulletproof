@@ -144,22 +144,63 @@ export default function RootLayout() {
     };
   }, [session, loadRecommendations, runHealthKitSyncIfEnabled, refreshLiveActivity]);
 
+  const showApp = !!session && profileGate === 'ready';
+  const showGate = !!session && (profileGate === 'loading' || profileGate === 'error');
+
   return (
-    <Stack>
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="workout/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="workout-summary/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="routines/[routineId]" options={{ title: 'Routine', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="library/index" options={{ title: 'Exercises', headerBackTitle: 'Back' }} />
-        <Stack.Screen name="library/new" options={{ title: 'New exercise', headerBackTitle: 'Back' }} />
-      </Stack.Protected>
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-      </Stack.Protected>
-    </Stack>
+    <View style={styles.root}>
+      <Stack>
+        <Stack.Protected guard={showApp}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="workout/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="workout-summary/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="routines/[routineId]" options={{ title: 'Routine', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="library/index" options={{ title: 'Exercises', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="library/new" options={{ title: 'New exercise', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="profile/[userId]" options={{ title: 'Profile', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="people" options={{ title: 'Find people', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="follow-list" options={{ title: 'Followers', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', headerBackTitle: 'Back' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!!session && profileGate === 'needs_onboarding'}>
+          <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+        </Stack.Protected>
+      </Stack>
+      {showGate && (
+        <View style={[sharedStyles.screen, styles.gate]}>
+          {profileGate === 'error' ? (
+            <>
+              <Text style={TYPE.body}>{profileError}</Text>
+              <Pressable
+                style={sharedStyles.primaryButton}
+                onPress={() => {
+                  setProfileGate('loading');
+                  checkProfile();
+                }}
+              >
+                <Text style={sharedStyles.primaryButtonText}>Try again</Text>
+              </Pressable>
+              <Pressable onPress={() => supabase.auth.signOut()}>
+                <Text style={sharedStyles.helperText}>Sign out</Text>
+              </Pressable>
+            </>
+          ) : (
+            <ActivityIndicator color={COLORS.accent} />
+          )}
+        </View>
+      )}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  // Covers the (empty, fully-guarded) navigator while the profile check runs.
+  gate: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
+});

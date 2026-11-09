@@ -3,8 +3,10 @@
 // One owner-scoped read of finished workouts with their exercises and sets.
 // Every stats calculator (streaks, PRs, recap, exercise detail) is a pure
 // function over this shape, so screens stay thin and the maths is testable
-// without Supabase. RLS already restricts rows to the owner.
+// without Supabase. Queries filter on owner_id explicitly: the social read
+// policies also expose followed users' workouts.
 import { supabase } from '../supabase';
+import { getMyId } from '../session';
 import type { RomUnit, Side } from '../setFields';
 
 export interface StatsSet {
@@ -91,11 +93,14 @@ export async function fetchStatsDataset(opts?: { exerciseIds?: string[] }): Prom
        exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral ),
        workout_sets ( set_number, side, set_type, reps, weight_kg, duration_s, rom_value, rom_unit, completed_at ) )`;
 
+  // Followed users' workouts are readable too; stats are about me only.
+  const me = await getMyId();
   const out: StatsWorkout[] = [];
   for (let from = 0; ; from += PAGE) {
     let q = supabase
       .from('workouts')
       .select(select)
+      .eq('owner_id', me)
       .not('ended_at', 'is', null)
       .order('ended_at', { ascending: true })
       .order('id', { ascending: true })

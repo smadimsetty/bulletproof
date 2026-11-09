@@ -10,6 +10,7 @@ import { plannedRows, prefillValues, previousMatch, type PreviousSet } from './p
 import { planFinish } from './finishPlan';
 import { sprintTargetText, sprintWorkoutTitle } from './workoutTitles';
 import { fetchLibrary, type LibraryExercise } from './library';
+import { getMyId } from './session';
 
 export type WorkoutSource = 'empty' | 'sprint' | 'routine' | 'copy';
 
@@ -173,7 +174,9 @@ function toActive(r: any): ActiveWorkoutSummary {
 }
 
 export async function fetchActiveWorkout(): Promise<ActiveWorkoutSummary | null> {
-  const { data, error } = await supabase.from('workouts').select(ACTIVE_COLUMNS).is('ended_at', null).maybeSingle();
+  // Followed users' workouts are readable too (social policies), so scope to mine explicitly.
+  const me = await getMyId();
+  const { data, error } = await supabase.from('workouts').select(ACTIVE_COLUMNS).eq('owner_id', me).is('ended_at', null).maybeSingle();
   check(error);
   return data ? toActive(data) : null;
 }
@@ -229,9 +232,11 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
  * a to-one embed would only sort inside each row and not bound the result.
  */
 async function fetchPreviousSets(exerciseId: string): Promise<PreviousSet[]> {
+  const me = await getMyId();
   const { data, error } = await supabase
     .from('workouts')
     .select(`ended_at, workout_exercises!inner ( exercise_id, workout_sets ( ${SET_COLUMNS} ) )`)
+    .eq('owner_id', me)
     .eq('workout_exercises.exercise_id', exerciseId)
     .not('ended_at', 'is', null)
     .order('ended_at', { ascending: false })
@@ -294,10 +299,17 @@ export function historyCursorFilter(c: HistoryCursor): string {
  * the window, and two workouts sharing an ended_at are neither skipped nor
  * repeated.
  */
-export async function fetchWorkoutHistory(cursor: HistoryCursor | null, limit: number): Promise<WorkoutListItem[]> {
+export async function fetchWorkoutHistory(
+  cursor: HistoryCursor | null,
+  limit: number,
+  /** Whose finished workouts to list; defaults to mine. RLS decides what is readable of someone else's. */
+  ownerId?: string
+): Promise<WorkoutListItem[]> {
+  const owner = ownerId ?? (await getMyId());
   let q = supabase
     .from('workouts')
     .select('id, title, source, started_at, ended_at, workout_exercises ( id, workout_sets ( id ) )')
+    .eq('owner_id', owner)
     .not('ended_at', 'is', null)
     .order('ended_at', { ascending: false })
     .order('id', { ascending: false });
@@ -313,6 +325,17 @@ export async function fetchWorkoutHistory(cursor: HistoryCursor | null, limit: n
     exerciseCount: (w.workout_exercises ?? []).length,
     setCount: (w.workout_exercises ?? []).reduce((n: number, e: any) => n + (e.workout_sets ?? []).length, 0),
   }));
+}
+
+/** Finished workouts of `ownerId` that the caller may read (RLS decides for someone else). */
+export async function countFinishedWorkouts(ownerId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('workouts')
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', ownerId)
+    .not('ended_at', 'is', null);
+  check(error);
+  return count ?? 0;
 }
 
 // ---- writes --------------------------------------------------------------
