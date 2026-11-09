@@ -47,6 +47,12 @@ EMBEDS = [
         "id, sprint_id, phase, completed_at, sprints!inner ( pain_point_id, cycle_number )",
     ),
     (
+        "workouts",
+        "id, title, source, started_at, ended_at, workout_exercises!inner ( exercise_id, position, "
+        "exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral ), "
+        "workout_sets ( set_number, side, set_type, reps, weight_kg, duration_s, rom_value, rom_unit, completed_at ) )",
+    ),
+    (
         "exercise_logs",
         "date, exercise_id, reps_completed, weight_kg, "
         "exercises!exercise_logs_exercise_id_fkey ( name, body_parts, is_complex )",

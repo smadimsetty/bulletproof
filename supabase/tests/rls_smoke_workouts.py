@@ -36,6 +36,11 @@ try:
     s,r=req('GET',f"/rest/v1/workout_exercises?select=id,workouts!inner(ended_at),workout_sets(id,completed_at)&exercise_id=eq.{exid}&workouts.ended_at=not.is.null",token=A); ok(len(r)==1 and len(r[0]['workout_sets'])==1,f"previous-sets query returns saved workout ({len(r)})")
     s,r=req('DELETE',f"/rest/v1/workouts?id=eq.{wid}",token=A); ok(s==200,f"delete workout ({s})")
     s,r=req('GET',f"/rest/v1/workout_sets?select=id&workout_exercise_id=eq.{weid}",token=SR,key=SR); ok(r==[],"cascade removed sets")
+    # Stage 1: user_settings is owner-only.
+    s,r=req('POST','/rest/v1/user_settings?on_conflict=owner_id',{'weekly_goal':4},token=A,prefer='resolution=merge-duplicates,return=representation'); ok(s in (200,201) and r[0]['owner_id']==a_id,f"A upserts own settings ({s})")
+    s,r=req('GET','/rest/v1/user_settings?select=owner_id',token=B); ok(s==200 and r==[],f"B cannot read A's settings ({r})")
+    s,r=req('PATCH',f"/rest/v1/user_settings?owner_id=eq.{a_id}",{'weekly_goal':9},token=B); ok(s==200 and r==[],f"B cannot update A's settings ({r})")
+    s,r=req('POST','/rest/v1/user_settings',{'owner_id':a_id,'weekly_goal':9},token=B); ok(s>=400,f"B cannot insert settings as A ({s})")
 finally:
     for i in ids:
         s,_=req('DELETE',f"/auth/v1/admin/users/{i}",token=SR,key=SR); print(f"cleanup user {s}")
