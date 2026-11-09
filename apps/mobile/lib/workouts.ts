@@ -366,6 +366,7 @@ export async function startWorkout(input: {
   title: string;
   sprintDayId?: string | null;
   routineId?: string | null;
+  copiedFromWorkoutId?: string | null;
 }): Promise<StartResult> {
   const { data, error } = await supabase
     .from('workouts')
@@ -374,6 +375,7 @@ export async function startWorkout(input: {
       title: input.title,
       sprint_day_id: input.sprintDayId ?? null,
       routine_id: input.routineId ?? null,
+      copied_from_workout_id: input.copiedFromWorkoutId ?? null,
     })
     .select('id')
     .single();

@@ -164,6 +164,7 @@ export default function RootLayout() {
           <Stack.Screen name="people" options={{ title: 'Find people', headerBackTitle: 'Back' }} />
           <Stack.Screen name="follow-list" options={{ title: 'Followers', headerBackTitle: 'Back' }} />
           <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="comments/[workoutId]" options={{ title: 'Comments', headerBackTitle: 'Back' }} />
         </Stack.Protected>
         <Stack.Protected guard={!!session && profileGate === 'needs_onboarding'}>
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />

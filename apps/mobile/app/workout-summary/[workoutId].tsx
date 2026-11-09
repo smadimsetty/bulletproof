@@ -8,6 +8,7 @@
 // caller can't read the workout the fetch simply finds nothing.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
@@ -31,6 +32,10 @@ import PhotoPager from '../../components/social/PhotoPager';
 import PhotoStrip from '../../components/social/PhotoStrip';
 import SignedImage from '../../components/social/SignedImage';
 import VisibilityPicker from '../../components/social/VisibilityPicker';
+import ShareCard from '../../components/share/ShareCard';
+import { shareViewAsImage } from '../../lib/shareImage';
+import { fetchSocialSummary, setLiked, type SocialSummary } from '../../lib/social/interactions';
+import { copyWorkout } from '../../lib/social/copyWorkout';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -64,6 +69,13 @@ export default function WorkoutSummaryScreen() {
   const routineCheckedRef = useRef(false);
   const savingRoutineRef = useRef(false);
   const savingEditRef = useRef(false);
+  const [social, setSocial] = useState<SocialSummary | null>(null);
+  const likingRef = useRef(false);
+  const copyingRef = useRef(false);
+  const [copying, setCopying] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const sharingRef = useRef(false);
+  const shareCardRef = useRef<View>(null);
 
   const isOwner = !!workout && workout.ownerId === meId;
 
@@ -78,6 +90,8 @@ export default function WorkoutSummaryScreen() {
       setUnit(u);
       setMeId(me);
       setLoadError(null);
+      // Likes/comments are secondary: the workout still shows if they fail.
+      fetchSocialSummary(w.id).then(setSocial).catch(() => undefined);
       if (w.ownerId === me) {
         // PRs earned in this workout: best effort, the summary works without them.
         fetchStatsDataset({ exerciseIds: Array.from(new Set(w.exercises.map((e) => e.exerciseId))) })
@@ -148,6 +162,69 @@ export default function WorkoutSummaryScreen() {
     } finally {
       savingRoutineRef.current = false;
       setSavingRoutine(false);
+    }
+  }
+
+  async function handleToggleLike() {
+    if (!workout || !social || likingRef.current) return;
+    likingRef.current = true;
+    const next = !social.likedByMe;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    setSocial({ ...social, likedByMe: next, likeCount: Math.max(0, social.likeCount + (next ? 1 : -1)) });
+    try {
+      await setLiked(workout.id, next);
+    } catch (err) {
+      setSocial(social); // roll back
+      reportError(err, 'Could not update your like.');
+    } finally {
+      likingRef.current = false;
+    }
+  }
+
+  async function runCopy(mode: 'start' | 'routine') {
+    if (!workout || copyingRef.current) return;
+    copyingRef.current = true;
+    setCopying(true);
+    try {
+      const result = await copyWorkout(workout.id, mode);
+      if (result.kind === 'started') {
+        router.push(`/workout/${result.workoutId}`);
+      } else if (result.kind === 'routine') {
+        Alert.alert('Saved to Routines', `"${workout.title}" is on your Workout tab.`);
+      } else {
+        const activeId = result.activeWorkoutId;
+        Alert.alert('You already have a workout in progress', 'Finish or discard it before starting another.', [
+          { text: 'Cancel', style: 'cancel' },
+          ...(activeId ? [{ text: 'Resume', onPress: () => router.push(`/workout/${activeId}`) }] : []),
+        ]);
+      }
+    } catch (err) {
+      reportError(err, 'Could not copy this workout.');
+    } finally {
+      copyingRef.current = false;
+      setCopying(false);
+    }
+  }
+
+  function handleCopy() {
+    Alert.alert('Copy workout', 'Start it now, or keep it as a routine to use later.', [
+      { text: 'Start now', onPress: () => runCopy('start') },
+      { text: 'Save as routine', onPress: () => runCopy('routine') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function handleShare() {
+    if (!workout || sharingRef.current) return;
+    sharingRef.current = true;
+    setSharing(true);
+    try {
+      await shareViewAsImage(shareCardRef, workout.title);
+    } catch (err) {
+      reportError(err, 'Could not share this workout.');
+    } finally {
+      sharingRef.current = false;
+      setSharing(false);
     }
   }
 
@@ -237,6 +314,12 @@ export default function WorkoutSummaryScreen() {
 
   const dateText = new Date(workout.startedAt).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   const keptMedia = workout.media.filter((m) => !removedMediaIds.includes(m.id));
+  const topExercises = workout.exercises.filter((e) => e.sets.length > 0).slice(0, 3).map((e) => e.exerciseName);
+  const shareStats = [
+    { label: 'Duration', value: durationLabel(workout.startedAt, workout.endedAt) || '—' },
+    { label: 'Exercises', value: String(workout.exercises.filter((e) => e.sets.length > 0).length) },
+    ...(isOwner ? [{ label: 'Personal records', value: String(prs.length) }] : []),
+  ];
 
   return (
     <ScrollView style={sharedStyles.screen} contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
@@ -329,6 +412,32 @@ export default function WorkoutSummaryScreen() {
           </>
         )}
       </View>
+      {!editing && (
+        <View style={[sharedStyles.card, styles.socialRow]}>
+          <Pressable style={styles.socialBtn} onPress={handleToggleLike} disabled={!social} hitSlop={8} accessibilityLabel={social?.likedByMe ? 'Unlike' : 'Like'}>
+            <Ionicons
+              name={social?.likedByMe ? 'heart' : 'heart-outline'}
+              size={22}
+              color={social?.likedByMe ? COLORS.danger : COLORS.muted}
+            />
+            <Text style={styles.socialCount}>{social?.likeCount ?? 0}</Text>
+          </Pressable>
+          <Pressable style={styles.socialBtn} onPress={() => router.push(`/comments/${workout.id}`)} hitSlop={8} accessibilityLabel="Comments">
+            <Ionicons name="chatbubble-outline" size={20} color={COLORS.muted} />
+            <Text style={styles.socialCount}>{social?.commentCount ?? 0}</Text>
+          </Pressable>
+          <View style={styles.flexSpacer} />
+          <Pressable style={styles.socialBtn} onPress={handleShare} disabled={sharing} hitSlop={8} accessibilityLabel="Share workout card">
+            <Ionicons name="share-outline" size={22} color={COLORS.accent} />
+            <Text style={styles.shareLabel}>{sharing ? 'Preparing…' : 'Share'}</Text>
+          </Pressable>
+        </View>
+      )}
+      {!isOwner && (
+        <Pressable style={[sharedStyles.primaryButton, copying && styles.retryingButton]} disabled={copying} onPress={handleCopy}>
+          <Text style={sharedStyles.primaryButtonText}>{copying ? 'Copying…' : 'Copy workout'}</Text>
+        </Pressable>
+      )}
       {prs.length > 0 && (
         <View style={sharedStyles.card}>
           <Text style={TYPE.sectionTitle}>Personal records</Text>
@@ -353,6 +462,16 @@ export default function WorkoutSummaryScreen() {
             </View>
           );
         })}
+      {/* Rendered off-screen and captured to an image by the Share button. */}
+      <View style={styles.offscreen} pointerEvents="none">
+        <ShareCard
+          ref={shareCardRef}
+          title={workout.title}
+          subtitle={dateText}
+          stats={shareStats}
+          footer={topExercises.join(' · ')}
+        />
+      </View>
       {isOwner && (
         <>
           <Pressable style={[sharedStyles.primaryButton, savingRoutine && styles.retryingButton]} disabled={savingRoutine} onPress={handleSaveAsRoutine}>
@@ -370,6 +489,12 @@ export default function WorkoutSummaryScreen() {
 const THUMB = 80;
 
 const styles = StyleSheet.create({
+  socialRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
+  socialBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  socialCount: { ...TYPE.label, color: COLORS.muted },
+  shareLabel: { ...TYPE.label, color: COLORS.accent },
+  flexSpacer: { flex: 1 },
+  offscreen: { position: 'absolute', left: -10000, top: 0 },
   retryingButton: { opacity: 0.6 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
