@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Bulletproof",
     "slug": "mobile",
     "version": "1.0.0",
     "scheme": "bulletproof",
@@ -13,7 +13,7 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "Bulletproof uses your location to label your training location and timezone in Settings. This is optional and only used when you tap \"Use current location.\""
+        "NSPhotoLibraryUsageDescription": "Choose photos to add to your workouts and profile."
       }
     },
     "android": {
@@ -33,8 +33,8 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Bulletproof reads your workouts from Apple Health to track pickleball, running, and gym sessions for your daily training recommendation.",
-          "NSHealthUpdateUsageDescription": "Bulletproof does not write any data to Apple Health.",
+          "NSHealthShareUsageDescription": "Bulletproof doesn't read your Health data.",
+          "NSHealthUpdateUsageDescription": "Bulletproof saves your finished workouts to Apple Health when you turn this on in Settings.",
           "background": false
         }
       ],
@@ -63,7 +63,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-notifications"
     ],
     "extra": {
       "eas": {

@@ -15,6 +15,8 @@ export interface UserSettings {
   notifyFollows: boolean;
   notifyLikes: boolean;
   notifyComments: boolean;
+  /** Moderators only: push for new content reports. */
+  notifyReports: boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -25,10 +27,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notifyFollows: true,
   notifyLikes: true,
   notifyComments: true,
+  notifyReports: true,
 };
 
 const COLUMNS =
-  'weight_unit, weekly_goal, default_visibility, healthkit_write_enabled, notify_follows, notify_likes, notify_comments';
+  'weight_unit, weekly_goal, default_visibility, healthkit_write_enabled, notify_follows, notify_likes, notify_comments, notify_reports';
 
 function fromRow(r: any): UserSettings {
   return {
@@ -39,6 +42,7 @@ function fromRow(r: any): UserSettings {
     notifyFollows: r.notify_follows,
     notifyLikes: r.notify_likes,
     notifyComments: r.notify_comments,
+    notifyReports: r.notify_reports ?? true,
   };
 }
 
@@ -50,6 +54,7 @@ const COLUMN_BY_KEY: Record<keyof UserSettings, string> = {
   notifyFollows: 'notify_follows',
   notifyLikes: 'notify_likes',
   notifyComments: 'notify_comments',
+  notifyReports: 'notify_reports',
 };
 
 export async function fetchUserSettings(): Promise<UserSettings> {

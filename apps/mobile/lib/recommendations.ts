@@ -6,7 +6,7 @@
 // per CLAUDE.md's public/private split). See
 // docs/superpowers/specs/2026-06-22-recommendation-ui-design.md Decision 1.
 import { supabase } from './supabase';
-import { localDateString } from './healthkitMapping';
+import { localDateString } from './localDate';
 
 export type SessionType =
   | 'upper'

@@ -1,7 +1,7 @@
 // apps/mobile/app/_layout.tsx
 //
-// Root layout: owns the Supabase auth session subscription and the
-// HealthKit-sync/recommendations-fetch side effects. Also keeps the workout
+// Root layout: owns the Supabase auth session subscription, the profile gate
+// (onboarding vs tabs), push-tap routing and the recommendations-fetch side effect. Also keeps the workout
 // Live Activity in sync with the in-progress workout (lib/workoutActivityBridge.ts).
 // The `recommendations` fetch below is
 // intentionally left in place though nothing renders it: it's the mobile
@@ -13,7 +13,6 @@ import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { isHealthKitSyncEnabled, syncHealthKitWorkouts, syncHealthKitDailyMetrics } from '../lib/healthkitSync';
 import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommendations';
 import { fetchActiveWorkout, subscribeToActiveWorkoutChanges } from '../lib/workouts';
 import { syncWorkoutLiveActivity } from '../lib/workoutActivityBridge';
@@ -99,19 +98,6 @@ export default function RootLayout() {
     }
   }, []);
 
-  const runHealthKitSyncIfEnabled = useCallback(async (label: string) => {
-    const enabled = await isHealthKitSyncEnabled().catch(() => false);
-    if (!enabled) {
-      return;
-    }
-    syncHealthKitWorkouts().catch((err) => {
-      console.warn(`HealthKit sync failed on ${label}:`, err);
-    });
-    syncHealthKitDailyMetrics().catch((err) => {
-      console.warn(`HealthKit daily metrics sync failed on ${label}:`, err);
-    });
-  }, []);
-
   const refreshLiveActivity = useCallback(() => {
     fetchActiveWorkout()
       .then(syncWorkoutLiveActivity)
@@ -128,13 +114,11 @@ export default function RootLayout() {
     }
     hadSession.current = true;
 
-    runHealthKitSyncIfEnabled('launch');
     loadRecommendations();
     refreshLiveActivity();
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (appState.current !== 'active' && nextState === 'active') {
-        runHealthKitSyncIfEnabled('foreground');
         loadRecommendations();
         refreshLiveActivity();
       }
@@ -146,7 +130,7 @@ export default function RootLayout() {
       subscription.remove();
       unsubscribeWorkout();
     };
-  }, [session, loadRecommendations, runHealthKitSyncIfEnabled, refreshLiveActivity]);
+  }, [session, loadRecommendations, refreshLiveActivity]);
 
   const showApp = !!session && profileGate === 'ready';
 
@@ -189,6 +173,7 @@ export default function RootLayout() {
           <Stack.Screen name="follow-list" options={{ title: 'Followers', headerBackTitle: 'Back' }} />
           <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', headerBackTitle: 'Back' }} />
           <Stack.Screen name="comments/[workoutId]" options={{ title: 'Comments', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Back' }} />
           <Stack.Screen name="inbox" options={{ title: 'Inbox', headerBackTitle: 'Back' }} />
           <Stack.Screen name="blocked" options={{ title: 'Blocked users', headerBackTitle: 'Back' }} />
         </Stack.Protected>

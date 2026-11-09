@@ -57,6 +57,8 @@ import { fetchMyProfile } from '../../lib/social/profiles';
 import { initialVisibility } from '../../lib/social/visibility';
 import { photoFailureMessage, uploadWorkoutPhotos } from '../../lib/social/media';
 import { ensurePushRegistered } from '../../lib/social/push';
+import { saveWorkoutToHealth } from '../../lib/healthkitWrite';
+import { dominantKind } from '../../lib/workoutKind';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -483,6 +485,12 @@ export default function LoggerScreen() {
       applyHold(IDLE);
       applyRest(null);
       setFinishOpen(false);
+      // Optional Apple Health write (no-op unless the setting is on; never blocks the finish).
+      saveWorkoutToHealth({
+        startedAt: fresh.startedAt,
+        endedAt: new Date().toISOString(),
+        dominantKind: dominantKind(fresh.exercises),
+      });
       // First finished workout is a natural moment to ask for push (once, ever).
       ensurePushRegistered({ ask: true });
       // The workout is saved; a photo failure must not undo that, just say so.

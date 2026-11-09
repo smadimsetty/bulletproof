@@ -14,7 +14,7 @@
 // unit coverage in sprintExercisePicker.test.ts. This file's simpler,
 // single-purpose functions are unit tested below.
 import { supabase } from './supabase';
-import { localDateString } from './healthkitMapping';
+import { localDateString } from './localDate';
 import { pickExerciseForSlot, slotsForDay, type PoolCandidate, type TemplateRow } from './sprintExercisePicker';
 
 export type SprintStatus = 'pending_baseline' | 'active' | 'pending_reassessment' | 'completed' | 'abandoned';

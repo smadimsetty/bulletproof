@@ -14,7 +14,7 @@ function chain(result: any) {
 
 const ROW = {
   weight_unit: 'kg', weekly_goal: 4, default_visibility: 'public', healthkit_write_enabled: true,
-  notify_follows: false, notify_likes: true, notify_comments: false,
+  notify_follows: false, notify_likes: true, notify_comments: false, notify_reports: true,
 };
 
 beforeEach(() => (supabase.from as jest.Mock).mockReset());
@@ -28,7 +28,7 @@ test('row maps to camelCase', async () => {
   (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: ROW, error: null }));
   await expect(fetchUserSettings()).resolves.toEqual({
     weightUnit: 'kg', weeklyGoal: 4, defaultVisibility: 'public', healthkitWriteEnabled: true,
-    notifyFollows: false, notifyLikes: true, notifyComments: false,
+    notifyFollows: false, notifyLikes: true, notifyComments: false, notifyReports: true,
   });
 });
 
