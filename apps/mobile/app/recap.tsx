@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../lib/theme';
 import { fetchStatsDataset, type StatsWorkout } from '../lib/stats/dataset';
 import { computePrEvents } from '../lib/stats/prs';
 import { buildMonthlyRecap } from '../lib/stats/recap';

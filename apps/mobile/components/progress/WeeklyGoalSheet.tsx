@@ -4,7 +4,7 @@
 // the sheet open with the error rather than silently dropping the change.
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 
 export default function WeeklyGoalSheet({
   visible,

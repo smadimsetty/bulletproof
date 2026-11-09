@@ -5,7 +5,7 @@
 // onChanged, since the server decides pending vs accepted.
 import { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
-import { COLORS, RADII, SPACING } from '../../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING } from '../../lib/theme';
 import { follow, unfollow } from '../../lib/social/follows';
 import { followButtonLabel } from '../../lib/social/followState';
 import type { FollowStatus } from '../../lib/social/profiles';

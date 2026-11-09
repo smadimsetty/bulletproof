@@ -5,7 +5,7 @@
 // sprint screen and from inside a sprint-day workout.
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import {
   buildBeforeAfterComparison,
   changeVerdict,

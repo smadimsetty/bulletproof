@@ -4,7 +4,7 @@
 // across every completed assessment (Left/Right lines for bilateral tests),
 // or a row of pass/fail dots.
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import type { TestTrend, TrendPoint } from '../../lib/stats/assessmentTrends';
 import TrendLineChart from './TrendLineChart';
 

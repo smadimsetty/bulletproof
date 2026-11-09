@@ -8,7 +8,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import Avatar from './Avatar';
 import FollowButton from './FollowButton';
 import WorkoutListRow from '../WorkoutListRow';

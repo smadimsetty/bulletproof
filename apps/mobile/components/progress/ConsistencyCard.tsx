@@ -4,7 +4,7 @@
 // weekly-goal sheet.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import type { Consistency } from '../../lib/stats/consistency';
 
 const SIZE = 76;

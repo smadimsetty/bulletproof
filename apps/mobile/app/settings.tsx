@@ -12,7 +12,7 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { signOut } from '../lib/signOut';
 import { DEFAULT_SETTINGS, fetchUserSettings, updateUserSettings, type UserSettings, type Visibility } from '../lib/userSettings';

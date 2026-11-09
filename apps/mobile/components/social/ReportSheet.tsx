@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import { REPORT_REASONS, type ReportReason, type ReportTargetType } from '../../lib/social/reportReasons';
 import { block, hideWorkout, report } from '../../lib/social/safety';
 

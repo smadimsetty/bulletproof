@@ -6,7 +6,7 @@
     "scheme": "bulletproof",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.sohan.bulletproof",
       "supportsTablet": true,

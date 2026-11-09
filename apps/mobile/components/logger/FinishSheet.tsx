@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import type { FinishInput } from '../../lib/workouts';
 import type { Visibility } from '../../lib/userSettings';
 import VisibilityPicker from '../social/VisibilityPicker';

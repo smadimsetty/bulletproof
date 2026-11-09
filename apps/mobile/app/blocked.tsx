@@ -3,7 +3,7 @@
 // Users I have blocked, with Unblock.
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import { fetchBlocked, unblock, type BlockedUser } from '../lib/social/safety';
 

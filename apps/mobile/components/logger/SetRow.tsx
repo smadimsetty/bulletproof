@@ -3,7 +3,7 @@
 // whenever the field is not focused.
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { COLORS, RADII, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import type { WorkoutSetRow } from '../../lib/workouts';
 import type { RomUnit, SetKind, SetValues } from '../../lib/setFields';
 import Ticker from './Ticker';

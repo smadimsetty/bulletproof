@@ -5,7 +5,7 @@
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, RADII, SPACING } from '../../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING } from '../../lib/theme';
 
 /** Opens the picker for up to `limit` more images; returns their local URIs ([] if cancelled). */
 export async function pickPhotos(limit: number): Promise<string[]> {

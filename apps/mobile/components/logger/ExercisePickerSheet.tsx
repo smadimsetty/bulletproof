@@ -4,7 +4,7 @@
 // gym rows. "+ Create exercise" hands off to the library form via onCreate.
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import { EMPTY_FILTER, facetValues, filterLibrary, type LibraryExercise, type LibraryFilter } from '../../lib/library';
 import FilterChips from '../library/FilterChips';
 import { typeLabel } from '../library/ExerciseListRow';

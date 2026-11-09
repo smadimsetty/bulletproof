@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import Avatar from '../../components/social/Avatar';
 import {
   addComment, deleteComment, fetchComments, fetchWorkoutOwnerId, type Comment,

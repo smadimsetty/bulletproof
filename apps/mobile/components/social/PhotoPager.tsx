@@ -3,7 +3,7 @@
 // Horizontally swipeable photos (one per page) with page dots.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import { COLORS, SPACING } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING } from '../../lib/theme';
 import SignedImage from './SignedImage';
 
 export default function PhotoPager({ paths, aspectRatio = 4 / 3 }: { paths: readonly string[]; aspectRatio?: number }) {

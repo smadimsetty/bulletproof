@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import {
   displayNameError, fetchMyProfile, handleError, isHandleAvailable, normalizeHandle, updateProfile, type Profile,

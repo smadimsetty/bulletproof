@@ -1,6 +1,6 @@
 // apps/mobile/components/WorkoutListRow.tsx
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import { durationLabel } from '../lib/historyGrouping';
 import type { WorkoutListItem } from '../lib/workouts';
 

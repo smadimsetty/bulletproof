@@ -1,6 +1,6 @@
 // apps/mobile/components/library/ExerciseListRow.tsx
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import type { LibraryExercise } from '../../lib/library';
 
 export const TYPE_LABELS: Record<string, string> = {

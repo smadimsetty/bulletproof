@@ -20,7 +20,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import {
   fetchPainPoints,
   fetchInFlightSprint,

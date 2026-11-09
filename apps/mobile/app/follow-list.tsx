@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import PersonRow from '../components/social/PersonRow';
 import { fetchFollowList, removeFollower } from '../lib/social/follows';
 import type { ProfileCard } from '../lib/social/profiles';

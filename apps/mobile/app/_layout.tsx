@@ -7,9 +7,10 @@
 // intentionally left in place though nothing renders it: it's the mobile
 // side of the old daily-recommendation engine, which stays running
 // dormant rather than being torn out.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -20,7 +21,7 @@ import { fetchMyProfile, subscribeToProfileChanges } from '../lib/social/profile
 import { ensurePushRegistered } from '../lib/social/push';
 import { safePushRoute } from '../lib/social/notificationFormat';
 import { signOut } from '../lib/signOut';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 
 type RecommendationsState = {
   today: RecommendationPublicRow | null;
@@ -30,6 +31,16 @@ type RecommendationsState = {
 };
 
 type ProfileGate = 'loading' | 'needs_onboarding' | 'ready' | 'error';
+
+// Visual spec section 3 (Header styling): one dark stack header + no white flash.
+const STACK_SCREEN_OPTIONS: NonNullable<ComponentProps<typeof Stack>['screenOptions']> = {
+  headerStyle: { backgroundColor: COLORS.bg },
+  headerShadowVisible: false,
+  headerTintColor: COLORS.textPrimary,
+  headerTitleStyle: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary },
+  headerBackButtonDisplayMode: 'minimal',
+  contentStyle: { backgroundColor: COLORS.bg },
+};
 
 const INITIAL_RECOMMENDATIONS_STATE: RecommendationsState = {
   today: null,
@@ -157,7 +168,8 @@ export default function RootLayout() {
 
   return (
     <View style={styles.root}>
-      <Stack>
+      <StatusBar style="light" />
+      <Stack screenOptions={STACK_SCREEN_OPTIONS}>
         <Stack.Protected guard={showApp}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="workout/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />

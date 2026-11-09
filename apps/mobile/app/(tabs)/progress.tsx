@@ -7,7 +7,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { fetchStatsDataset, type StatsWorkout } from '../../lib/stats/dataset';
 import { computeConsistency } from '../../lib/stats/consistency';
 import { computePrEvents } from '../../lib/stats/prs';

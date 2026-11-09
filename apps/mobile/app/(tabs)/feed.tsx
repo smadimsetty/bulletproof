@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleShe
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import FeedCard from '../../components/social/FeedCard';
 import { fetchFeed, type FeedItem } from '../../lib/social/feed';
 import type { FeedCursor } from '../../lib/social/feedCursor';

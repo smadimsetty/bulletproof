@@ -10,7 +10,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import { createProfile, displayNameError, handleError, isHandleAvailable, normalizeHandle } from '../lib/social/profiles';
 import { updateUserSettings } from '../lib/userSettings';

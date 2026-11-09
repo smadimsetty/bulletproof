@@ -7,7 +7,7 @@
 // is drawn as its own series. No usable point renders nothing.
 import { StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { COLORS, SPACING } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING } from '../../lib/theme';
 
 export interface ChartPoint {
   label: string;

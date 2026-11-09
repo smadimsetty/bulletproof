@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { fetchRoutine, fetchRoutinesAndFolders, saveRoutine, type RoutineFolder } from '../../lib/routines';
 import {
   draftFromRoutineExercise, draftKind, draftToInput, moveItem, newDraft, validateRoutine, type RoutineExerciseDraft,

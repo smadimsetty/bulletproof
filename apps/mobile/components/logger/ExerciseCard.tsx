@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DescriptionToggleButton, useToggle } from '../DescriptionToggle';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import type { WorkoutExerciseRow, WorkoutSetRow } from '../../lib/workouts';
 import type { WeightUnit } from '../../lib/units';
 

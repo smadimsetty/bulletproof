@@ -1,82 +1,204 @@
 // apps/mobile/lib/theme.ts
 //
-// Shared calm/minimal, Oura-inspired style constants for the mobile app's
-// screens. Plain constants + StyleSheet fragments, not a styling library
-// dependency -- every existing screen in this repo already uses RN's
-// built-in StyleSheet.create (sign-in.tsx, the tab stubs), and adding a
-// styling package for one screen would be exactly the over-engineering
-// CLAUDE.md's conventions warn against. See
-// docs/superpowers/specs/2026-06-24-settings-healthkit-design.md
-// Decision 9 for the palette rationale.
+// Design tokens for the Stage 4 redesign. Source of truth:
+// docs/superpowers/specs/2026-11-08-visual-design.md section 2.
+// Legacy aliases (COLORS.ink/muted/card/accentMuted/background, LEGACY_SPACING,
+// RADII.card/chip/button, legacy TYPE keys, sharedStyles) stay so screens not
+// yet redesigned keep compiling. Remove once grep shows no users.
 import { StyleSheet } from 'react-native';
-import type { SessionType } from './recommendations';
+import { Easing } from 'react-native-reanimated';
 
+// ---------- 2.1 Colour ----------
 export const COLORS = {
-  background: '#F7F5F2',
-  card: '#FFFFFF',
-  ink: '#1C1B1A',
-  muted: '#8A8580',
-  accent: '#3A6B5C',
-  accentMuted: '#DCE6E2',
-  border: '#E7E3DC',
-  danger: '#B3261E',
+  bg: '#0B0C0F',
+  surface: '#15171C',
+  elevated: '#1E2128',
+  sheet: '#262A32',
+  tabBar: '#101115',
+  scrim: 'rgba(0,0,0,0.6)',
+  textPrimary: '#F4F5F7',
+  textSecondary: '#B3B8C3',
+  textTertiary: '#8E94A1',
+  textDisabled: '#5C6270',
+  accent: '#C6F432',
+  accentPressed: '#A8D41C',
+  onAccent: '#0B0C0F',
+  accentTint: '#313A20',
+  success: '#3DDC97',
+  successTint: '#1B3730',
+  warning: '#FFB547',
+  warningTint: '#3A3023',
+  danger: '#FF6369',
+  dangerTint: '#3A2328',
+  onDanger: '#0B0C0F',
+  border: '#2C313A',
+  borderStrong: '#3A404B',
+  divider: '#20232A',
+  chartLeft: '#4FC3F7',
+  chartRight: '#FF9F43',
+  chartSeries: ['#C6F432', '#4FC3F7', '#FF9F43', '#A78BFA', '#F472B6', '#3DDC97'],
+  chartGrid: '#23262E',
+
+  // Legacy aliases (pre-redesign screens).
+  background: '#0B0C0F',
+  card: '#15171C',
+  ink: '#F4F5F7',
+  muted: '#8E94A1',
+  accentMuted: '#313A20',
 } as const;
 
-// Muted-but-distinguishable per-session-type colors for Trends'
-// sleep/training overlay chart (the one place the app needs more than
-// one accent color at a time). Lives here, not in the chart component,
-// so any future screen needing the same per-type color stays consistent
-// with this single source rather than redefining its own palette.
-export const SESSION_TYPE_COLORS: Record<SessionType, string> = {
-  upper: '#3A6B5C',
-  lower: '#6B8E7F',
-  pickleball: '#C98A3E',
-  run: '#4E7FB3',
-  rest: '#B7B2AB',
-  mobility: '#A66B8E',
-} as const;
+// ---------- 2.2 Type ----------
+export const TYPE = {
+  display: {
+    fontSize: 64,
+    fontWeight: '800' as const,
+    lineHeight: 68,
+    letterSpacing: -2,
+    color: COLORS.textPrimary,
+    fontVariant: ['tabular-nums' as const],
+  },
+  numeral: {
+    fontSize: 40,
+    fontWeight: '800' as const,
+    lineHeight: 44,
+    letterSpacing: -1,
+    color: COLORS.textPrimary,
+    fontVariant: ['tabular-nums' as const],
+  },
+  stat: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    lineHeight: 28,
+    letterSpacing: -0.5,
+    color: COLORS.textPrimary,
+    fontVariant: ['tabular-nums' as const],
+  },
+  title1: { fontSize: 28, fontWeight: '800' as const, lineHeight: 34, letterSpacing: -0.5, color: COLORS.textPrimary },
+  title2: { fontSize: 22, fontWeight: '700' as const, lineHeight: 28, letterSpacing: -0.3, color: COLORS.textPrimary },
+  title3: { fontSize: 17, fontWeight: '700' as const, lineHeight: 22, letterSpacing: -0.2, color: COLORS.textPrimary },
+  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 22, letterSpacing: 0, color: COLORS.textPrimary },
+  bodyStrong: { fontSize: 16, fontWeight: '600' as const, lineHeight: 22, letterSpacing: 0, color: COLORS.textPrimary },
+  callout: { fontSize: 14, fontWeight: '500' as const, lineHeight: 20, letterSpacing: 0, color: COLORS.textSecondary },
+  footnote: { fontSize: 13, fontWeight: '400' as const, lineHeight: 18, letterSpacing: 0, color: COLORS.textTertiary },
+  overline: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    lineHeight: 16,
+    letterSpacing: 1.2,
+    color: COLORS.textTertiary,
+    textTransform: 'uppercase' as const,
+  },
+  caption: { fontSize: 11, fontWeight: '600' as const, lineHeight: 14, letterSpacing: 0.4, color: COLORS.textTertiary },
 
-export const SPACING = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-} as const;
+  // Legacy keys (pre-redesign screens).
+  screenTitle: { fontSize: 22, fontWeight: '700' as const, color: COLORS.textPrimary },
+  sectionTitle: { fontSize: 17, fontWeight: '600' as const, color: COLORS.textPrimary },
+  label: { fontSize: 14, fontWeight: '500' as const, color: COLORS.textPrimary },
+  helper: { fontSize: 13, fontWeight: '400' as const, color: COLORS.textTertiary },
+};
+
+/** Cap Dynamic Type growth on the big numerals (spec 2.2). Pass as maxFontSizeMultiplier. */
+export const NUMERAL_MAX_FONT_SCALE = 1.2;
+
+// ---------- 2.3 Spacing, radii, sizes ----------
+export const SPACING = { xxs: 2, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
+
+/** Old scale; untouched screens import this as SPACING until they are redesigned. */
+export const LEGACY_SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
 export const RADII = {
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 28,
+  pill: 999,
+  // Legacy aliases.
   card: 16,
   chip: 999,
   button: 12,
 } as const;
 
-export const TYPE = {
-  screenTitle: { fontSize: 22, fontWeight: '700' as const, color: COLORS.ink },
-  sectionTitle: { fontSize: 17, fontWeight: '600' as const, color: COLORS.ink },
-  label: { fontSize: 14, fontWeight: '500' as const, color: COLORS.ink },
-  helper: { fontSize: 13, fontWeight: '400' as const, color: COLORS.muted },
-  body: { fontSize: 15, fontWeight: '400' as const, color: COLORS.ink },
-};
+export const SIZES = {
+  hitMin: 44,
+  buttonSm: 36,
+  buttonMd: 48,
+  buttonLg: 56,
+  iconSm: 16,
+  iconMd: 20,
+  iconLg: 24,
+  iconXl: 32,
+  rowMin: 56,
+  setRow: 52,
+  tabBar: 56,
+  avatarXs: 24,
+  avatarSm: 32,
+  avatarMd: 44,
+  avatarLg: 72,
+  avatarXl: 96,
+} as const;
 
+// ---------- 2.4 Elevation ----------
+export const ELEVATION = {
+  0: {},
+  1: { borderWidth: StyleSheet.hairlineWidth, borderColor: '#262A32' },
+  2: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#30353F',
+    shadowColor: '#000',
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  3: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#3A404B',
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+  },
+  glow: {
+    shadowColor: '#C6F432',
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+  },
+} as const;
+
+// ---------- 2.5 Motion ----------
+export const MOTION = {
+  fast: 120,
+  base: 200,
+  slow: 320,
+  roll: 600,
+  stagger: 30,
+  toastHold: 2500,
+  easeOut: Easing.bezier(0.2, 0.9, 0.3, 1),
+  easeIn: Easing.bezier(0.4, 0, 1, 1),
+  standard: Easing.bezier(0.4, 0, 0.2, 1),
+  spring: { damping: 18, stiffness: 220, mass: 1 },
+  sheetSpring: { damping: 26, stiffness: 260, mass: 0.9, overshootClamping: false },
+  popSpring: { damping: 10, stiffness: 300, mass: 0.8 },
+} as const;
+
+// ---------- Legacy shared styles (pre-redesign screens) ----------
 export const sharedStyles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.bg,
   },
   screenContent: {
-    padding: SPACING.md,
-    gap: SPACING.md,
+    padding: LEGACY_SPACING.md,
+    gap: LEGACY_SPACING.md,
   },
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.surface,
     borderRadius: RADII.card,
-    padding: SPACING.md,
-    gap: SPACING.sm,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    padding: LEGACY_SPACING.md,
+    gap: LEGACY_SPACING.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#262A32',
   },
   sectionTitle: {
     ...TYPE.sectionTitle,
@@ -87,36 +209,39 @@ export const sharedStyles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
-    backgroundColor: COLORS.accentMuted,
+    gap: LEGACY_SPACING.xs,
+    backgroundColor: COLORS.accentTint,
     borderRadius: RADII.chip,
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
+    paddingVertical: LEGACY_SPACING.xs,
+    paddingHorizontal: LEGACY_SPACING.sm,
   },
   chipText: {
     ...TYPE.body,
+    fontSize: 15,
     color: COLORS.accent,
   },
   primaryButton: {
     backgroundColor: COLORS.accent,
     borderRadius: RADII.button,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
+    paddingVertical: LEGACY_SPACING.sm,
+    paddingHorizontal: LEGACY_SPACING.md,
     alignItems: 'center',
   },
   primaryButtonText: {
     ...TYPE.body,
-    color: COLORS.card,
+    fontSize: 15,
+    color: COLORS.onAccent,
     fontWeight: '600',
   },
   textInput: {
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADII.button,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
+    paddingVertical: LEGACY_SPACING.sm,
+    paddingHorizontal: LEGACY_SPACING.sm,
     fontSize: 15,
-    color: COLORS.ink,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.elevated,
   },
   warningText: {
     ...TYPE.helper,

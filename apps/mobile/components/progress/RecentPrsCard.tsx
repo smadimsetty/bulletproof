@@ -3,7 +3,7 @@
 // PRs from the last 30 days, newest first, at most 5. Tapping a row opens the
 // exercise detail screen.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import type { PrEvent } from '../../lib/stats/prs';
 import { describePrEvent, shortDate } from '../../lib/stats/format';
 import type { WeightUnit } from '../../lib/units';

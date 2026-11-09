@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import {
   MOVEMENT_PATTERNS, createCustomExercise, deleteCustomExercise, fetchCustomExercise, parseTagList,
   setPendingPickedExercise, updateCustomExercise, validateCustomExercise,

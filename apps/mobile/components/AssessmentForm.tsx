@@ -1,7 +1,7 @@
 // apps/mobile/components/AssessmentForm.tsx
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { COLORS, RADII, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import { DescriptionToggleButton, useToggle } from './DescriptionToggle';
 import { isAssessmentComplete, type AssessmentDefinition, type AssessmentResultInput } from '../lib/sprintAssessment';
 

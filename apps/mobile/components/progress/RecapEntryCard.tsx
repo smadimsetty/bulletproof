@@ -3,7 +3,7 @@
 // Entry points to the monthly recap: last month, and this month so far.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { monthName } from '../../lib/stats/format';
 
 export default function RecapEntryCard({

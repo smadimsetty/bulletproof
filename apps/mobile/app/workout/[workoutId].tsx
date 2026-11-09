@@ -24,7 +24,7 @@ import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, 
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import {
   addExercisesToWorkout, addSet, deleteSet, discardWorkout, fetchExerciseCatalog, fetchPreviousSetsForExercises,
   fetchWorkout, finishWorkout, removeWorkoutExercise, setMeasureRom, setRomUnitForExercise, updateSet,

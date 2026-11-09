@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { createFolder, deleteFolder, deleteRoutine, moveRoutine, renameFolder, type Routine, type RoutineFolder } from '../../lib/routines';
 import FolderSheet, { type FolderSheetMode } from './FolderSheet';
 

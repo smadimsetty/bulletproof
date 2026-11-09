@@ -4,7 +4,7 @@
 // folder to move a routine into (null = Unfiled).
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import type { RoutineFolder } from '../../lib/routines';
 
 export type FolderSheetMode =

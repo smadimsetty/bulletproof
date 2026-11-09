@@ -6,7 +6,7 @@
 // screen's root view.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
-import { COLORS, RADII, SPACING } from '../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING } from '../lib/theme';
 
 const VISIBLE_MS = 2500;
 

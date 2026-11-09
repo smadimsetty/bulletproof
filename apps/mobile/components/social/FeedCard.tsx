@@ -1,7 +1,7 @@
 // apps/mobile/components/social/FeedCard.tsx
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
 import { durationLabel } from '../../lib/historyGrouping';
 import { relativeTime } from '../../lib/social/time';
 import type { FeedItem } from '../../lib/social/feed';

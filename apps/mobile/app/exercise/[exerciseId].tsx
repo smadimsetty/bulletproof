@@ -7,7 +7,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { DescriptionToggleButton, useToggle } from '../../components/DescriptionToggle';
 import TrendLineChart from '../../components/progress/TrendLineChart';
 import { fetchExerciseInfo, metricSeries, romSeries, type ExerciseInfo, type MetricPoint } from '../../lib/exerciseDetail';

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import { fetchNotifications, markAllRead, type AppNotification } from '../lib/social/notifications';
 import { notificationRoute, notificationText } from '../lib/social/notificationFormat';

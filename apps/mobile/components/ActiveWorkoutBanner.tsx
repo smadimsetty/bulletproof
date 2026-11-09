@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { COLORS, RADII, SPACING, TYPE } from '../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING, TYPE } from '../lib/theme';
 import { discardWorkout, type ActiveWorkoutSummary } from '../lib/workouts';
 
 const TICK_MS = 15000;

@@ -3,7 +3,7 @@
 // One horizontally scrolling row of single-select chips; tapping the active
 // chip clears it. Shared by the library screen and the exercise picker.
 import { FlatList, Pressable, StyleSheet, Text } from 'react-native';
-import { COLORS, SPACING, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles } from '../../lib/theme';
 
 export interface ChipOption {
   label: string;

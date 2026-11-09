@@ -3,7 +3,7 @@
 // Private / Followers / Public segmented control. Public is disabled (with a
 // hint) unless the user's profile is public.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, RADII, SPACING, sharedStyles } from '../../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING, sharedStyles } from '../../lib/theme';
 import type { Visibility } from '../../lib/userSettings';
 import { PUBLIC_DISABLED_HINT, VISIBILITY_OPTIONS } from '../../lib/social/visibility';
 

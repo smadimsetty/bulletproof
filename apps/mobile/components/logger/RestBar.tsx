@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, RADII, SPACING, TYPE } from '../../lib/theme';
+import { COLORS, RADII, LEGACY_SPACING as SPACING, TYPE } from '../../lib/theme';
 import { formatSeconds } from '../../lib/setFormatting';
 
 export interface RestBarProps {

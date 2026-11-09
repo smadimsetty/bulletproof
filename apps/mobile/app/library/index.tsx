@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, sharedStyles } from '../../lib/theme';
+import { COLORS, LEGACY_SPACING as SPACING, sharedStyles } from '../../lib/theme';
 import { EMPTY_FILTER, facetValues, fetchLibrary, filterLibrary, type LibraryExercise, type LibraryFilter } from '../../lib/library';
 import FilterChips from '../../components/library/FilterChips';
 import ExerciseListRow, { typeLabel } from '../../components/library/ExerciseListRow';
