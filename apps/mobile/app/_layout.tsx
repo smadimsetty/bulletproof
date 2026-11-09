@@ -8,7 +8,7 @@
 // side of the old daily-recommendation engine, which stays running
 // dormant rather than being torn out.
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
-import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
@@ -22,7 +22,9 @@ import { ensurePushRegistered } from '../lib/social/push';
 import { safePushRoute } from '../lib/social/notificationFormat';
 import { signOut } from '../lib/signOut';
 import { ToastProvider } from '../components/ui/Toast';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
+import { COLORS, SPACING } from '../lib/theme';
+import { AnimatedBrandMark } from '../components/BrandMark';
+import { Button, ErrorState } from '../components/ui';
 
 type RecommendationsState = {
   today: RecommendationPublicRow | null;
@@ -193,32 +195,27 @@ export default function RootLayout() {
           <Stack.Screen name="blocked" options={{ title: 'Blocked users', headerBackTitle: 'Back' }} />
         </Stack.Protected>
         <Stack.Protected guard={!!session && profileGate === 'needs_onboarding'}>
-          <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
         </Stack.Protected>
         <Stack.Protected guard={!session}>
-          <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+          <Stack.Screen name="sign-in" options={{ headerShown: false, animation: 'fade' }} />
         </Stack.Protected>
       </Stack>
       {showGate && (
-        <View style={[sharedStyles.screen, styles.gate]}>
+        <View style={styles.gate}>
           {profileGate === 'error' ? (
             <>
-              <Text style={TYPE.body}>{profileError}</Text>
-              <Pressable
-                style={sharedStyles.primaryButton}
-                onPress={() => {
+              <ErrorState
+                message={profileError ?? undefined}
+                onRetry={() => {
                   setProfileGate('loading');
                   checkProfile();
                 }}
-              >
-                <Text style={sharedStyles.primaryButtonText}>Try again</Text>
-              </Pressable>
-              <Pressable onPress={() => signOut().catch(() => supabase.auth.signOut())}>
-                <Text style={sharedStyles.helperText}>Sign out</Text>
-              </Pressable>
+              />
+              <Button title="Sign out" variant="ghost" onPress={() => signOut().catch(() => supabase.auth.signOut())} />
             </>
           ) : (
-            <ActivityIndicator color={COLORS.accent} />
+            <AnimatedBrandMark size={96} />
           )}
         </View>
       )}
@@ -228,7 +225,18 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: COLORS.bg },
   // Covers the (empty, fully-guarded) navigator while the profile check runs.
-  gate: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
+  gate: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.md,
+    padding: SPACING.lg,
+  },
 });

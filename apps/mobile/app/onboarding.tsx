@@ -1,27 +1,54 @@
 // apps/mobile/app/onboarding.tsx
 //
-// First-run setup for an account with no profiles row (brand-new users, and
-// Sohan once). Three steps on one screen: (1) name, handle, optional photo;
-// (2) units and weekly goal; (3) Terms. Nothing is written until the final
-// step; createProfile then notifies the root layout, which re-checks and
+// First-run setup for an account with no profiles row (visual spec 4.2). Three steps on one
+// screen: (1) name, handle, optional photo; (2) units and weekly goal; (3) Terms. Nothing is
+// written until the final step; createProfile then notifies the root layout, which re-checks and
 // swaps this screen for the tabs.
+// TODO(stage4): the spec's "content fades out 200 ms, tabs fade in" hand-off is owned by the root
+// layout's Stack.Protected swap (animation: fade); only the Welcome toast is added here.
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  FadeIn, SlideInLeft, SlideInRight, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
+import * as haptics from '../lib/haptics';
+import { COLORS, MOTION, RADII, SPACING, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import { createProfile, displayNameError, handleError, isHandleAvailable, normalizeHandle } from '../lib/social/profiles';
 import { updateUserSettings } from '../lib/userSettings';
 import type { WeightUnit } from '../lib/units';
 import { PRIVACY_URL, TERMS_URL } from '../lib/links';
 import { signOut } from '../lib/signOut';
+import { Button, Card, IconButton, ListGroup, ListRow, PressableScale, ScreenScroll, SegmentedControl, StickyFooter, Stepper, TextField, useToast } from '../components/ui';
 
 type HandleState = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
+/** One of the three step-indicator segments; the current one fills over 300 ms. */
+function Segment({ state }: { state: 'done' | 'current' | 'future' }) {
+  const reduced = useReducedMotion();
+  const fill = useSharedValue(state === 'future' ? 0 : state === 'done' ? 1 : 0);
+  useEffect(() => {
+    const target = state === 'future' ? 0 : 1;
+    fill.value = reduced ? target : withTiming(target, { duration: 300, easing: MOTION.easeOut });
+  }, [state, reduced, fill]);
+  const style = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+  return (
+    <View style={styles.segment}>
+      <Animated.View style={[styles.segmentFill, style]} />
+    </View>
+  );
+}
+
 export default function Onboarding() {
+  const insets = useSafeAreaInsets();
+  const toast = useToast();
+  const reduced = useReducedMotion();
   const [step, setStep] = useState(1);
+  const [forward, setForward] = useState(true);
   const [displayName, setDisplayName] = useState('');
   const [handle, setHandle] = useState('');
   const [handleState, setHandleState] = useState<HandleState>('idle');
@@ -30,7 +57,6 @@ export default function Onboarding() {
   const [weeklyGoal, setWeeklyGoal] = useState(3);
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const savingRef = useRef(false);
 
   const normalized = normalizeHandle(handle);
@@ -76,201 +102,196 @@ export default function Onboarding() {
     return null;
   }
 
+  function go(to: number) {
+    setForward(to > step);
+    setStep(to);
+  }
+
   function next() {
-    setError(null);
-    if (step === 1) {
-      const problem = step1Problem();
-      if (problem) {
-        setError(problem);
-        return;
-      }
-    }
-    setStep((s) => Math.min(3, s + 1));
+    if (step === 1 && step1Problem()) return;
+    go(Math.min(3, step + 1));
   }
 
   async function finish() {
-    if (savingRef.current) return;
-    if (!agreed) {
-      setError('Please agree to the Terms to continue.');
-      return;
-    }
+    if (savingRef.current || !agreed) return;
     savingRef.current = true;
     setSaving(true);
-    setError(null);
     try {
       await updateUserSettings({ weightUnit: unit, weeklyGoal });
       await createProfile({ handle: normalized, displayName, avatarUri, termsAccepted: true });
       // The root layout re-checks the profile and replaces this screen.
+      haptics.success();
+      toast.show({ message: `Welcome, ${displayName.trim()}.`, tone: 'success' });
     } catch (err: any) {
-      setError(err?.message ?? 'Could not finish setting up.');
+      toast.show({
+        message: err?.message ?? 'Could not finish setting up.',
+        tone: 'danger',
+        action: { label: 'Retry', onPress: () => void finish() },
+      });
     } finally {
       savingRef.current = false;
       setSaving(false);
     }
   }
 
+  const handleError_ = formatProblem ?? (handleState === 'taken' ? 'Taken' : undefined);
+  const handleHelper = handleError_
+    ? undefined
+    : handleState === 'available'
+    ? 'Available'
+    : handleState === 'error'
+    ? "Couldn't check availability"
+    : handleState === 'checking'
+    ? 'Checking…'
+    : '3–20 letters, numbers or _';
+  const handleStatus =
+    handleState === 'checking' ? (
+      <ActivityIndicator size="small" color={COLORS.textTertiary} />
+    ) : handleState === 'available' ? (
+      <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+    ) : handleState === 'taken' ? (
+      <Ionicons name="close-circle" size={20} color={COLORS.danger} />
+    ) : undefined;
+
+  const entering = reduced ? FadeIn.duration(150) : (forward ? SlideInRight : SlideInLeft).duration(280).easing(MOTION.easeOut);
+  const canContinue = step === 1 ? step1Problem() === null : true;
+
   return (
-    <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={sharedStyles.screenContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.dots}>
-          {[1, 2, 3].map((n) => (
-            <View key={n} style={[styles.dot, n <= step && styles.dotActive]} />
-          ))}
-        </View>
-        <Text style={sharedStyles.helperText}>Step {step} of 3</Text>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.indicator, { paddingTop: insets.top + SPACING.md }]} accessibilityLabel={`Step ${step} of 3`}>
+        {[1, 2, 3].map((n) => (
+          <Segment key={n} state={n < step ? 'done' : n === step ? 'current' : 'future'} />
+        ))}
+      </View>
 
-        {step === 1 && (
-          <View style={sharedStyles.card}>
-            <Text style={TYPE.screenTitle}>Set up your profile</Text>
-            <Pressable onPress={pickPhoto} style={styles.photoRow}>
-              <Avatar path={null} name={displayName || '?'} size={64} localUri={avatarUri} />
-              <Text style={styles.link}>{avatarUri ? 'Change photo' : 'Add a photo (optional)'}</Text>
-            </Pressable>
-            <Text style={sharedStyles.helperText}>Display name</Text>
-            <TextInput
-              style={sharedStyles.textInput}
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Your name"
-              placeholderTextColor={COLORS.muted}
-              maxLength={40}
-            />
-            <Text style={sharedStyles.helperText}>Handle</Text>
-            <TextInput
-              style={sharedStyles.textInput}
-              value={handle}
-              onChangeText={setHandle}
-              placeholder="@yourhandle"
-              placeholderTextColor={COLORS.muted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              maxLength={21}
-            />
-            <Text
-              style={[
-                sharedStyles.helperText,
-                (formatProblem || handleState === 'taken') && sharedStyles.warningText,
-                handleState === 'available' && styles.ok,
-              ]}
-            >
-              {formatProblem
-                ? formatProblem
-                : handleState === 'checking'
-                ? 'Checking…'
-                : handleState === 'available'
-                ? 'Available'
-                : handleState === 'taken'
-                ? 'That handle is taken'
-                : handleState === 'error'
-                ? "Couldn't check availability"
-                : '3–20 letters, numbers or _'}
-            </Text>
-          </View>
-        )}
+      <ScreenScroll keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+        <Animated.View key={step} entering={entering} style={styles.step}>
+          {step === 1 && (
+            <>
+              <Text style={TYPE.title1}>Set up your profile</Text>
+              <View style={styles.photo}>
+                <Avatar path={null} name={displayName || '?'} size="xl" localUri={avatarUri} />
+                <IconButton icon="camera" variant="accent" size="sm" accessibilityLabel="Add a photo" onPress={pickPhoto} style={styles.camera} />
+              </View>
+              <TextField label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" maxLength={40} />
+              <TextField
+                label="Handle"
+                value={handle}
+                onChangeText={setHandle}
+                placeholder="yourhandle"
+                leftIcon="at"
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={21}
+                helper={handleHelper}
+                error={handleError_}
+                right={handleStatus}
+              />
+            </>
+          )}
 
-        {step === 2 && (
-          <View style={sharedStyles.card}>
-            <Text style={TYPE.screenTitle}>Your training</Text>
-            <Text style={TYPE.sectionTitle}>Weight units</Text>
-            <View style={styles.row}>
-              {(['lbs', 'kg'] as const).map((u) => (
-                <Pressable key={u} style={[styles.chip, unit === u && styles.chipActive]} onPress={() => setUnit(u)}>
-                  <Text style={unit === u ? styles.chipTextActive : styles.chipText}>{u}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <Text style={TYPE.sectionTitle}>Weekly goal</Text>
-            <Text style={sharedStyles.helperText}>Workouts per week. Your streak counts weeks you hit it.</Text>
-            <View style={styles.stepper}>
-              <Pressable style={styles.stepBtn} onPress={() => setWeeklyGoal((g) => Math.max(1, g - 1))} accessibilityLabel="Decrease goal">
-                <Ionicons name="remove" size={22} color={COLORS.accent} />
-              </Pressable>
-              <Text style={styles.goalValue}>{weeklyGoal}</Text>
-              <Pressable style={styles.stepBtn} onPress={() => setWeeklyGoal((g) => Math.min(14, g + 1))} accessibilityLabel="Increase goal">
-                <Ionicons name="add" size={22} color={COLORS.accent} />
-              </Pressable>
-            </View>
-          </View>
-        )}
+          {step === 2 && (
+            <>
+              <Text style={TYPE.title1}>How you train</Text>
+              <View style={styles.block}>
+                <Text style={TYPE.overline}>Units</Text>
+                <SegmentedControl
+                  options={[
+                    { value: 'kg', label: 'kg' },
+                    { value: 'lbs', label: 'lbs' },
+                  ]}
+                  value={unit}
+                  onChange={(u) => setUnit(u as WeightUnit)}
+                />
+              </View>
+              <View style={styles.block}>
+                <Text style={TYPE.overline}>Weekly goal</Text>
+                <Stepper value={weeklyGoal} min={1} max={14} onChange={setWeeklyGoal} />
+                <Text style={[TYPE.footnote, styles.center]}>Workouts per week to keep your streak alive.</Text>
+              </View>
+            </>
+          )}
 
-        {step === 3 && (
-          <View style={sharedStyles.card}>
-            <Text style={TYPE.screenTitle}>Terms</Text>
-            <Text style={TYPE.body}>
-              Bulletproof is a mobility-first workout logger with an optional social layer. You choose who sees each
-              workout. We have zero tolerance for objectionable content or abusive behavior, and accounts that post it
-              are removed. Mobility suggestions are general information, not medical advice.
-            </Text>
-            <Pressable onPress={() => WebBrowser.openBrowserAsync(TERMS_URL)}>
-              <Text style={styles.link}>Read the Terms of Use</Text>
-            </Pressable>
-            <Pressable onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)}>
-              <Text style={styles.link}>Read the Privacy Policy</Text>
-            </Pressable>
-            <Pressable style={styles.agreeRow} onPress={() => setAgreed((a) => !a)} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}>
-              <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={26} color={COLORS.accent} />
-              <Text style={[TYPE.body, styles.agreeText]}>
-                I agree to the Terms, including zero tolerance for abusive content
-              </Text>
-            </Pressable>
-          </View>
-        )}
+          {step === 3 && (
+            <>
+              <Text style={TYPE.title1}>One last thing</Text>
+              <Card>
+                {[
+                  { icon: 'shield-checkmark-outline' as const, text: 'Zero tolerance for abusive content.' },
+                  { icon: 'medkit-outline' as const, text: 'Not medical advice — stop if something hurts.' },
+                  { icon: 'people-outline' as const, text: 'Your workouts are private unless you share them.' },
+                ].map((b) => (
+                  <View key={b.text} style={styles.bullet}>
+                    <Ionicons name={b.icon} size={22} color={COLORS.accent} />
+                    <Text style={[TYPE.body, styles.bulletText]}>{b.text}</Text>
+                  </View>
+                ))}
+              </Card>
+              <ListGroup>
+                <ListRow title="Terms of Use" trailing="chevron" onPress={() => WebBrowser.openBrowserAsync(TERMS_URL).catch(() => undefined)} />
+                <ListRow title="Privacy Policy" trailing="chevron" onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL).catch(() => undefined)} />
+              </ListGroup>
+              <PressableScale
+                style={styles.agreeRow}
+                haptic="select"
+                scaleTo={0.99}
+                onPress={() => setAgreed((a) => !a)}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: agreed }}
+                accessibilityLabel="I agree to the Terms, including zero tolerance for abusive content"
+              >
+                <View style={[styles.checkbox, agreed ? styles.checkboxOn : null]}>
+                  {agreed ? <Ionicons name="checkmark" size={16} color={COLORS.onAccent} /> : null}
+                </View>
+                <Text style={[TYPE.body, styles.agreeText]}>I agree to the Terms, including zero tolerance for abusive content.</Text>
+              </PressableScale>
+            </>
+          )}
+        </Animated.View>
 
-        {error && <Text style={sharedStyles.warningText}>{error}</Text>}
+        <Button title="Sign out" variant="ghost" size="sm" style={styles.signOut} onPress={() => signOut().catch(() => undefined)} />
+      </ScreenScroll>
 
-        {step < 3 ? (
-          <Pressable style={sharedStyles.primaryButton} onPress={next}>
-            <Text style={sharedStyles.primaryButtonText}>Next</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={[sharedStyles.primaryButton, (saving || !agreed) && styles.disabled]} disabled={saving} onPress={finish}>
-            <Text style={sharedStyles.primaryButtonText}>{saving ? 'Setting up…' : 'Create profile'}</Text>
-          </Pressable>
-        )}
-        {step > 1 && (
-          <Pressable style={styles.textBtn} disabled={saving} onPress={() => { setError(null); setStep((s) => s - 1); }}>
-            <Text style={styles.link}>Back</Text>
-          </Pressable>
-        )}
-        <Pressable style={styles.textBtn} onPress={() => signOut().catch(() => undefined)}>
-          <Text style={sharedStyles.helperText}>Sign out</Text>
-        </Pressable>
-      </ScrollView>
+      <StickyFooter style={styles.footer}>
+        {step > 1 ? <Button title="Back" variant="ghost" size="lg" disabled={saving} onPress={() => go(step - 1)} /> : null}
+        <Button
+          title={step === 3 ? 'Agree and start' : 'Continue'}
+          size="lg"
+          style={styles.cta}
+          loading={saving}
+          disabled={step === 3 ? !agreed : !canContinue}
+          onPress={step === 3 ? finish : next}
+        />
+      </StickyFooter>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  dots: { flexDirection: 'row', gap: SPACING.sm },
-  dot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: COLORS.border },
-  dotActive: { backgroundColor: COLORS.accent },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  link: { color: COLORS.accent, fontWeight: '600', fontSize: 15 },
-  ok: { color: COLORS.accent },
-  row: { flexDirection: 'row', gap: SPACING.sm },
-  chip: {
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  chipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  chipText: { color: COLORS.ink },
-  chipTextActive: { color: COLORS.card, fontWeight: '600' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  indicator: { flexDirection: 'row', gap: 6, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm },
+  segment: { flex: 1, height: 4, borderRadius: RADII.pill, backgroundColor: COLORS.elevated, overflow: 'hidden' },
+  segmentFill: { height: 4, backgroundColor: COLORS.accent },
+  step: { gap: SPACING.lg },
+  photo: { alignSelf: 'center' },
+  camera: { position: 'absolute', right: -4, bottom: -4 },
+  block: { gap: SPACING.md, alignItems: 'stretch' },
+  center: { textAlign: 'center' },
+  bullet: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  bulletText: { flex: 1 },
+  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, minHeight: 44 },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: COLORS.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  goalValue: { fontSize: 28, fontWeight: '700', color: COLORS.ink, minWidth: 40, textAlign: 'center' },
-  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  checkboxOn: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   agreeText: { flex: 1 },
-  textBtn: { alignItems: 'center', paddingVertical: SPACING.xs },
-  disabled: { opacity: 0.5 },
+  signOut: { alignSelf: 'center' },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  cta: { flex: 1 },
 });
