@@ -41,6 +41,28 @@ try:
     s,r=req('GET','/rest/v1/user_settings?select=owner_id',token=B); ok(s==200 and r==[],f"B cannot read A's settings ({r})")
     s,r=req('PATCH',f"/rest/v1/user_settings?owner_id=eq.{a_id}",{'weekly_goal':9},token=B); ok(s==200 and r==[],f"B cannot update A's settings ({r})")
     s,r=req('POST','/rest/v1/user_settings',{'owner_id':a_id,'weekly_goal':9},token=B); ok(s>=400,f"B cannot insert settings as A ({s})")
+    # Stage 2: custom exercises + routines. Written but not run by the builder.
+    s,r=req('POST','/rest/v1/exercises?select=id,owner_id',{'name':'Smoke custom','movement_pattern':'mobility','exercise_type':'mobility_stretch','owner_id':a_id},token=A); ok(s==201,f"A creates custom exercise ({s} {r})"); cx=r[0]['id']
+    s,r=req('GET',f"/rest/v1/exercises?select=id&id=eq.{cx}",token=B); ok(s==200 and r==[],f"B cannot read A's custom exercise ({r})")
+    s,r=req('GET',f"/rest/v1/exercises?select=id&id=eq.{cx}"); ok(s==200 and r==[],f"anon cannot read custom exercise ({r})")
+    s,r=req('POST','/rest/v1/exercises',{'name':'Smoke forged','movement_pattern':'mobility','owner_id':a_id},token=B); ok(s>=400,f"B cannot create exercise owned by A ({s})")
+    s,r=req('POST','/rest/v1/exercises',{'name':'Smoke global','movement_pattern':'mobility'},token=A); ok(s>=400,f"A cannot create a global (owner-less) exercise ({s})")
+    s,fo=req('POST','/rest/v1/routine_folders?select=id',{'name':'Smoke folder'},token=A); ok(s==201,f"A creates folder ({s})")
+    s,ro=req('POST','/rest/v1/routines?select=id',{'title':'Smoke routine','folder_id':fo[0]['id']},token=A); ok(s==201,f"A creates routine in own folder ({s})")
+    s,r=req('POST','/rest/v1/routines',{'title':'Sneaky','folder_id':fo[0]['id']},token=B); ok(s>=400,f"B cannot put a routine in A's folder ({s})")
+    s,r=req('POST','/rest/v1/routine_exercises',{'routine_id':ro[0]['id'],'exercise_id':exid,'position':1},token=B); ok(s>=400,f"B cannot add routine_exercise to A's routine ({s})")
+    s,r=req('POST','/rest/v1/routine_exercises',{'routine_id':ro[0]['id'],'exercise_id':cx,'position':1},token=A); ok(s==201,f"A adds own custom exercise to own routine ({s})")
+    s,rb=req('POST','/rest/v1/routines?select=id',{'title':'B routine'},token=B); ok(s==201,f"B creates own routine ({s})")
+    s,r=req('POST','/rest/v1/routine_exercises',{'routine_id':rb[0]['id'],'exercise_id':cx,'position':1},token=B); ok(s>=400,f"B cannot use A's custom exercise in a routine ({s})")
+    s,r=req('POST','/rest/v1/workouts',{'source':'routine','title':'Hijack routine','routine_id':ro[0]['id']},token=B); ok(s>=400,f"B cannot start a workout with A's routine_id ({s})")
+    s,wb=req('POST','/rest/v1/workouts?select=id',{'source':'routine','title':'B workout','routine_id':rb[0]['id']},token=B); ok(s==201,f"B starts workout from own routine ({s})")
+    s,r=req('POST','/rest/v1/workout_exercises',{'workout_id':wb[0]['id'],'exercise_id':cx,'position':1},token=B); ok(s>=400,f"B cannot log A's custom exercise ({s})")
+    s,r=req('DELETE',f"/rest/v1/workouts?id=eq.{wb[0]['id']}",token=B); ok(s==200,f"cleanup B workout ({s})")
+    s,r=req('DELETE',f"/rest/v1/routine_folders?id=eq.{fo[0]['id']}",token=A); ok(s==200,f"delete folder ({s})")
+    s,r=req('GET',f"/rest/v1/routines?select=id,folder_id&id=eq.{ro[0]['id']}",token=A); ok(s==200 and len(r)==1 and r[0]['folder_id'] is None,f"folder delete keeps routine, unfiled ({r})")
+    s,r=req('DELETE',f"/rest/v1/exercises?id=eq.{cx}",token=A); ok(s==409 and r.get('code')=='23503',f"custom exercise in a routine cannot be deleted ({s})")
+    s,r=req('DELETE',f"/rest/v1/routines?id=eq.{ro[0]['id']}",token=A); ok(s==200,f"delete routine ({s})")
+    s,r=req('DELETE',f"/rest/v1/exercises?id=eq.{cx}",token=A); ok(s==200,f"delete unused custom exercise ({s})")
 finally:
     for i in ids:
         s,_=req('DELETE',f"/auth/v1/admin/users/{i}",token=SR,key=SR); print(f"cleanup user {s}")
