@@ -180,7 +180,15 @@ export async function createProfile(input: {
     avatar_path: avatar,
     terms_accepted_at: new Date().toISOString(),
   });
-  if (error) throw writeError(error);
+  if (error) {
+    // A retry after a lost response hits our own primary key (23505 on id),
+    // which would read as "handle taken": if the profile now exists, it's done.
+    if (error.code === '23505' && (await fetchMyProfile().catch(() => null))) {
+      notifyProfileChanged();
+      return;
+    }
+    throw writeError(error);
+  }
   notifyProfileChanged();
 }
 

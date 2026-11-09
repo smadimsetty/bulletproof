@@ -8,7 +8,12 @@
 // Failures are silent (console.warn): Health is a nice-to-have, never a
 // reason a finish fails.
 import { Platform } from 'react-native';
-import HealthKit, { WorkoutActivityType, WorkoutTypeIdentifier } from '@kingstinct/react-native-healthkit';
+import HealthKit, {
+  AuthorizationStatus,
+  authorizationStatusFor,
+  WorkoutActivityType,
+  WorkoutTypeIdentifier,
+} from '@kingstinct/react-native-healthkit';
 import type { SetKind } from './setFields';
 import { fetchUserSettings } from './userSettings';
 
@@ -29,7 +34,11 @@ export function activityTypeFor(kind: SetKind): WorkoutActivityType {
 export async function requestHealthWriteAccess(): Promise<boolean> {
   if (Platform.OS !== 'ios') return false;
   try {
-    return await HealthKit.requestAuthorization({ toShare: [WorkoutTypeIdentifier] });
+    // requestAuthorization resolves true whenever the sheet was shown, even if
+    // the user denied. Share (write) status *is* reported truthfully by iOS,
+    // so check it explicitly.
+    await HealthKit.requestAuthorization({ toShare: [WorkoutTypeIdentifier] });
+    return authorizationStatusFor(WorkoutTypeIdentifier) === AuthorizationStatus.sharingAuthorized;
   } catch (err) {
     console.warn('HealthKit write authorization failed:', err);
     return false;

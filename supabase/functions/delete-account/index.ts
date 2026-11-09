@@ -12,6 +12,7 @@
 // content_reports, user_settings).
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/cors.ts";
+import { appleConfig, revokeRefreshToken } from "../_shared/apple.ts";
 
 // Delete-order matters. `col` is the owner column.
 //  - old-engine tables reference auth.users WITHOUT cascade
@@ -103,6 +104,18 @@ Deno.serve(async (req: Request) => {
     for (const { table, col } of OWNED_TABLES) {
       const { error } = await admin.from(table).delete().eq(col, uid);
       if (error) throw new Error(`delete from ${table}: ${error.message}`);
+    }
+
+    // App Store 5.1.1(v): revoke the user's Sign in with Apple tokens. Best
+    // effort -- an Apple outage must not block deleting the account.
+    const config = appleConfig();
+    if (config) {
+      const { data: tok } = await admin.from("apple_tokens").select("refresh_token").eq("user_id", uid).maybeSingle();
+      if (tok?.refresh_token) {
+        await revokeRefreshToken(config, tok.refresh_token).catch((e) =>
+          console.warn("Apple token revoke failed:", e instanceof Error ? e.message : e)
+        );
+      }
     }
 
     const { error: delErr } = await admin.auth.admin.deleteUser(uid);

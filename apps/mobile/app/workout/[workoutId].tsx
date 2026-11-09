@@ -52,7 +52,7 @@ import { fetchStatsDataset } from '../../lib/stats/dataset';
 import { computePrEvents, isNewBest, prKey, setCandidates, type Bests } from '../../lib/stats/prs';
 import { prHeadline } from '../../lib/stats/format';
 import LastAssessmentSheet from '../../components/LastAssessmentSheet';
-import { fetchUserSettings, DEFAULT_SETTINGS, type Visibility } from '../../lib/userSettings';
+import { fetchUserSettings, type Visibility } from '../../lib/userSettings';
 import { fetchMyProfile } from '../../lib/social/profiles';
 import { initialVisibility } from '../../lib/social/visibility';
 import { photoFailureMessage, uploadWorkoutPhotos } from '../../lib/social/media';
@@ -85,9 +85,11 @@ export default function LoggerScreen() {
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  // Finish-sheet defaults; best effort (falls back to Followers / not-public).
+  // Finish-sheet defaults; best effort. Until the user's real default loads
+  // (or if it never does) fall back to Private: posting to followers is
+  // something the user must choose, never something a slow network chooses.
   const [postDefaults, setPostDefaults] = useState<{ visibility: Visibility; profileIsPublic: boolean }>({
-    visibility: DEFAULT_SETTINGS.defaultVisibility,
+    visibility: 'private',
     profileIsPublic: false,
   });
   // Refs so timer callbacks (created in an older render) read current state.
@@ -495,9 +497,14 @@ export default function LoggerScreen() {
       ensurePushRegistered({ ask: true });
       // The workout is saved; a photo failure must not undo that, just say so.
       if (photoUris.length > 0) {
-        const { failed } = await uploadWorkoutPhotos(workoutId, photoUris);
-        const msg = photoFailureMessage(failed);
-        if (msg) Alert.alert('Some photos did not upload', msg);
+        // Own try: anything thrown here happens after the save succeeded.
+        try {
+          const { failed } = await uploadWorkoutPhotos(workoutId, photoUris);
+          const msg = photoFailureMessage(failed);
+          if (msg) Alert.alert('Some photos did not upload', msg);
+        } catch {
+          Alert.alert('Some photos did not upload', photoFailureMessage(photoUris.length) ?? '');
+        }
       }
       router.replace(workout?.routineId ? `/workout-summary/${workoutId}?checkRoutine=1` : `/workout-summary/${workoutId}`);
     } catch (err) {

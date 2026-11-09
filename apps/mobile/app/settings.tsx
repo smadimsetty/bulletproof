@@ -166,7 +166,7 @@ export default function SettingsScreen() {
       // The auth user is gone server-side; just clear the local session.
       await supabase.auth.signOut({ scope: 'local' });
     } catch (err: any) {
-      setDeleteError(err?.message ?? 'Could not delete your account. Nothing was changed — try again.');
+      setDeleteError(err?.message ?? "Deletion didn't finish — please try again.");
     } finally {
       deletingRef.current = false;
       setDeleting(false);

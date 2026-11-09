@@ -280,13 +280,17 @@ export default function WorkoutSummaryScreen() {
     setSaving(true);
     try {
       await updateWorkoutMeta(workout.id, titleDraft, notesDraft, visibilityDraft);
-      const keptCount = workout.media.length - removedMediaIds.length;
+      const kept = workout.media.filter((x) => !removedMediaIds.includes(x.id));
       for (const m of workout.media.filter((x) => removedMediaIds.includes(x.id))) {
         await removeWorkoutPhoto(m);
       }
       let photoMsg: string | null = null;
-      if (newPhotoUris.length > 0) {
-        const { failed } = await uploadWorkoutPhotos(workout.id, newPhotoUris, keptCount);
+      // Cap here too (the picker caps, but this is the last line of defence),
+      // and append after the highest kept position so order never collides.
+      const toUpload = newPhotoUris.slice(0, Math.max(0, MAX_PHOTOS - kept.length));
+      if (toUpload.length > 0) {
+        const nextPosition = kept.reduce((max, m) => Math.max(max, m.position + 1), 0);
+        const { failed } = await uploadWorkoutPhotos(workout.id, toUpload, nextPosition);
         photoMsg = photoFailureMessage(failed);
       }
       setWorkout(await fetchWorkout(workout.id));

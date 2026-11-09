@@ -43,6 +43,13 @@ export default function SignIn() {
         token: credential.identityToken,
       });
       if (authError) throw authError;
+      // Store a revocable Apple refresh token server-side, so deleting the
+      // account can revoke it (App Store 5.1.1(v)). Best effort, never blocks.
+      if (credential.authorizationCode) {
+        supabase.functions
+          .invoke('apple-token-exchange', { body: { authorizationCode: credential.authorizationCode } })
+          .catch((e) => console.warn('Apple token exchange failed:', e));
+      }
     } catch (err: any) {
       // The user dismissing the Apple sheet is not an error worth showing.
       if (err?.code === 'ERR_REQUEST_CANCELED') return;

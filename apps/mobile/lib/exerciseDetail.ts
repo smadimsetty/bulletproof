@@ -3,6 +3,7 @@
 // Data for the exercise detail screen: static info from `exercises`, and pure
 // per-workout "best working set" series over the stats dataset.
 import { supabase } from './supabase';
+import { getMyId } from './session';
 import { fieldsForExercise } from './setFields';
 import type { StatsWorkout } from './stats/dataset';
 
@@ -27,6 +28,9 @@ export async function fetchExerciseInfo(id: string): Promise<ExerciseInfo> {
     .single();
   if (error) throw new Error(error.message);
   const r = data as any;
+  // Friends' custom exercises are readable too (social policies), so "mine"
+  // must compare against the signed-in user, not just "has an owner".
+  const me = await getMyId().catch(() => null);
   return {
     id: r.id,
     name: r.name,
@@ -36,7 +40,7 @@ export async function fetchExerciseInfo(id: string): Promise<ExerciseInfo> {
     demoVideoUrl: r.demo_video_url ?? null,
     bodyParts: r.body_parts ?? [],
     equipment: r.equipment_needed ?? [],
-    isMine: !!r.owner_id,
+    isMine: !!r.owner_id && r.owner_id === me,
   };
 }
 
