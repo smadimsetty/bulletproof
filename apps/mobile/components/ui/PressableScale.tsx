@@ -11,6 +11,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export interface PressableScaleProps {
   onPress?: () => void;
   onLongPress?: () => void;
+  delayLongPress?: number;
   onPressIn?: PressableProps['onPressIn'];
   onPressOut?: PressableProps['onPressOut'];
   disabled?: boolean;
@@ -29,6 +30,7 @@ export interface PressableScaleProps {
 export function PressableScale({
   onPress,
   onLongPress,
+  delayLongPress,
   onPressIn,
   onPressOut,
   disabled = false,
@@ -71,6 +73,7 @@ export function PressableScale({
         onPress?.();
       }}
       onLongPress={onLongPress}
+      delayLongPress={delayLongPress}
       style={[style, disabled ? { opacity: 0.4 } : null, animatedStyle]}
     >
       {children}
