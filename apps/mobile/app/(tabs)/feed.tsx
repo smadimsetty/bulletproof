@@ -1,24 +1,43 @@
 // apps/mobile/app/(tabs)/feed.tsx
 //
-// Feed tab: workouts from me and the people I follow, newest first, keyset
-// paged. Bell (unread count) -> inbox, people icon -> find people.
-import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+// Feed tab (visual spec 4.15): workouts from me and the people I follow, newest first, keyset
+// paged. Person-add -> find people, bell (unread count) -> inbox.
+// TODO(stage4): spec splits the empty state into "follows nobody" / "follows people, no posts";
+// the feed query doesn't report the follow count, so one "quiet" state is shown.
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import * as haptics from '../../lib/haptics';
+import { BANNER_CLEARANCE, COLORS, SPACING, TYPE } from '../../lib/theme';
 import FeedCard from '../../components/social/FeedCard';
 import { fetchFeed, type FeedItem } from '../../lib/social/feed';
 import type { FeedCursor } from '../../lib/social/feedCursor';
 import { setLiked } from '../../lib/social/interactions';
-import { fetchUnreadCount } from '../../lib/social/notifications';
+import { emitUnreadChanged, fetchUnreadCount } from '../../lib/social/notifications';
 import { getMyId } from '../../lib/session';
 import { useSafety } from '../../components/social/ReportSheet';
 import { hideWorkout } from '../../lib/social/safety';
+import { useToast } from '../../components/Toast';
+import { ActionSheet, Card, EmptyState, ErrorState, IconButton, LargeHeader, Skeleton, SkeletonRow, type ActionSheetAction } from '../../components/ui';
+
+// Let an ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
+const SHEET_HANDOFF_MS = 350;
+const ENTER_COUNT = 8;
+
+function FeedSkeletonCard() {
+  return (
+    <Card>
+      <SkeletonRow />
+      <Skeleton width="100%" height={260} radius={14} />
+      <Skeleton width="70%" height={12} />
+    </Card>
+  );
+}
 
 export default function FeedTab() {
   const router = useRouter();
+  const toast = useToast();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [cursor, setCursor] = useState<FeedCursor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +47,14 @@ export default function FeedTab() {
   const [retrying, setRetrying] = useState(false);
   const [unread, setUnread] = useState(0);
   const [meId, setMeId] = useState<string | null>(null);
+  const [menuItem, setMenuItem] = useState<FeedItem | null>(null);
   const loadedRef = useRef(false);
+  // Staggered enter animation: first 8 cards of the very first paint only (not refresh / paging).
+  const animatedRef = useRef(false);
+  const enterIndexFor = (index: number) => (!animatedRef.current && index < ENTER_COUNT ? index : undefined);
+  useEffect(() => {
+    if (items.length > 0) animatedRef.current = true;
+  }, [items]);
   // Synchronous per-workout guard against double-tapped likes.
   const likingRef = useRef<Set<string>>(new Set());
   const safety = useSafety();
@@ -47,6 +73,7 @@ export default function FeedTab() {
       setMeId(me);
       setError(null);
       loadedRef.current = true;
+      emitUnreadChanged();
     } catch (err: any) {
       if (mode === 'initial' || !loadedRef.current) setError(err?.message ?? 'Failed to load the feed.');
       else if (mode === 'refresh') Alert.alert('Error', err?.message ?? 'Could not refresh.');
@@ -83,7 +110,7 @@ export default function FeedTab() {
     if (likingRef.current.has(item.id)) return;
     likingRef.current.add(item.id);
     const next = !item.likedByMe;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    if (next) haptics.tap(); // spec: like fires a light impact, unlike is silent
     const patch = (liked: boolean, delta: number) =>
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, likedByMe: liked, likeCount: Math.max(0, i.likeCount + delta) } : i))
@@ -93,7 +120,11 @@ export default function FeedTab() {
       await setLiked(item.id, next);
     } catch (err: any) {
       patch(!next, next ? -1 : 1); // roll back
-      Alert.alert('Error', err?.message ?? 'Could not update your like.');
+      toast.show({
+        message: "Couldn't update your like",
+        tone: 'danger',
+        action: { label: 'Retry', onPress: () => void toggleLike(item) },
+      });
     } finally {
       likingRef.current.delete(item.id);
     }
@@ -101,14 +132,19 @@ export default function FeedTab() {
 
   const dropItem = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
 
-  function openMenu(item: FeedItem) {
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+  function menuActions(item: FeedItem): ActionSheetAction[] {
+    const later = (fn: () => void) => () => {
+      setTimeout(fn, SHEET_HANDOFF_MS);
+    };
+    const actions: ActionSheetAction[] = [
       {
-        text: 'Report workout',
-        onPress: () => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', after: () => dropItem(item.id) }),
+        label: 'Report workout',
+        icon: 'flag-outline',
+        onPress: later(() => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', after: () => dropItem(item.id) })),
       },
       {
-        text: 'Hide from my feed',
+        label: 'Hide from my feed',
+        icon: 'eye-off-outline',
         onPress: async () => {
           try {
             await hideWorkout(item.id);
@@ -121,119 +157,137 @@ export default function FeedTab() {
     ];
     if (item.author) {
       const author = item.author;
-      buttons.push({
-        text: `Block @${author.handle}`,
-        style: 'destructive',
-        onPress: () =>
-          safety.confirmBlock(author, () => setItems((prev) => prev.filter((i) => i.ownerId !== author.id))),
+      actions.push({
+        label: `Block @${author.handle}`,
+        icon: 'ban-outline',
+        destructive: true,
+        onPress: later(() => safety.confirmBlock(author, () => setItems((prev) => prev.filter((i) => i.ownerId !== author.id)))),
       });
     }
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-    Alert.alert('Workout', undefined, buttons);
+    return actions;
   }
 
   const now = new Date();
 
   const header = (
-    <View style={styles.headerRow}>
-      <Text style={TYPE.screenTitle}>Feed</Text>
-      <View style={styles.headerIcons}>
-        <Pressable onPress={() => router.push('/people')} hitSlop={8} accessibilityLabel="Find people">
-          <Ionicons name="people-outline" size={24} color={COLORS.accent} />
-        </Pressable>
-        <Pressable onPress={() => router.push('/inbox')} hitSlop={8} accessibilityLabel="Inbox">
-          <Ionicons name="notifications-outline" size={24} color={COLORS.accent} />
-          {unread > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
-    </View>
+    <LargeHeader
+      title="Feed"
+      actions={
+        <>
+          <IconButton icon="person-add-outline" accessibilityLabel="Find people" onPress={() => router.push('/people')} />
+          <IconButton icon="notifications-outline" accessibilityLabel="Inbox" badge={unread} onPress={() => router.push('/inbox')} />
+        </>
+      }
+    />
   );
 
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        <View style={styles.pad}>
+          {header}
+          <FeedSkeletonCard />
+          <FeedSkeletonCard />
+          <FeedSkeletonCard />
+        </View>
       </View>
     );
   }
   if (error) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{error}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.dim]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load('initial');
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <View style={styles.pad}>
+          {header}
+          <ErrorState
+            message={error}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load('initial');
+              setRetrying(false);
+            }}
+          />
+        </View>
       </View>
     );
   }
 
   return (
-    <>
-    <FlatList
-      style={sharedStyles.screen}
-      contentContainerStyle={sharedStyles.screenContent}
-      data={items}
-      keyExtractor={(i) => i.id}
-      ListHeaderComponent={header}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />}
-      onEndReached={loadMore}
-      onEndReachedThreshold={0.5}
-      ListEmptyComponent={
-        <View style={[sharedStyles.card, styles.empty]}>
-          <Text style={TYPE.sectionTitle}>Follow friends to see their workouts</Text>
-          <Text style={sharedStyles.helperText}>Workouts you and the people you follow share show up here.</Text>
-          <Pressable style={sharedStyles.primaryButton} onPress={() => router.push('/people')}>
-            <Text style={sharedStyles.primaryButtonText}>Find people</Text>
-          </Pressable>
-        </View>
-      }
-      ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.accent} /> : null}
-      renderItem={({ item }) => (
-        <FeedCard
-          item={item}
-          now={now}
-          onOpen={() => router.push(`/workout-summary/${item.id}`)}
-          onOpenAuthor={() => router.push(`/profile/${item.ownerId}`)}
-          onToggleLike={() => toggleLike(item)}
-          onOpenComments={() => router.push(`/comments/${item.id}`)}
-          onMore={item.ownerId === meId ? undefined : () => openMenu(item)}
-        />
-      )}
-    />
-    {safety.element}
-    </>
+    <View style={styles.root}>
+      <FlatList
+        data={items}
+        keyExtractor={(i) => i.id}
+        indicatorStyle="white"
+        contentContainerStyle={styles.content}
+        ItemSeparatorComponent={Separator}
+        ListHeaderComponent={header}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={COLORS.accent}
+            onRefresh={() => {
+              haptics.tap();
+              load('refresh');
+            }}
+          />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListEmptyComponent={
+          <EmptyState
+            icon="people-outline"
+            title="Your feed is quiet"
+            body="Follow friends to see their workouts here."
+            action={{ label: 'Find people', onPress: () => router.push('/people') }}
+            style={styles.empty}
+          />
+        }
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator color={COLORS.accent} style={styles.footer} />
+          ) : items.length > 0 && !cursor ? (
+            <View style={styles.caughtUp}>
+              <Ionicons name="checkmark-done" size={16} color={COLORS.textTertiary} />
+              <Text style={TYPE.footnote}>You're all caught up</Text>
+            </View>
+          ) : (
+            <View style={styles.footer} />
+          )
+        }
+        renderItem={({ item, index }) => (
+          <FeedCard
+            item={item}
+            now={now}
+            enterIndex={enterIndexFor(index)}
+            onOpen={() => router.push(`/workout-summary/${item.id}`)}
+            onOpenAuthor={() => router.push(`/profile/${item.ownerId}`)}
+            onToggleLike={() => toggleLike(item)}
+            onOpenComments={() => router.push(`/comments/${item.id}`)}
+            onMore={item.ownerId === meId ? undefined : () => setMenuItem(item)}
+          />
+        )}
+      />
+      <ActionSheet
+        visible={menuItem !== null}
+        onClose={() => setMenuItem(null)}
+        title="Workout"
+        actions={menuItem ? menuActions(menuItem) : []}
+      />
+      {safety.element}
+    </View>
   );
 }
 
+function Separator() {
+  return <View style={styles.separator} />;
+}
+
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  dim: { opacity: 0.6 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.lg },
-  badge: {
-    position: 'absolute',
-    top: -6,
-    right: -8,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: COLORS.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: { color: COLORS.card, fontSize: 10, fontWeight: '700' },
-  empty: { alignItems: 'stretch' },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  pad: { padding: SPACING.lg, gap: SPACING.md },
+  content: { paddingHorizontal: SPACING.lg, paddingBottom: BANNER_CLEARANCE },
+  separator: { height: SPACING.md },
+  empty: { marginTop: SPACING.xxl },
+  footer: { height: SPACING.xl, marginTop: SPACING.md },
+  caughtUp: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingVertical: SPACING.xl },
 });

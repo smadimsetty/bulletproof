@@ -1,11 +1,10 @@
 // apps/mobile/components/social/Avatar.tsx
 //
-// Round avatar from a private-bucket signed URL, with an initials fallback
-// (also shown while loading or if the image fails).
-import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../lib/theme';
+// Avatar from a private-bucket signed URL (or a just-picked local image), built on the
+// shared ui Avatar so the initials fallback / fade-in match everywhere. Accepts the
+// design-system size keys or a legacy pixel size (mapped to the nearest key).
 import { useSignedUrl } from '../../lib/social/useSignedUrl';
+import { Avatar as UiAvatar, type AvatarProps } from '../ui';
 
 export function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -15,35 +14,31 @@ export function initialsFor(name: string): string {
   return (first + last).toUpperCase();
 }
 
+type SizeKey = NonNullable<AvatarProps['size']>;
+
+function sizeKey(size: number | SizeKey): SizeKey {
+  if (typeof size !== 'number') return size;
+  if (size <= 28) return 'xs';
+  if (size <= 38) return 'sm';
+  if (size <= 58) return 'md';
+  if (size <= 84) return 'lg';
+  return 'xl';
+}
+
 export default function Avatar({
   path,
   name,
-  size = 40,
+  size = 'md',
   localUri,
+  ring,
 }: {
   path: string | null | undefined;
   name: string;
-  size?: number;
+  size?: number | SizeKey;
   /** A just-picked local image, shown before it has been uploaded. */
   localUri?: string | null;
+  ring?: boolean;
 }) {
   const signed = useSignedUrl('avatars', localUri ? null : path);
-  const [failed, setFailed] = useState(false);
-  const uri = localUri ?? signed;
-  useEffect(() => setFailed(false), [uri]);
-  const box = { width: size, height: size, borderRadius: size / 2 };
-  if (uri && !failed) {
-    return <Image source={{ uri }} style={[styles.image, box]} onError={() => setFailed(true)} accessibilityLabel={`${name} avatar`} />;
-  }
-  return (
-    <View style={[styles.fallback, box]}>
-      <Text style={[styles.initials, { fontSize: size * 0.38 }]}>{initialsFor(name)}</Text>
-    </View>
-  );
+  return <UiAvatar uri={localUri ?? signed} name={name} size={sizeKey(size)} ring={ring} />;
 }
-
-const styles = StyleSheet.create({
-  image: { backgroundColor: COLORS.accentMuted },
-  fallback: { backgroundColor: COLORS.accentMuted, alignItems: 'center', justifyContent: 'center' },
-  initials: { color: COLORS.accent, fontWeight: '700' },
-});

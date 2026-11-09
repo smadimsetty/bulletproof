@@ -65,4 +65,19 @@ export async function markAllRead(): Promise<void> {
     .eq('recipient_id', me)
     .is('read_at', null);
   check(error);
+  emitUnreadChanged();
+}
+
+// Tiny pub/sub so the tab bar's Feed badge refreshes right after the inbox marks everything read.
+const unreadListeners = new Set<() => void>();
+
+export function subscribeToUnreadChanges(cb: () => void): () => void {
+  unreadListeners.add(cb);
+  return () => {
+    unreadListeners.delete(cb);
+  };
+}
+
+export function emitUnreadChanged(): void {
+  unreadListeners.forEach((cb) => cb());
 }

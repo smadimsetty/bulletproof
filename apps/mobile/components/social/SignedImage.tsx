@@ -26,5 +26,5 @@ export default function SignedImage({
 }
 
 const styles = StyleSheet.create({
-  placeholder: { backgroundColor: COLORS.accentMuted },
+  placeholder: { backgroundColor: COLORS.elevated },
 });

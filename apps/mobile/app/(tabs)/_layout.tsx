@@ -5,12 +5,13 @@
 // styling" + 4.4: the ActiveWorkoutBanner is rendered here once, docked above
 // the tab bar on every tab.
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View, type ColorValue } from 'react-native';
+import { AppState, StyleSheet, View, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SIZES, SPACING, TYPE } from '../../lib/theme';
 import { fetchActiveWorkout, subscribeToActiveWorkoutChanges, type ActiveWorkoutSummary } from '../../lib/workouts';
+import { fetchUnreadCount, subscribeToUnreadChanges } from '../../lib/social/notifications';
 import ActiveWorkoutBanner from '../../components/ActiveWorkoutBanner';
 import { PressableScale } from '../../components/ui';
 
@@ -44,6 +45,25 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = SIZES.tabBar + insets.bottom;
   const [active, setActive] = useState<ActiveWorkoutSummary | null>(null);
+  const [unread, setUnread] = useState(0);
+
+  // Unread inbox count for the Feed tab badge. Silent on failure: the badge is a convenience.
+  const loadUnread = useCallback(() => {
+    fetchUnreadCount()
+      .then(setUnread)
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    loadUnread();
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') loadUnread();
+    });
+    const unsubscribe = subscribeToUnreadChanges(loadUnread);
+    return () => {
+      sub.remove();
+      unsubscribe();
+    };
+  }, [loadUnread]);
 
   const loadActive = useCallback(() => {
     fetchActiveWorkout()
@@ -79,8 +99,15 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" options={{ title: 'Workout', tabBarIcon: icon('barbell', 'barbell-outline') }} />
         <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('time', 'time-outline') }} />
         <Tabs.Screen name="progress" options={{ title: 'Progress', tabBarIcon: icon('stats-chart', 'stats-chart-outline') }} />
-        {/* TODO(stage4): tabBarBadge = unread inbox count once the Feed step (spec 4.15) lands. */}
-        <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: icon('people', 'people-outline') }} />
+        <Tabs.Screen
+          name="feed"
+          options={{
+            title: 'Feed',
+            tabBarIcon: icon('people', 'people-outline'),
+            tabBarBadge: unread > 0 ? (unread > 99 ? '99+' : unread) : undefined,
+            tabBarBadgeStyle: { backgroundColor: COLORS.danger, color: COLORS.onDanger },
+          }}
+        />
         <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon('person-circle', 'person-circle-outline') }} />
       </Tabs>
       {active ? (

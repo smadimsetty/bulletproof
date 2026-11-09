@@ -1,15 +1,15 @@
 // apps/mobile/app/comments/[workoutId].tsx
 //
-// Comments on a workout: list, composer (500 max), long-press to delete (my
-// own, or any comment on my workout) or report. Word-filter rejections show
-// the server's message.
+// Comments on a workout (visual spec 4.16): list, composer (500 max), long-press for delete
+// (my own, or any comment on my workout) or report. Word-filter rejections show the server's
+// message under the field.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import * as haptics from '../../lib/haptics';
+import { COLORS, MOTION, SPACING, TYPE } from '../../lib/theme';
 import Avatar from '../../components/social/Avatar';
 import {
   addComment, deleteComment, fetchComments, fetchWorkoutOwnerId, type Comment,
@@ -18,6 +18,10 @@ import { COMMENT_MAX, commentError } from '../../lib/social/commentRules';
 import { relativeTime } from '../../lib/social/time';
 import { getMyId } from '../../lib/session';
 import { useSafety } from '../../components/social/ReportSheet';
+import { ActionSheet, EmptyState, ErrorState, PressableScale, SkeletonRow, TextField, type ActionSheetAction } from '../../components/ui';
+
+// Let an ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
+const SHEET_HANDOFF_MS = 350;
 
 export default function CommentsScreen() {
   const router = useRouter();
@@ -26,11 +30,15 @@ export default function CommentsScreen() {
   const [meId, setMeId] = useState<string | null>(null);
   const [workoutOwnerId, setWorkoutOwnerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [menuComment, setMenuComment] = useState<Comment | null>(null);
+  // Comments that mount after the first load fade in; the initial list doesn't.
+  const [animateNew, setAnimateNew] = useState(false);
   const postingRef = useRef(false);
   const listRef = useRef<FlatList<Comment>>(null);
   const safety = useSafety();
@@ -46,6 +54,7 @@ export default function CommentsScreen() {
       setError(err?.message ?? 'Failed to load comments.');
     } finally {
       setLoading(false);
+      setAnimateNew(true);
     }
   }, [workoutId]);
 
@@ -57,6 +66,7 @@ export default function CommentsScreen() {
     if (postingRef.current) return;
     const problem = commentError(draft);
     if (problem) {
+      haptics.error();
       setPostError(problem);
       return;
     }
@@ -69,6 +79,7 @@ export default function CommentsScreen() {
       await load();
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (err: any) {
+      haptics.error();
       setPostError(err?.message ?? 'Could not post your comment.');
     } finally {
       postingRef.current = false;
@@ -76,13 +87,14 @@ export default function CommentsScreen() {
     }
   }
 
-  function openMenu(c: Comment) {
+  function menuActions(c: Comment): ActionSheetAction[] {
     const canDelete = c.ownerId === meId || workoutOwnerId === meId;
-    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [];
+    const actions: ActionSheetAction[] = [];
     if (canDelete) {
-      buttons.push({
-        text: 'Delete comment',
-        style: 'destructive',
+      actions.push({
+        label: 'Delete comment',
+        icon: 'trash-outline',
+        destructive: true,
         onPress: async () => {
           try {
             await deleteComment(c.id);
@@ -94,102 +106,147 @@ export default function CommentsScreen() {
       });
     }
     if (c.ownerId !== meId) {
-      buttons.push({
-        text: 'Report comment',
+      actions.push({
+        label: 'Report comment',
+        icon: 'flag-outline',
         onPress: () =>
-          safety.openReport({
-            type: 'comment',
-            id: c.id,
-            label: 'this comment',
-            // Reported content disappears for the reporter right away.
-            after: () => setComments((prev) => prev.filter((x) => x.id !== c.id)),
-          }),
+          setTimeout(
+            () =>
+              safety.openReport({
+                type: 'comment',
+                id: c.id,
+                label: 'this comment',
+                // Reported content disappears for the reporter right away.
+                after: () => setComments((prev) => prev.filter((x) => x.id !== c.id)),
+              }),
+            SHEET_HANDOFF_MS
+          ),
       });
     }
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-    if (buttons.length === 1) return;
-    Alert.alert('Comment', undefined, buttons);
+    return actions;
+  }
+
+  function openMenu(c: Comment) {
+    if (menuActions(c).length === 0) return;
+    haptics.primary();
+    setMenuComment(c);
   }
 
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
+      <View style={styles.root}>
         <Stack.Screen options={{ title: 'Comments' }} />
-        <ActivityIndicator color={COLORS.accent} />
+        <View style={styles.pad}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <SkeletonRow key={i} />
+          ))}
+        </View>
       </View>
     );
   }
   if (error) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
+      <View style={styles.root}>
         <Stack.Screen options={{ title: 'Comments' }} />
-        <Text style={TYPE.body}>{error}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.dim]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load();
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+        <View style={styles.pad}>
+          <ErrorState
+            message={error}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load();
+              setRetrying(false);
+            }}
+          />
+        </View>
       </View>
     );
   }
 
   const now = new Date();
+  const empty = draft.trim() === '';
   return (
-    <KeyboardAvoidingView style={sharedStyles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
       <Stack.Screen options={{ title: 'Comments' }} />
       <FlatList
         ref={listRef}
         data={comments}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={sharedStyles.screenContent}
+        indicatorStyle="white"
+        contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={<Text style={sharedStyles.helperText}>No comments yet. Be the first.</Text>}
+        keyboardDismissMode="on-drag"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={COLORS.accent}
+            onRefresh={async () => {
+              haptics.tap();
+              setRefreshing(true);
+              await load();
+              setRefreshing(false);
+            }}
+          />
+        }
+        ListEmptyComponent={
+          <EmptyState compact icon="chatbubble-outline" title="No comments yet" body="Say something nice." style={styles.empty} />
+        }
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onLongPress={() => openMenu(item)} delayLongPress={350}>
-            <Pressable onPress={() => item.author && router.push(`/profile/${item.author.id}`)}>
-              <Avatar path={item.author?.avatarPath} name={item.author?.displayName ?? '?'} size={34} />
-            </Pressable>
-            <View style={styles.rowText}>
-              <Text style={TYPE.label}>
-                {item.author?.displayName ?? 'Someone'}{' '}
-                <Text style={sharedStyles.helperText}>{relativeTime(item.createdAt, now)}</Text>
-              </Text>
-              <Text style={TYPE.body}>{item.body}</Text>
-              {item.hidden && <Text style={sharedStyles.helperText}>Hidden pending review</Text>}
-            </View>
-          </Pressable>
+          <Animated.View entering={animateNew ? FadeInDown.duration(MOTION.base) : undefined}>
+            <PressableScale
+              style={styles.row}
+              scaleTo={0.99}
+              haptic="none"
+              onLongPress={() => openMenu(item)}
+              delayLongPress={350}
+              accessibilityLabel={`Comment by ${item.author?.displayName ?? 'someone'}. Long press for options.`}
+            >
+              <PressableScale haptic="tap" onPress={() => item.author && router.push(`/profile/${item.author.id}`)} accessibilityLabel="Open profile">
+                <Avatar path={item.author?.avatarPath} name={item.author?.displayName ?? '?'} size="sm" />
+              </PressableScale>
+              <View style={styles.rowText}>
+                <Text style={TYPE.bodyStrong}>
+                  {item.author?.displayName ?? 'Someone'}{' '}
+                  <Text style={TYPE.footnote}>{relativeTime(item.createdAt, now)}</Text>
+                </Text>
+                <Text style={TYPE.body}>{item.body}</Text>
+                {item.hidden ? <Text style={TYPE.footnote}>Hidden pending review</Text> : null}
+              </View>
+            </PressableScale>
+          </Animated.View>
         )}
+      />
+      <ActionSheet
+        visible={menuComment !== null}
+        onClose={() => setMenuComment(null)}
+        title="Comment"
+        actions={menuComment ? menuActions(menuComment) : []}
       />
       {safety.element}
       <View style={styles.composer}>
-        {postError && <Text style={sharedStyles.warningText}>{postError}</Text>}
         <View style={styles.composerRow}>
-          <TextInput
-            style={[sharedStyles.textInput, styles.input]}
+          <TextField
+            containerStyle={styles.input}
             value={draft}
             onChangeText={(t) => {
               setDraft(t);
               setPostError(null);
             }}
             placeholder="Add a comment"
-            placeholderTextColor={COLORS.muted}
             multiline
             maxLength={COMMENT_MAX}
+            fieldStyle={styles.field}
+            error={postError ?? undefined}
           />
-          <Pressable
-            style={[styles.send, (posting || draft.trim() === '') && styles.dim]}
-            disabled={posting || draft.trim() === ''}
+          <PressableScale
+            haptic="primary"
+            disabled={posting || empty}
             onPress={post}
+            style={styles.send}
             accessibilityLabel="Post comment"
           >
-            {posting ? <ActivityIndicator color={COLORS.card} /> : <Ionicons name="arrow-up" size={20} color={COLORS.card} />}
-          </Pressable>
+            {posting ? <ActivityIndicator color={COLORS.onAccent} /> : <Ionicons name="arrow-up" size={22} color={COLORS.onAccent} />}
+          </PressableScale>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -197,12 +254,20 @@ export default function CommentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  dim: { opacity: 0.5 },
-  row: { flexDirection: 'row', gap: SPACING.sm },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  pad: { padding: SPACING.lg, gap: SPACING.sm },
+  list: { padding: SPACING.lg, gap: SPACING.lg, flexGrow: 1 },
+  empty: { marginTop: SPACING.xxl },
+  row: { flexDirection: 'row', gap: SPACING.md, alignItems: 'flex-start' },
   rowText: { flex: 1, gap: 2 },
-  composer: { padding: SPACING.md, gap: SPACING.xs, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.border, backgroundColor: COLORS.card },
+  composer: {
+    padding: SPACING.md,
+    backgroundColor: COLORS.tabBar,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.divider,
+  },
   composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: SPACING.sm },
-  input: { flex: 1, maxHeight: 110 },
-  send: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1 },
+  field: { maxHeight: 110, minHeight: 48 },
+  send: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center' },
 });
