@@ -60,10 +60,16 @@ export function draftFromRoutineExercise(e: RoutineExercise, key: string, unit: 
   };
 }
 
+function setsProblem(d: Pick<RoutineExerciseDraft, 'exerciseName'>): string {
+  return `Enter sets for ${d.exerciseName}`;
+}
+
 /** Sets clamp to 1..20 and rest to 0..600 (the table's check constraints). */
 export function draftToInput(d: RoutineExerciseDraft, position: number, unit: WeightUnit): RoutineExerciseInput {
   const kind = draftKind(d);
-  const sets = Math.min(20, Math.max(1, intOrNull(d.sets) ?? 1));
+  const parsedSets = intOrNull(d.sets);
+  if (parsedSets == null) throw new Error(setsProblem(d));
+  const sets = Math.min(20, Math.max(1, parsedSets));
   const rest = intOrNull(d.restS);
   const weight = numberOrNull(d.weight);
   return {
@@ -92,5 +98,6 @@ export function validateRoutine(title: string, drafts: readonly RoutineExerciseD
   if (!t) return 'Give the routine a title.';
   if (t.length > 80) return 'Keep the title to 80 characters or fewer.';
   if (drafts.length === 0) return 'Add at least one exercise.';
+  for (const d of drafts) if (intOrNull(d.sets) == null) return setsProblem(d);
   return null;
 }

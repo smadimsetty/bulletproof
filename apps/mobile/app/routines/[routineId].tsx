@@ -33,6 +33,7 @@ export default function RoutineEditorScreen() {
   const [unit, setUnit] = useState<WeightUnit>(DEFAULT_SETTINGS.weightUnit);
   const [catalog, setCatalog] = useState<LibraryExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const savingRef = useRef(false);
   const keyCounter = useRef(0);
   const nextKey = () => `d${keyCounter.current++}`;
 
@@ -101,11 +102,13 @@ export default function RoutineEditorScreen() {
     setDrafts((ds) => ds.map((d) => (d.key === key ? { ...d, ...patch } : d)));
 
   async function save() {
+    if (savingRef.current) return;
     const problem = validateRoutine(title, drafts);
     if (problem) {
       Alert.alert('Check the routine', problem);
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       await saveRoutine({
@@ -119,6 +122,7 @@ export default function RoutineEditorScreen() {
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Could not save this routine.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }

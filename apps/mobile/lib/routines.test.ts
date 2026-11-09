@@ -1,8 +1,8 @@
 // apps/mobile/lib/routines.test.ts
-import { mergeRoutineUpdate, routineDiffers, routineFromWorkout, routineTargetText, type Routine } from './routines';
+import { mergeRoutineUpdate, routineDiffers, routineFromWorkout, routineTargetText, saveRoutine, type Routine } from './routines';
 import type { Workout, WorkoutExerciseRow, WorkoutSetRow } from './workouts';
 
-jest.mock('./supabase', () => ({ supabase: { from: jest.fn() } }));
+jest.mock('./supabase', () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
 
 const set = (setNumber: number, o: Partial<WorkoutSetRow> = {}): WorkoutSetRow => ({
   id: `s${setNumber}${o.side ?? ''}`, setNumber, side: null, setType: 'working', reps: null, weightKg: null, durationS: null,
@@ -62,28 +62,63 @@ describe('routineDiffers', () => {
   test('an added exercise counts', () => {
     expect(routineDiffers(routine([{ id: 'a', sets: 2 }]), w)).toBe(true);
   });
-  test('a removed exercise counts', () => {
-    expect(routineDiffers(routine([{ id: 'a', sets: 2 }, { id: 'b', sets: 1 }, { id: 'c', sets: 1 }]), w)).toBe(true);
+  test('a skipped exercise does not count', () => {
+    expect(routineDiffers(routine([{ id: 'a', sets: 2 }, { id: 'b', sets: 1 }, { id: 'c', sets: 1 }]), w)).toBe(false);
   });
   test('an extra set counts', () => {
-    expect(routineDiffers(routine([{ id: 'a', sets: 3 }, { id: 'b', sets: 1 }]), w)).toBe(true);
+    expect(routineDiffers(routine([{ id: 'a', sets: 1 }, { id: 'b', sets: 1 }]), w)).toBe(true);
+  });
+  test('skipped sets do not count', () => {
+    expect(routineDiffers(routine([{ id: 'a', sets: 3 }, { id: 'b', sets: 1 }]), w)).toBe(false);
   });
   test('a reorder counts', () => {
     expect(routineDiffers(routine([{ id: 'b', sets: 1 }, { id: 'a', sets: 2 }]), w)).toBe(true);
   });
 });
 
-test('mergeRoutineUpdate keeps rest/notes and header for exercises that still exist', () => {
-  const w = workout([we('b', 1, [set(1, { reps: 9 })]), we('new', 2, [set(1, { reps: 5 })])]);
-  const out = mergeRoutineUpdate(routine([{ id: 'a', sets: 2 }, { id: 'b', sets: 1, rest: 90, notes: 'slow' }]), w);
-  expect(out).toMatchObject({ id: 'r1', folderId: 'f1', title: 'Mine', notes: 'n' });
-  expect(out.exercises.map((e) => [e.exerciseId, e.restS, e.notes])).toEqual([['b', 90, 'slow'], ['new', null, null]]);
+describe('mergeRoutineUpdate', () => {
+  test('keeps rest/notes and header for exercises that still exist', () => {
+    const w = workout([we('b', 1, [set(1, { reps: 9 })]), we('new', 2, [set(1, { reps: 5 })])]);
+    const out = mergeRoutineUpdate(routine([{ id: 'a', sets: 2 }, { id: 'b', sets: 1, rest: 90, notes: 'slow' }]), w);
+    expect(out).toMatchObject({ id: 'r1', folderId: 'f1', title: 'Mine', notes: 'n' });
+    expect(out.exercises.map((e) => [e.exerciseId, e.restS, e.notes])).toEqual([['a', null, null], ['b', 90, 'slow'], ['new', null, null]]);
+  });
+  test('skipped routine exercises stay; set counts are max(routine, workout)', () => {
+    const w = workout([we('c', 1, [set(1, { reps: 5 })]), we('a', 2, [set(1, { reps: 5 }), set(2, { reps: 5 }), set(3, { reps: 5 })])]);
+    const out = mergeRoutineUpdate(routine([{ id: 'a', sets: 2 }, { id: 'b', sets: 4 }, { id: 'c', sets: 3 }]), w);
+    expect(out.exercises.map((e) => [e.exerciseId, e.targetSets, e.position])).toEqual([['c', 3, 1], ['b', 4, 2], ['a', 3, 3]]);
+  });
 });
 
 test('routineTargetText', () => {
   const base = { targetSets: 3, targetReps: null, targetDurationS: null, targetWeightKg: null };
-  expect(routineTargetText({ ...base, targetReps: 10 })).toBe('3 × 10');
-  expect(routineTargetText({ ...base, targetSets: 2, targetDurationS: 45 })).toBe('2 × 45s');
-  expect(routineTargetText({ ...base, targetReps: 10, targetWeightKg: 40 })).toBe('3 × 10 @ 40 kg');
-  expect(routineTargetText(base)).toBe('3 sets');
+  expect(routineTargetText({ ...base, targetReps: 10 }, 'kg')).toBe('3 × 10');
+  expect(routineTargetText({ ...base, targetSets: 2, targetDurationS: 45 }, 'kg')).toBe('2 × 45s');
+  expect(routineTargetText({ ...base, targetReps: 10, targetWeightKg: 40 }, 'kg')).toBe('3 × 10 @ 40 kg');
+  expect(routineTargetText({ ...base, targetReps: 10, targetWeightKg: 40 }, 'lbs')).toBe('3 × 10 @ 88.2 lbs');
+  expect(routineTargetText(base, 'lbs')).toBe('3 sets');
+});
+
+describe('saveRoutine', () => {
+  const { supabase } = require('./supabase');
+  test('updates the header then replaces children via one rpc', async () => {
+    const eq = jest.fn().mockResolvedValue({ error: null });
+    supabase.from = jest.fn().mockReturnValue({ update: jest.fn().mockReturnValue({ eq }) });
+    supabase.rpc = jest.fn().mockResolvedValue({ error: null });
+    const id = await saveRoutine({
+      id: 'r1', folderId: null, title: ' T ', notes: null,
+      exercises: [{ exerciseId: 'e1', position: 1, targetSets: 3, targetReps: 10, targetDurationS: null, targetWeightKg: null, restS: null, notes: null }],
+    });
+    expect(id).toBe('r1');
+    expect(supabase.rpc).toHaveBeenCalledWith('replace_routine_exercises', {
+      p_routine_id: 'r1',
+      p_rows: [expect.objectContaining({ exercise_id: 'e1', position: 1, target_sets: 3 })],
+    });
+  });
+  test('surfaces an rpc error', async () => {
+    const eq = jest.fn().mockResolvedValue({ error: null });
+    supabase.from = jest.fn().mockReturnValue({ update: jest.fn().mockReturnValue({ eq }) });
+    supabase.rpc = jest.fn().mockResolvedValue({ error: { message: 'boom' } });
+    await expect(saveRoutine({ id: 'r1', folderId: null, title: 'T', notes: null, exercises: [] })).rejects.toThrow('boom');
+  });
 });

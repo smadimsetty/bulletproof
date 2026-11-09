@@ -3,9 +3,9 @@
 // Exercise detail: info + demo link, the user's current bests (per side), a
 // chart of the exercise's primary metric (and ROM when logged), and recent
 // sets grouped by workout. Reused by the library in Stage 2.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
 import { DescriptionToggleButton, useToggle } from '../../components/DescriptionToggle';
@@ -66,8 +66,10 @@ export default function ExerciseDetailScreen() {
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(DEFAULT_SETTINGS.weightUnit);
   const [descOpen, toggleDesc] = useToggle(false);
 
+  const loadedOnce = useRef(false);
+
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!loadedOnce.current) setLoading(true);
     try {
       const [i, w, s] = await Promise.all([
         fetchExerciseInfo(exerciseId),
@@ -78,15 +80,19 @@ export default function ExerciseDetailScreen() {
       setWorkouts(w);
       setWeightUnit(s.weightUnit);
       setError(null);
+      loadedOnce.current = true;
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load exercise.');
     } finally {
       setLoading(false);
     }
   }, [exerciseId]);
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Reload on every focus so edits made elsewhere show on return.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const derived = useMemo(() => {
     if (!info) return null;

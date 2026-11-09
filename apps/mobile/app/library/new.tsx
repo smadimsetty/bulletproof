@@ -3,7 +3,7 @@
 // Create (no id) or edit (?id=) a custom exercise. With ?returnTo=picker the
 // new id is left on the pending-pick channel for the screen that opened the
 // picker to add on focus.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { COLORS, SPACING, TYPE, sharedStyles } from '../../lib/theme';
@@ -60,7 +60,10 @@ export default function NewExerciseScreen() {
 
   const showsPattern = type === 'strength' || type === 'plyometric';
 
+  const savingRef = useRef(false);
+
   async function save() {
+    if (savingRef.current) return;
     const input: CustomExerciseInput = {
       name,
       exerciseType: type,
@@ -76,6 +79,7 @@ export default function NewExerciseScreen() {
       Alert.alert('Check the form', problem);
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       if (id) {
@@ -88,6 +92,7 @@ export default function NewExerciseScreen() {
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Could not save this exercise.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }

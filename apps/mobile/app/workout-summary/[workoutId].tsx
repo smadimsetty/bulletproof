@@ -35,6 +35,7 @@ export default function WorkoutSummaryScreen() {
   const [prs, setPrs] = useState<PrEvent[]>([]);
   const [savingRoutine, setSavingRoutine] = useState(false);
   const routineCheckedRef = useRef(false);
+  const savingRoutineRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -87,12 +88,13 @@ export default function WorkoutSummaryScreen() {
   }, [checkRoutine, workout]);
 
   async function handleSaveAsRoutine() {
-    if (!workout || savingRoutine) return;
+    if (!workout || savingRoutine || savingRoutineRef.current) return;
     const draft = routineFromWorkout(workout);
     if (draft.exercises.length === 0) {
       Alert.alert('Nothing to save', 'This workout has no completed working sets.');
       return;
     }
+    savingRoutineRef.current = true;
     setSavingRoutine(true);
     try {
       await saveRoutine({ folderId: null, title: draft.title, notes: draft.notes, exercises: draft.exercises });
@@ -100,6 +102,7 @@ export default function WorkoutSummaryScreen() {
     } catch (err) {
       reportError(err, 'Could not save the routine.');
     } finally {
+      savingRoutineRef.current = false;
       setSavingRoutine(false);
     }
   }

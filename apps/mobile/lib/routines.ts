@@ -4,6 +4,8 @@
 // (routineFromWorkout, routineDiffers, mergeRoutineUpdate, routineTargetText)
 // carry the decisions; the async functions only read/write rows.
 import { supabase } from './supabase';
+import { fetchWeightUnit } from './userPreferences';
+import { formatWeightForDisplay, type WeightUnit } from './units';
 import { addExercisesToWorkout, discardWorkout, startWorkout, type NewWorkoutExercise, type StartResult, type Workout } from './workouts';
 
 export interface RoutineExercise {
@@ -80,39 +82,69 @@ export function routineFromWorkout(w: Workout): { title: string; notes: string |
 }
 
 /**
- * True iff the exercise order or any exercise's set count differs. Set
- * *values* (reps/weight/time) changing is the normal case of progressing and
- * must not nag the user to update the routine.
+ * True iff the workout ADDED an exercise not in the routine, REORDERED the
+ * exercises both share, or INCREASED an exercise's set count. Skipped sets /
+ * exercises and changed set values (reps/weight/time) never prompt.
  */
 export function routineDiffers(r: Routine, w: Workout): boolean {
   const next = routineFromWorkout(w).exercises;
   const current = [...r.exercises].sort((a, b) => a.position - b.position);
-  if (current.length !== next.length) return true;
-  return current.some((c, i) => c.exerciseId !== next[i].exerciseId || c.targetSets !== next[i].targetSets);
+  const byId = new Map(current.map((c) => [c.exerciseId, c]));
+  if (next.some((n) => !byId.has(n.exerciseId))) return true;
+  if (next.some((n) => n.targetSets > byId.get(n.exerciseId)!.targetSets)) return true;
+  const sharedOrder = next.map((n) => n.exerciseId);
+  const routineOrder = current.map((c) => c.exerciseId).filter((id) => sharedOrder.includes(id));
+  return sharedOrder.some((id, i) => id !== routineOrder[i]);
 }
 
 /**
- * The save payload for "Update routine": structure from the workout, but
- * rest / notes (and the header) kept from the existing routine for exercises
- * that still exist in it.
+ * The save payload for "Update routine": the workout's exercises in the
+ * workout's order (set counts = max(routine, workout); rest / notes kept from
+ * the routine), with routine exercises the workout skipped kept at their
+ * relative position. The header is kept.
  */
 export function mergeRoutineUpdate(r: Routine, w: Workout): SaveRoutineInput {
-  const fromWorkout = routineFromWorkout(w);
-  const pool = [...r.exercises].sort((a, b) => a.position - b.position);
-  const exercises = fromWorkout.exercises.map((e) => {
-    const idx = pool.findIndex((p) => p.exerciseId === e.exerciseId);
-    if (idx === -1) return e;
-    const [match] = pool.splice(idx, 1);
-    return { ...e, restS: match.restS, notes: match.notes };
-  });
-  return { id: r.id, folderId: r.folderId, title: r.title, notes: r.notes, exercises };
+  const fromWorkout = routineFromWorkout(w).exercises;
+  const current = [...r.exercises].sort((a, b) => a.position - b.position);
+  const doneIds = new Set(fromWorkout.map((e) => e.exerciseId));
+  const merged = new Map<string, RoutineExerciseInput>();
+  for (const e of fromWorkout) {
+    const match = current.find((c) => c.exerciseId === e.exerciseId);
+    merged.set(
+      e.exerciseId,
+      match ? { ...e, targetSets: Math.max(match.targetSets, e.targetSets), restS: match.restS, notes: match.notes } : e
+    );
+  }
+  // Walk the routine's order; each slot holding a performed exercise takes the
+  // next performed exercise in the workout's order, skipped ones stay put.
+  const performedQueue = fromWorkout.map((e) => e.exerciseId);
+  const out: RoutineExerciseInput[] = [];
+  for (const c of current) {
+    if (doneIds.has(c.exerciseId)) {
+      out.push(merged.get(performedQueue.shift()!)!);
+    } else {
+      out.push({
+        exerciseId: c.exerciseId, position: 0, targetSets: c.targetSets, targetReps: c.targetReps,
+        targetDurationS: c.targetDurationS, targetWeightKg: c.targetWeightKg, restS: c.restS, notes: c.notes,
+      });
+    }
+  }
+  // Exercises the workout added beyond the routine's performed slots go last.
+  while (performedQueue.length > 0) out.push(merged.get(performedQueue.shift()!)!);
+  return {
+    id: r.id, folderId: r.folderId, title: r.title, notes: r.notes,
+    exercises: out.map((e, i) => ({ ...e, position: i + 1 })),
+  };
 }
 
-/** "3 × 10", "2 × 45s", "3 × 10 @ 40 kg"; null when there is no target. */
-export function routineTargetText(e: Pick<RoutineExercise, 'targetSets' | 'targetReps' | 'targetDurationS' | 'targetWeightKg'>): string | null {
+/** "3 × 10", "2 × 45s", "3 × 10 @ 40 lbs"; weight shown in the user's unit. */
+export function routineTargetText(
+  e: Pick<RoutineExercise, 'targetSets' | 'targetReps' | 'targetDurationS' | 'targetWeightKg'>,
+  unit: WeightUnit
+): string | null {
   const what = e.targetReps != null ? `${e.targetReps}` : e.targetDurationS != null ? `${e.targetDurationS}s` : null;
   if (!what) return `${e.targetSets} sets`;
-  const weight = e.targetWeightKg != null && e.targetReps != null ? ` @ ${Math.round(e.targetWeightKg * 100) / 100} kg` : '';
+  const weight = e.targetWeightKg != null && e.targetReps != null ? ` @ ${formatWeightForDisplay(e.targetWeightKg, unit)} ${unit}` : '';
   return `${e.targetSets} × ${what}${weight}`;
 }
 
@@ -193,9 +225,8 @@ export async function moveFolder(id: string, position: number): Promise<void> {
   check(error);
 }
 
-function exerciseRows(routineId: string, exercises: readonly RoutineExerciseInput[]) {
+function exerciseRows(exercises: readonly RoutineExerciseInput[]) {
   return exercises.map((e, i) => ({
-    routine_id: routineId,
     exercise_id: e.exerciseId,
     position: i + 1,
     target_sets: e.targetSets,
@@ -210,12 +241,8 @@ function exerciseRows(routineId: string, exercises: readonly RoutineExerciseInpu
 export async function saveRoutine(input: SaveRoutineInput): Promise<string> {
   const header = { folder_id: input.folderId, title: input.title.trim(), notes: input.notes?.trim() || null };
   let routineId = input.id;
-  let oldChildIds: string[] = [];
 
   if (routineId) {
-    const { data: old, error: oldError } = await supabase.from('routine_exercises').select('id').eq('routine_id', routineId);
-    check(oldError);
-    oldChildIds = ((old ?? []) as any[]).map((r) => r.id);
     const { error } = await supabase
       .from('routines')
       .update({ ...header, updated_at: new Date().toISOString() })
@@ -227,16 +254,12 @@ export async function saveRoutine(input: SaveRoutineInput): Promise<string> {
     routineId = (data as any).id as string;
   }
 
-  // Insert the new children before removing the old ones: a failed insert
-  // then leaves the previous version intact instead of an emptied routine.
-  if (input.exercises.length > 0) {
-    const { error } = await supabase.from('routine_exercises').insert(exerciseRows(routineId!, input.exercises));
-    check(error);
-  }
-  if (oldChildIds.length > 0) {
-    const { error } = await supabase.from('routine_exercises').delete().in('id', oldChildIds);
-    check(error);
-  }
+  // Delete + insert of the children happens in one server-side transaction.
+  const { error } = await supabase.rpc('replace_routine_exercises', {
+    p_routine_id: routineId,
+    p_rows: exerciseRows(input.exercises),
+  });
+  check(error);
   return routineId!;
 }
 
@@ -256,6 +279,7 @@ export async function moveRoutine(id: string, folderId: string | null): Promise<
  * missing exercise.
  */
 export async function startRoutineWorkout(routine: Routine): Promise<StartResult> {
+  const unit = await fetchWeightUnit().catch((): WeightUnit => 'lbs');
   const result = await startWorkout({ source: 'routine', title: routine.title, routineId: routine.id });
   if (!result.ok) return result;
 
@@ -272,7 +296,7 @@ export async function startRoutineWorkout(routine: Routine): Promise<StartResult
     const specs: NewWorkoutExercise[] = usable.map((e) => ({
       exerciseId: e.exerciseId,
       sprintDayExerciseId: null,
-      targetText: routineTargetText(e),
+      targetText: routineTargetText(e, unit),
       prescribedSets: e.targetSets,
       targetValues: { reps: e.targetReps, weightKg: e.targetWeightKg, durationS: e.targetDurationS },
     }));

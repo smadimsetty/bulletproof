@@ -24,7 +24,7 @@ test('draftToInput only keeps the targets that fit the exercise kind', () => {
 test('draftToInput clamps to the table constraints', () => {
   const d = { ...newDraft(strength, 'k'), sets: '99', restS: '9999' };
   expect(draftToInput(d, 1, 'kg')).toMatchObject({ targetSets: 20, restS: 600 });
-  expect(draftToInput({ ...d, sets: '', restS: 'abc' }, 1, 'kg')).toMatchObject({ targetSets: 1, restS: null });
+  expect(draftToInput({ ...d, sets: '0', restS: 'abc' }, 1, 'kg')).toMatchObject({ targetSets: 1, restS: null });
 });
 
 test('round trip through a routine exercise keeps display values', () => {
@@ -48,4 +48,10 @@ test('validateRoutine needs a title and at least one exercise', () => {
   expect(validateRoutine('  ', d)).toMatch(/title/);
   expect(validateRoutine('Push', [])).toMatch(/exercise/);
   expect(validateRoutine('Push', d)).toBeNull();
+});
+
+test('a blank Sets field is a validation error, not 1', () => {
+  const d = { ...newDraft({ id: 'e1', name: 'Goblet squat', exerciseType: 'strength', unilateral: false }, 'k'), sets: '' };
+  expect(validateRoutine('Title', [d])).toBe('Enter sets for Goblet squat');
+  expect(() => draftToInput(d, 1, 'kg')).toThrow('Enter sets for Goblet squat');
 });
