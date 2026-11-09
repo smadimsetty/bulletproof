@@ -58,6 +58,11 @@ try:
     s,wb=req('POST','/rest/v1/workouts?select=id',{'source':'routine','title':'B workout','routine_id':rb[0]['id']},token=B); ok(s==201,f"B starts workout from own routine ({s})")
     s,r=req('POST','/rest/v1/workout_exercises',{'workout_id':wb[0]['id'],'exercise_id':cx,'position':1},token=B); ok(s>=400,f"B cannot log A's custom exercise ({s})")
     s,r=req('DELETE',f"/rest/v1/workouts?id=eq.{wb[0]['id']}",token=B); ok(s==200,f"cleanup B workout ({s})")
+    # replace_routine_exercises RPC runs as the caller: B can't wipe or fill A's routine.
+    s,r=req('POST','/rest/v1/rpc/replace_routine_exercises',{'p_routine_id':ro[0]['id'],'p_rows':[{'exercise_id':exid,'position':1}]},token=B); ok(s>=400,f"B cannot replace A's routine exercises via RPC ({s})")
+    s,r=req('GET',f"/rest/v1/routine_exercises?select=id&routine_id=eq.{ro[0]['id']}",token=A); ok(len(r)==1,f"A's routine untouched after B's RPC ({len(r)})")
+    s,r=req('POST','/rest/v1/rpc/replace_routine_exercises',{'p_routine_id':ro[0]['id'],'p_rows':[{'exercise_id':cx,'position':1,'target_sets':2},{'exercise_id':exid,'position':2}]},token=A); ok(s in (200,204),f"A replaces own routine exercises ({s})")
+    s,r=req('GET',f"/rest/v1/routine_exercises?select=id&routine_id=eq.{ro[0]['id']}",token=A); ok(len(r)==2,f"A's routine now has 2 exercises ({len(r)})")
     s,r=req('DELETE',f"/rest/v1/routine_folders?id=eq.{fo[0]['id']}",token=A); ok(s==200,f"delete folder ({s})")
     s,r=req('GET',f"/rest/v1/routines?select=id,folder_id&id=eq.{ro[0]['id']}",token=A); ok(s==200 and len(r)==1 and r[0]['folder_id'] is None,f"folder delete keeps routine, unfiled ({r})")
     s,r=req('DELETE',f"/rest/v1/exercises?id=eq.{cx}",token=A); ok(s==409 and r.get('code')=='23503',f"custom exercise in a routine cannot be deleted ({s})")
