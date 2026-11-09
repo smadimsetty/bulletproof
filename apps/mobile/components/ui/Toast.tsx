@@ -38,7 +38,7 @@ export interface ToastOptions {
   action?: { label: string; onPress: () => void };
   icon?: IoniconName;
   /** tone 'pr' only: what to celebrate. */
-  pr?: { label: string; from: number; to: number; unit?: string };
+  pr?: { label: string; from: number; to: number; unit?: string; decimals?: number };
 }
 
 interface ActiveToast extends ToastOptions {
@@ -193,7 +193,7 @@ function ToastCard({ toast, onDone }: { toast: ActiveToast; onDone: (id: number)
                 {toast.pr.label}
               </Text>
               <View style={styles.prValueRow}>
-                <AnimatedNumber value={toast.pr.to} from={toast.pr.from} style={styles.prValue} />
+                <AnimatedNumber value={toast.pr.to} from={toast.pr.from} decimals={toast.pr.decimals} style={styles.prValue} />
                 {toast.pr.unit ? <Text style={[TYPE.title3, { color: COLORS.textSecondary }]}>{toast.pr.unit}</Text> : null}
                 <Text style={[TYPE.footnote, styles.struck]}>{`${toast.pr.from}${toast.pr.unit ?? ''}`}</Text>
               </View>

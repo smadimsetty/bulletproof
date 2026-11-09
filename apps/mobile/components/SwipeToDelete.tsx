@@ -1,14 +1,12 @@
 // Minimal swipe-left-to-delete wrapper, built on React Native core's
-// Animated + PanResponder rather than react-native-gesture-handler -- this
-// app has deliberately avoided adding gesture-handler/reanimated as a
-// native dependency (see the Trends chart library choice for the same
-// rationale: every native dependency is another required EAS rebuild for
-// everyone testing the app), and a single swipe-to-delete affordance
-// doesn't need a full gesture library.
+// Animated + PanResponder rather than a gesture library: a single
+// swipe-to-delete affordance doesn't need one (visual spec 3 SetRow).
+// Restyled for Stage 4: dangerTint action with a danger trash icon.
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../lib/theme';
+import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, RADII } from '../lib/theme';
 
 const DELETE_THRESHOLD = -72;
 const REVEAL_WIDTH = 90;
@@ -43,7 +41,7 @@ export default function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps
   return (
     <View style={styles.container}>
       <Pressable style={styles.deleteBackdrop} onPress={onDelete} accessibilityLabel="Delete">
-        <Text style={styles.deleteText}>Delete</Text>
+        <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
       </Pressable>
       <Animated.View style={[styles.foreground, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
         {children}
@@ -53,17 +51,16 @@ export default function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps
 }
 
 const styles = StyleSheet.create({
-  container: { position: 'relative' },
+  container: { position: 'relative', borderRadius: RADII.sm, overflow: 'hidden' },
   deleteBackdrop: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     right: 0,
     width: REVEAL_WIDTH,
-    backgroundColor: COLORS.danger,
+    backgroundColor: COLORS.dangerTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  deleteText: { color: COLORS.card, fontWeight: '700', fontSize: 13 },
-  foreground: { backgroundColor: COLORS.card },
+  foreground: { backgroundColor: COLORS.surface },
 });

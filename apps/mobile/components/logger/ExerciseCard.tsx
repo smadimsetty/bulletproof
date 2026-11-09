@@ -20,14 +20,14 @@ export interface ExerciseCardProps {
   onAddSet: () => void;
   onToggleRom: () => void;
   onRemove: () => void;
-  /** Column header text above the set rows (SET - PREVIOUS - ...). */
-  columnLabels?: string;
+  /** Column header row above the sets (SetColumnHeader). */
+  columnHeader?: ReactNode;
 }
 
 // Let the ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
 const SHEET_HANDOFF_MS = 300;
 
-export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRom, onRemove, columnLabels }: ExerciseCardProps) {
+export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRom, onRemove, columnHeader }: ExerciseCardProps) {
   const router = useRouter();
   const [descOpen, toggleDesc] = useToggle();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -54,7 +54,7 @@ export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRo
       </View>
       {!!exercise.description && <DescriptionBody open={descOpen} text={exercise.description} />}
       {exercise.targetText ? <Text style={TYPE.footnote}>{`Target ${exercise.targetText}`}</Text> : null}
-      {columnLabels ? <Text style={[TYPE.caption, styles.columns]}>{columnLabels}</Text> : null}
+      {columnHeader ?? null}
       <View style={styles.sets}>{exercise.sets.map(renderSet)}</View>
       <Button title="Add set" icon="add" variant="ghost" size="sm" onPress={onAddSet} style={styles.addSet} />
 
@@ -87,7 +87,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   titleWrap: { flex: 1, minHeight: 36, justifyContent: 'center' },
   title: {},
-  columns: { paddingHorizontal: SPACING.sm },
   sets: { gap: SPACING.xs },
   addSet: { alignSelf: 'flex-start' },
 });

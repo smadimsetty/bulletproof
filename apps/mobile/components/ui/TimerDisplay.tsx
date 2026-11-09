@@ -46,6 +46,12 @@ export interface TimerDisplayProps {
   onAdd15?: () => void;
   onSub15?: () => void;
   onStop?: () => void;
+  /**
+   * Fire the success haptic when the hold reaches target / the rest ends (default true).
+   * Pass false when the caller already fires it from its own state machine (the logger does).
+   * The last-3-seconds soft ticks and the switch-sides heavy tap always fire from here.
+   */
+  endHaptics?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -56,7 +62,7 @@ export function TimerDisplay(props: TimerDisplayProps) {
   return <SwitchTimer {...props} />;
 }
 
-function HoldTimer({ elapsedMs = 0, targetMs = 0, onStop, style, testID }: TimerDisplayProps) {
+function HoldTimer({ elapsedMs = 0, targetMs = 0, onStop, endHaptics = true, style, testID }: TimerDisplayProps) {
   const reduced = useReducedMotion();
   const scale = useSharedValue(1);
   const lastSecond = useRef(-1);
@@ -80,7 +86,7 @@ function HoldTimer({ elapsedMs = 0, targetMs = 0, onStop, style, testID }: Timer
   useEffect(() => {
     if (reached && !reachedRef.current) {
       reachedRef.current = true;
-      haptics.success();
+      if (endHaptics) haptics.success();
     }
     if (!reached) reachedRef.current = false;
   }, [reached]);
@@ -108,7 +114,7 @@ function HoldTimer({ elapsedMs = 0, targetMs = 0, onStop, style, testID }: Timer
   );
 }
 
-function RestTimer({ remainingMs = 0, targetMs = 0, onSkip, onAdd15, onSub15, style, testID }: TimerDisplayProps) {
+function RestTimer({ remainingMs = 0, targetMs = 0, onSkip, onAdd15, onSub15, endHaptics = true, style, testID }: TimerDisplayProps) {
   const reduced = useReducedMotion();
   const flash = useSharedValue(0);
   const endedRef = useRef(false);
@@ -118,7 +124,7 @@ function RestTimer({ remainingMs = 0, targetMs = 0, onSkip, onAdd15, onSub15, st
   useEffect(() => {
     if (ended && !endedRef.current) {
       endedRef.current = true;
-      haptics.success();
+      if (endHaptics) haptics.success();
       flash.value = withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 120 }));
     }
     if (!ended) endedRef.current = false;

@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import * as haptics from '../../lib/haptics';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import {
   addExercisesToWorkout, addSet, deleteSet, discardWorkout, fetchExerciseCatalog, fetchPreviousSetsForExercises,
@@ -41,7 +41,7 @@ import { formatSeconds } from '../../lib/setFormatting';
 import { fetchWeightUnit } from '../../lib/userPreferences';
 import type { WeightUnit } from '../../lib/units';
 import { takePendingPickedExercise, type LibraryExercise } from '../../lib/library';
-import SetRow from '../../components/logger/SetRow';
+import SetRow, { SetColumnHeader } from '../../components/logger/SetRow';
 import ExerciseCard from '../../components/logger/ExerciseCard';
 import RestBar from '../../components/logger/RestBar';
 import Ticker from '../../components/logger/Ticker';
@@ -50,7 +50,8 @@ import FinishSheet from '../../components/logger/FinishSheet';
 import { ToastProvider, useToast } from '../../components/Toast';
 import { fetchStatsDataset } from '../../lib/stats/dataset';
 import { computePrEvents, isNewBest, prKey, setCandidates, type Bests } from '../../lib/stats/prs';
-import { prHeadline } from '../../lib/stats/format';
+import { PR_KIND_LABEL, prHeadline, sideSuffix } from '../../lib/stats/format';
+import { kgToDisplayUnit } from '../../lib/units';
 import LastAssessmentSheet from '../../components/LastAssessmentSheet';
 import { fetchUserSettings, type Visibility } from '../../lib/userSettings';
 import { fetchMyProfile } from '../../lib/social/profiles';
@@ -121,6 +122,8 @@ function Logger() {
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // Sets that beat a previous best this session (SetRow shows a trophy). Presentation only.
+  const [prSetIds, setPrSetIds] = useState<Set<string>>(new Set());
   const [retrying, setRetrying] = useState(false);
   // Finish-sheet defaults; best effort. Until the user's real default loads
   // (or if it never does) fall back to Private: posting to followers is
@@ -269,8 +272,24 @@ function Logger() {
         const unitLabel = cand.kind === 'heaviest_weight' ? 'kg' : cand.kind === 'best_rom' ? (cand.romUnit ?? '') : '';
         const prior = bestsRef.current.get(key);
         const tieReps = cand.kind === 'heaviest_weight' && prior && prior.value === cand.value ? cand.reps : undefined;
-        toast.show(`New PR — ${prHeadline(cand.kind, set.side, cand.value, unitLabel, unit, tieReps)}`);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        // Celebration: tone 'pr' fires haptics.pr() itself (success, then heavy), so no separate haptic here.
+        const tie = tieReps != null;
+        const shown = (v: number) => (cand.kind === 'heaviest_weight' && !tie ? kgToDisplayUnit(v, unit) : v);
+        const to = tie ? (cand.reps ?? 0) : shown(cand.value);
+        const from = tie ? (prior?.reps ?? 0) : prior ? shown(prior.value) : 0;
+        const round1 = (n: number) => Math.round(n * 10) / 10;
+        toast.show({
+          message: `New PR — ${prHeadline(cand.kind, set.side, cand.value, unitLabel, unit, tieReps)}`,
+          tone: 'pr',
+          pr: {
+            label: `${PR_KIND_LABEL[cand.kind]}${sideSuffix(set.side)}`,
+            from: round1(from),
+            to: round1(to),
+            unit: tie ? 'reps' : cand.kind === 'heaviest_weight' ? unit : cand.kind === 'longest_hold' ? 's' : cand.kind === 'most_reps' ? 'reps' : unitLabel,
+            decimals: round1(to) % 1 !== 0 || round1(from) % 1 !== 0 ? 1 : 0,
+          },
+        });
+        setPrSetIds((prev) => new Set(prev).add(set.id));
       }
     } catch {
       // PR detection must never break logging.
@@ -313,7 +332,7 @@ function Logger() {
         if (partner && viaTimer && kind === 'hold') {
           applyRest(null);
           applyHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          // Switch-sides heavy tap now fires from TimerDisplay (mode="switch") when its banner mounts.
         } else if (!partner) {
           applyRest(startRest(defaultRestSeconds(kind), Date.now()));
         }
@@ -378,13 +397,15 @@ function Logger() {
       const { timer, event } = tickHold(cur, t);
       if (timer !== cur) applyHold(timer);
       if (event && event.type === 'hold_completed') {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        // Hold reached its target: the logger owns this haptic (SetRow/TimerDisplay endHaptics are off).
+        haptics.success();
         completeRow(event.rowId, event.durationS, true);
       }
       const r = restRef.current;
       if (r && restRemainingS(r, t) === 0) {
         applyRest(null);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+        // Rest ended: success haptic (spec 2.6); the logger owns it because it removes the bar itself.
+        haptics.success();
       }
     }, 250);
     return () => clearInterval(id);
@@ -622,6 +643,8 @@ function Logger() {
   const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
   const doneSets = workout.exercises.reduce((n, e) => n + e.sets.filter((s) => !!s.completedAt).length, 0);
   const startedMs = new Date(workout.startedAt).getTime();
+  // The first incomplete set in the workout is "next up".
+  const nextUpId = workout.exercises.flatMap((e) => e.sets).find((s) => !s.completedAt)?.id ?? null;
 
   return (
     <View style={styles.screen}>
@@ -662,6 +685,7 @@ function Logger() {
             <ExerciseCard
               key={exercise.id}
               exercise={exercise}
+              columnHeader={<SetColumnHeader kind={kind} unit={unit} />}
               unit={unit}
               onAddSet={() => run(() => addSet(exercise), 'Could not add a set.')}
               onToggleRom={() => run(() => setMeasureRom(exercise.id, !exercise.measureRom), 'Could not update.')}
@@ -696,6 +720,9 @@ function Logger() {
                     onStopHold={isTimerRow ? stopHoldNow : null}
                     hint={hints[set.id] ?? null}
                     prevHint={previousHint({ setNumber: set.setNumber, side: set.side }, previous, kind, unit)}
+                    timer={hold}
+                    isNextUp={set.id === nextUpId}
+                    isPr={prSetIds.has(set.id)}
                   />
                 );
               }}
@@ -714,6 +741,7 @@ function Logger() {
           {(now) => (
             <RestBar
               remainingS={restRemainingS(rest, now)}
+              totalS={rest.totalS}
               onMinus={() => restRef.current && applyRest(adjustRest(restRef.current, -15, Date.now()))}
               onPlus={() => restRef.current && applyRest(adjustRest(restRef.current, 15, Date.now()))}
               onSkip={() => applyRest(null)}
