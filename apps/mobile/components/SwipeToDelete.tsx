@@ -2,9 +2,9 @@
 // Animated + PanResponder rather than a gesture library: a single
 // swipe-to-delete affordance doesn't need one (visual spec 3 SetRow).
 // Restyled for Stage 4: dangerTint action with a danger trash icon.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADII } from '../lib/theme';
 
@@ -22,6 +22,15 @@ export default function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps
   const mountedRef = useRef(true);
   const onDeleteRef = useRef(onDelete);
   onDeleteRef.current = onDelete;
+  // VoiceOver users can't swipe a row; making the whole row one accessible
+  // element (for a custom action) would hide the set inputs inside it. So
+  // with a screen reader on, show an explicit delete button instead.
+  const [screenReader, setScreenReader] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isScreenReaderEnabled().then(setScreenReader).catch(() => undefined);
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', setScreenReader);
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -72,16 +81,17 @@ export default function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps
       >
         <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
       </Pressable>
-      <Animated.View
-        style={[styles.foreground, { transform: [{ translateX }] }]}
-        accessible
-        accessibilityActions={[{ name: 'delete', label: 'Delete set' }]}
-        onAccessibilityAction={(e) => {
-          if (e.nativeEvent.actionName === 'delete') triggerDelete();
-        }}
-        {...panResponder.panHandlers}
-      >
-        {children}
+      <Animated.View style={[styles.foreground, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
+        {screenReader ? (
+          <View style={styles.srRow}>
+            <View style={styles.srContent}>{children}</View>
+            <Pressable onPress={triggerDelete} accessibilityRole="button" accessibilityLabel="Delete set" hitSlop={8} style={styles.srDelete}>
+              <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+            </Pressable>
+          </View>
+        ) : (
+          children
+        )}
       </Animated.View>
     </View>
   );
@@ -100,4 +110,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   foreground: { backgroundColor: COLORS.surface },
+  srRow: { flexDirection: 'row', alignItems: 'center' },
+  srContent: { flex: 1 },
+  srDelete: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });
