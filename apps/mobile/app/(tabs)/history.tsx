@@ -11,7 +11,6 @@ import {
   type ActiveWorkoutSummary, type WorkoutListItem,
 } from '../../lib/workouts';
 import { groupByWeek } from '../../lib/historyGrouping';
-import ActiveWorkoutBanner from '../../components/ActiveWorkoutBanner';
 import WorkoutListRow from '../../components/WorkoutListRow';
 
 const PAGE_SIZE = 30;
@@ -116,7 +115,6 @@ export default function HistoryScreen() {
       contentContainerStyle={sharedStyles.screenContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />}
     >
-      {active && <ActiveWorkoutBanner workout={active} onDiscarded={() => load('refresh')} />}
       {items.length === 0 ? (
         <Text style={sharedStyles.helperText}>No workouts yet — start one from the Workout tab.</Text>
       ) : (

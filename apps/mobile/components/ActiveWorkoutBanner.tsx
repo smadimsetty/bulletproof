@@ -1,89 +1,143 @@
 // apps/mobile/components/ActiveWorkoutBanner.tsx
 //
-// In-progress workout banner, rendered at the top of the Workout and
-// History tabs' content (spec section 1). Tap resumes; × discards.
+// In-progress workout banner (visual spec 4.4). Rendered once by the tabs
+// layout, docked above the tab bar. Tap reopens the same workout in the
+// logger; the x asks (ConfirmSheet) before discarding. Nothing discards on a
+// gesture.
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { COLORS, RADII, LEGACY_SPACING as SPACING, TYPE } from '../lib/theme';
+import Animated, {
+  Easing,
+  FadeInDown,
+  cancelAnimation,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
+import { COLORS, ELEVATION, MOTION, RADII, SPACING, TYPE } from '../lib/theme';
 import { discardWorkout, type ActiveWorkoutSummary } from '../lib/workouts';
+import { ConfirmSheet, IconButton, PressableScale } from './ui';
 
-const TICK_MS = 15000;
+function elapsedLabel(startedAt: string): string {
+  const total = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
 
-function elapsedMinutes(startedAt: string): number {
-  return Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000));
+function PulseDot() {
+  const reduced = useReducedMotion();
+  const opacity = useSharedValue(1);
+  useEffect(() => {
+    if (reduced) {
+      opacity.value = 1;
+      return;
+    }
+    opacity.value = withRepeat(withTiming(0.3, { duration: 700, easing: Easing.inOut(Easing.ease) }), -1, true);
+    return () => cancelAnimation(opacity);
+  }, [reduced, opacity]);
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  return <Animated.View style={[styles.dot, style]} />;
 }
 
 export default function ActiveWorkoutBanner({
   workout,
   onDiscarded,
+  bottom,
 }: {
   workout: ActiveWorkoutSummary;
   onDiscarded: () => void;
+  /** Distance from the bottom of the screen (tab bar height + 8). */
+  bottom: number;
 }) {
   const router = useRouter();
   const [, setTick] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   // A fast double tap would push two logger screens.
   const lastPushRef = useRef(0);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), TICK_MS);
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
   function handleDiscard() {
-    Alert.alert('Discard this workout?', 'Every set logged in it will be deleted.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Discard',
-        style: 'destructive',
-        onPress: () => {
-          discardWorkout(workout.id)
-            .then(onDiscarded)
-            .catch((err: any) => Alert.alert('Error', err?.message ?? 'Could not discard.'));
-        },
-      },
-    ]);
+    setDiscarding(true);
+    discardWorkout(workout.id)
+      .then(() => {
+        setConfirming(false);
+        onDiscarded();
+      })
+      .catch((err: any) => {
+        setConfirming(false);
+        Alert.alert('Error', err?.message ?? 'Could not discard.');
+      })
+      .finally(() => setDiscarding(false));
   }
 
   return (
-    <View style={styles.container}>
-      <Pressable
-        style={styles.tapArea}
-        onPress={() => {
-          const t = Date.now();
-          if (t - lastPushRef.current < 1000) return;
-          lastPushRef.current = t;
-          router.push(`/workout/${workout.id}`);
-        }}
+    <>
+      <Animated.View
+        entering={reduced ? undefined : FadeInDown.duration(MOTION.base)}
+        style={[styles.container, ELEVATION[2], { bottom }]}
       >
-        <View style={styles.dot} />
-        <Text style={styles.text} numberOfLines={1}>
-          {workout.title} · {elapsedMinutes(workout.startedAt)} min
-        </Text>
-        <Text style={styles.resume}>Resume</Text>
-      </Pressable>
-      <Pressable onPress={handleDiscard} hitSlop={8} accessibilityLabel="Discard workout" style={styles.discard}>
-        <Text style={styles.discardText}>×</Text>
-      </Pressable>
-    </View>
+        <View style={styles.bar} pointerEvents="none" />
+        <PressableScale
+          style={styles.tapArea}
+          scaleTo={0.98}
+          accessibilityLabel={`Resume ${workout.title}`}
+          onPress={() => {
+            const t = Date.now();
+            if (t - lastPushRef.current < 1000) return;
+            lastPushRef.current = t;
+            router.push(`/workout/${workout.id}`);
+          }}
+        >
+          <PulseDot />
+          <Text style={[TYPE.bodyStrong, styles.title]} numberOfLines={1}>
+            {workout.title}
+          </Text>
+          <Text style={styles.elapsed}>{elapsedLabel(workout.startedAt)}</Text>
+        </PressableScale>
+        <IconButton icon="close" size="sm" accessibilityLabel="Discard workout" onPress={() => setConfirming(true)} />
+      </Animated.View>
+      <ConfirmSheet
+        visible={confirming}
+        onClose={() => setConfirming(false)}
+        title="Discard workout?"
+        body="Every set logged in it will be deleted."
+        confirmLabel="Discard"
+        destructive
+        loading={discarding}
+        onConfirm={handleDiscard}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    position: 'absolute',
+    left: SPACING.sm,
+    right: SPACING.sm,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.accent,
-    borderRadius: RADII.card,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.sheet,
+    borderRadius: RADII.lg,
+    paddingRight: SPACING.sm,
+    overflow: 'hidden',
   },
-  tapArea: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.card },
-  text: { ...TYPE.body, color: COLORS.card, fontWeight: '600', flex: 1 },
-  resume: { ...TYPE.label, color: COLORS.card },
-  discard: { paddingHorizontal: SPACING.xs },
-  discardText: { color: COLORS.card, fontWeight: '700', fontSize: 20, lineHeight: 22 },
+  bar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: COLORS.accent },
+  tapArea: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingLeft: SPACING.lg, height: 52 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.accent },
+  title: { flex: 1 },
+  elapsed: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, fontVariant: ['tabular-nums'] },
 });

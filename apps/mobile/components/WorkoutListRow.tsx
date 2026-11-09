@@ -1,39 +1,59 @@
 // apps/mobile/components/WorkoutListRow.tsx
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../lib/theme';
+//
+// History/recent row (visual spec 4.8): date block, title, summary line and a
+// Sprint badge. Used by the Workout tab, History and the profile list.
+import { StyleSheet, Text, View } from 'react-native';
+import { COLORS, RADII, SPACING, TYPE } from '../lib/theme';
 import { durationLabel } from '../lib/historyGrouping';
 import type { WorkoutListItem } from '../lib/workouts';
+import { Badge, PressableScale } from './ui';
 
-function dateLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+function monthLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString([], { month: 'short' }).toUpperCase();
+}
+
+function dayLabel(iso: string): string {
+  return String(new Date(iso).getDate()).padStart(2, '0');
 }
 
 export default function WorkoutListRow({ item, onPress }: { item: WorkoutListItem; onPress: () => void }) {
+  const exercises = `${item.exerciseCount} ${item.exerciseCount === 1 ? 'exercise' : 'exercises'}`;
+  const sets = `${item.setCount} ${item.setCount === 1 ? 'set' : 'sets'}`;
   return (
-    <Pressable style={sharedStyles.card} onPress={onPress}>
-      <View style={styles.titleRow}>
-        <Text style={[TYPE.sectionTitle, styles.title]} numberOfLines={1}>
+    <PressableScale style={styles.row} scaleTo={0.98} onPress={onPress} accessibilityLabel={item.title}>
+      <View style={styles.date}>
+        <Text style={TYPE.caption}>{monthLabel(item.startedAt)}</Text>
+        <Text style={styles.day}>{dayLabel(item.startedAt)}</Text>
+      </View>
+      <View style={styles.body}>
+        <Text style={TYPE.bodyStrong} numberOfLines={2}>
           {item.title}
         </Text>
-        {item.source === 'sprint' && (
-          <View style={sharedStyles.chip}>
-            <Text style={styles.tag}>Sprint</Text>
-          </View>
-        )}
+        <Text style={TYPE.footnote} numberOfLines={1}>
+          {`${durationLabel(item.startedAt, item.endedAt)} · ${exercises} · ${sets}`}
+        </Text>
       </View>
-      <Text style={sharedStyles.helperText}>
-        {dateLabel(item.startedAt)} · {durationLabel(item.startedAt, item.endedAt)}
-      </Text>
-      <Text style={TYPE.body}>
-        {item.exerciseCount} {item.exerciseCount === 1 ? 'exercise' : 'exercises'} · {item.setCount}{' '}
-        {item.setCount === 1 ? 'set' : 'sets'}
-      </Text>
-    </Pressable>
+      {item.source === 'sprint' ? <Badge label="Sprint" tone="tint" /> : null}
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  title: { flex: 1 },
-  tag: { ...TYPE.helper, color: COLORS.accent, fontWeight: '600' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    minHeight: 68,
+    paddingVertical: SPACING.sm,
+  },
+  date: {
+    width: 44,
+    height: 44,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.elevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  day: { fontSize: 17, fontWeight: '700', color: COLORS.textPrimary, fontVariant: ['tabular-nums'], lineHeight: 20 },
+  body: { flex: 1, gap: 2 },
 });

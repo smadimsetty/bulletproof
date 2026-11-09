@@ -1,11 +1,12 @@
 // apps/mobile/app/(tabs)/index.tsx
 //
-// Workout tab (spec section 1): in-progress banner or "Start empty
-// workout", the sprint card, routines, and the 3 most recent saved workouts.
+// Workout tab (visual spec 4.3): in-progress card or "Start empty workout",
+// the sprint card, routines, and the 3 most recent saved workouts.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import {
   fetchActiveWorkout, fetchWorkoutHistory, startSprintWorkout, startWorkout, subscribeToActiveWorkoutChanges,
   type ActiveWorkoutSummary, type WorkoutListItem,
@@ -14,10 +15,13 @@ import { fetchRoutinesAndFolders, startRoutineWorkout, type Routine, type Routin
 import { fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay, type PainPoint, type Sprint, type SprintDay } from '../../lib/sprintLifecycle';
 import { defaultWorkoutTitle } from '../../lib/workoutTitles';
 import { handleStartResult } from '../../lib/workoutStart';
-import ActiveWorkoutBanner from '../../components/ActiveWorkoutBanner';
 import WorkoutListRow from '../../components/WorkoutListRow';
 import SprintCard from '../../components/SprintCard';
 import RoutinesSection from '../../components/routines/RoutinesSection';
+import {
+  Button, Card, CompactHeaderBar, EmptyState, ErrorState, IconButton, LargeHeader, ScreenScroll, SectionHeader,
+  SkeletonCard, SkeletonRow, useScreenScroll,
+} from '../../components/ui';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -25,6 +29,7 @@ function reportError(err: any, fallback: string) {
 
 export default function WorkoutTab() {
   const router = useRouter();
+  const scrollY = useScreenScroll();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -130,28 +135,42 @@ export default function WorkoutTab() {
     }
   }
 
+  const header = (
+    <LargeHeader
+      title="Workout"
+      actions={<IconButton icon="library-outline" accessibilityLabel="Exercise library" onPress={() => router.push('/library')} />}
+    />
+  );
+
   if (loading) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.root}>
+        <ScreenScroll>
+          {header}
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </ScreenScroll>
       </View>
     );
   }
   if (loadError) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
-          disabled={retrying}
-          onPress={async () => {
-            setRetrying(true);
-            await load('initial'); // failure puts the new message in loadError
-            setRetrying(false);
-          }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+      <View style={styles.root}>
+        <ScreenScroll>
+          {header}
+          <ErrorState
+            message={loadError}
+            retrying={retrying}
+            onRetry={async () => {
+              setRetrying(true);
+              await load('initial'); // failure puts the new message in loadError
+              setRetrying(false);
+            }}
+          />
+        </ScreenScroll>
       </View>
     );
   }
@@ -159,48 +178,60 @@ export default function WorkoutTab() {
   const painPointName = sprint ? painPoints.find((p) => p.id === sprint.painPointId)?.displayName ?? null : null;
 
   return (
-    <ScrollView
-      style={sharedStyles.screen}
-      contentContainerStyle={sharedStyles.screenContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={COLORS.accent} />}
-    >
-      {active ? (
-        <ActiveWorkoutBanner workout={active} onDiscarded={() => load('refresh')} />
-      ) : (
-        <Pressable style={sharedStyles.primaryButton} disabled={starting} onPress={handleStartEmpty}>
-          <Text style={sharedStyles.primaryButtonText}>{starting ? 'Starting…' : 'Start empty workout'}</Text>
-        </Pressable>
-      )}
-      <SprintCard
-        sprint={sprint}
-        painPointName={painPointName}
-        today={today}
-        activeWorkout={active}
-        starting={starting}
-        onStartRoutine={handleStartRoutine}
-        onOpenSprint={() => router.push('/sprint')}
-      />
-      <RoutinesSection folders={folders} routines={routines} starting={starting || !!active} onStart={handleStartSavedRoutine} onChanged={() => load('focus')} />
-      <View style={styles.sectionHeader}>
-        <Text style={TYPE.sectionTitle}>Recent</Text>
-        {recent.length > 0 && (
-          <Pressable onPress={() => router.push('/history')}>
-            <Text style={styles.link}>See all</Text>
-          </Pressable>
+    <View style={styles.root}>
+      <ScreenScroll
+        scrollY={scrollY}
+        refreshing={refreshing}
+        onRefresh={() => load('refresh')}
+        // Leave room for the docked active-workout banner.
+        contentContainerStyle={active ? styles.withBanner : undefined}
+      >
+        {header}
+        {active ? (
+          <Card variant="accent" onPress={() => router.push(`/workout/${active.id}`)} accessibilityLabel={`Resume ${active.title}`}>
+            <View style={styles.activeRow}>
+              <Ionicons name="radio-button-on" size={14} color={COLORS.accent} />
+              <Text style={[TYPE.bodyStrong, styles.activeTitle]} numberOfLines={1}>
+                {active.title}
+              </Text>
+              <Text style={styles.resume}>Resume</Text>
+              <Ionicons name="arrow-forward" size={16} color={COLORS.accent} />
+            </View>
+          </Card>
+        ) : null}
+        <SprintCard
+          sprint={sprint}
+          painPointName={painPointName}
+          today={today}
+          activeWorkout={active}
+          starting={starting}
+          onStartRoutine={handleStartRoutine}
+          onOpenSprint={() => router.push('/sprint')}
+        />
+        {active ? null : (
+          <Button title="Start empty workout" icon="add" variant="secondary" size="lg" fullWidth loading={starting} onPress={handleStartEmpty} />
         )}
-      </View>
-      {recent.length === 0 ? (
-        <Text style={sharedStyles.helperText}>No workouts yet. Start one above.</Text>
-      ) : (
-        recent.map((item) => <WorkoutListRow key={item.id} item={item} onPress={() => router.push(`/workout-summary/${item.id}`)} />)
-      )}
-    </ScrollView>
+        <RoutinesSection folders={folders} routines={routines} starting={starting || !!active} onStart={handleStartSavedRoutine} onChanged={() => load('focus')} />
+        <SectionHeader
+          title="Recent"
+          inset={SPACING.xs}
+          action={recent.length > 0 ? { label: 'See all', onPress: () => router.navigate('/history') } : undefined}
+        />
+        {recent.length === 0 ? (
+          <EmptyState compact icon="barbell-outline" title="No workouts yet" body="Your finished workouts will show up here." />
+        ) : (
+          recent.map((item) => <WorkoutListRow key={item.id} item={item} onPress={() => router.push(`/workout-summary/${item.id}`)} />)
+        )}
+      </ScreenScroll>
+      <CompactHeaderBar title="Workout" scrollY={scrollY} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  retryingButton: { opacity: 0.6 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  link: { color: COLORS.accent, fontWeight: '600' },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  withBanner: { paddingBottom: 76 },
+  activeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  activeTitle: { flex: 1 },
+  resume: { ...TYPE.callout, color: COLORS.accent, fontWeight: '700' },
 });

@@ -1,27 +1,95 @@
 // apps/mobile/app/(tabs)/_layout.tsx
 //
 // Bottom tab bar: Workout / History / Progress / Feed / Profile (Settings is
-// a stack screen reached from the Profile tab's gear; see
-// docs/superpowers/specs/2026-11-08-finish-the-app-design.md Stage 3).
+// a stack screen reached from the Profile tab's gear). Visual spec 3 "TabBar
+// styling" + 4.4: the ActiveWorkoutBanner is rendered here once, docked above
+// the tab bar on every tab.
+import { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, View, type ColorValue } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import type { ColorValue } from 'react-native';
-import { COLORS } from '../../lib/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, SIZES, SPACING, TYPE } from '../../lib/theme';
+import { fetchActiveWorkout, subscribeToActiveWorkoutChanges, type ActiveWorkoutSummary } from '../../lib/workouts';
+import ActiveWorkoutBanner from '../../components/ActiveWorkoutBanner';
+import { PressableScale } from '../../components/ui';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-function icon(name: IconName) {
-  return ({ color, size }: { color: ColorValue; size: number }) => <Ionicons name={name} size={size} color={color} />;
+function icon(filled: IconName, outline: IconName) {
+  return ({ color, focused }: { color: ColorValue; focused: boolean }) => (
+    <Ionicons name={focused ? filled : outline} size={SIZES.iconLg} color={color} />
+  );
+}
+
+// Tab buttons press-scale with a selection haptic (spec 3 TabBar styling).
+function TabButton(props: any) {
+  return (
+    <PressableScale
+      haptic="select"
+      scaleTo={0.94}
+      onPress={() => props.onPress?.()}
+      onLongPress={props.onLongPress ?? undefined}
+      accessibilityLabel={props.accessibilityLabel}
+      accessibilityState={props.accessibilityState}
+      testID={props.testID}
+      style={props.style}
+    >
+      {props.children}
+    </PressableScale>
+  );
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = SIZES.tabBar + insets.bottom;
+  const [active, setActive] = useState<ActiveWorkoutSummary | null>(null);
+
+  const loadActive = useCallback(() => {
+    fetchActiveWorkout()
+      .then(setActive)
+      .catch(() => {
+        // Silent: the banner is a convenience; the Workout tab surfaces load errors.
+      });
+  }, []);
+
+  useEffect(() => {
+    loadActive();
+    return subscribeToActiveWorkoutChanges(loadActive);
+  }, [loadActive]);
+
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: COLORS.accent }}>
-      <Tabs.Screen name="index" options={{ title: 'Workout', tabBarIcon: icon('barbell-outline') }} />
-      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('time-outline') }} />
-      <Tabs.Screen name="progress" options={{ title: 'Progress', tabBarIcon: icon('stats-chart-outline') }} />
-      <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: icon('people-outline') }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon('person-circle-outline') }} />
-    </Tabs>
+    <View style={styles.root}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: {
+            backgroundColor: COLORS.tabBar,
+            borderTopColor: COLORS.divider,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            height: tabBarHeight,
+          },
+          tabBarActiveTintColor: COLORS.accent,
+          tabBarInactiveTintColor: COLORS.textTertiary,
+          tabBarLabelStyle: { fontSize: TYPE.caption.fontSize, fontWeight: TYPE.caption.fontWeight, letterSpacing: TYPE.caption.letterSpacing },
+          tabBarButton: TabButton,
+          sceneStyle: { backgroundColor: COLORS.bg },
+        }}
+      >
+        <Tabs.Screen name="index" options={{ title: 'Workout', tabBarIcon: icon('barbell', 'barbell-outline') }} />
+        <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('time', 'time-outline') }} />
+        <Tabs.Screen name="progress" options={{ title: 'Progress', tabBarIcon: icon('stats-chart', 'stats-chart-outline') }} />
+        {/* TODO(stage4): tabBarBadge = unread inbox count once the Feed step (spec 4.15) lands. */}
+        <Tabs.Screen name="feed" options={{ title: 'Feed', tabBarIcon: icon('people', 'people-outline') }} />
+        <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: icon('person-circle', 'person-circle-outline') }} />
+      </Tabs>
+      {active ? (
+        <ActiveWorkoutBanner workout={active} onDiscarded={loadActive} bottom={tabBarHeight + SPACING.sm} />
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: COLORS.bg },
+});
