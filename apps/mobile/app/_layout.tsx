@@ -8,7 +8,7 @@
 // side of the old daily-recommendation engine, which stays running
 // dormant rather than being torn out.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -16,6 +16,8 @@ import { isHealthKitSyncEnabled, syncHealthKitWorkouts, syncHealthKitDailyMetric
 import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommendations';
 import { fetchActiveWorkout, subscribeToActiveWorkoutChanges } from '../lib/workouts';
 import { syncWorkoutLiveActivity } from '../lib/workoutActivityBridge';
+import { fetchMyProfile, subscribeToProfileChanges } from '../lib/social/profiles';
+import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
 
 type RecommendationsState = {
   today: RecommendationPublicRow | null;
@@ -23,6 +25,8 @@ type RecommendationsState = {
   loading: boolean;
   error: string | null;
 };
+
+type ProfileGate = 'loading' | 'needs_onboarding' | 'ready' | 'error';
 
 const INITIAL_RECOMMENDATIONS_STATE: RecommendationsState = {
   today: null,
@@ -36,6 +40,8 @@ export default function RootLayout() {
   const [recommendations, setRecommendations] = useState<RecommendationsState>(
     INITIAL_RECOMMENDATIONS_STATE
   );
+  const [profileGate, setProfileGate] = useState<ProfileGate>('loading');
+  const [profileError, setProfileError] = useState<string | null>(null);
   const appState = useRef(AppState.currentState);
   const hadSession = useRef(false);
 
@@ -46,6 +52,30 @@ export default function RootLayout() {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // Decides onboarding vs tabs. A silent re-check (after onboarding or a profile
+  // edit) never knocks an already-ready app back to a loading/error screen.
+  const checkProfile = useCallback(async () => {
+    try {
+      const profile = await fetchMyProfile();
+      setProfileGate(profile ? 'ready' : 'needs_onboarding');
+      setProfileError(null);
+    } catch (err: any) {
+      setProfileGate((prev) => {
+        if (prev === 'ready') return prev;
+        setProfileError(err?.message ?? 'Could not load your profile.');
+        return 'error';
+      });
+    }
+  }, []);
+
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    setProfileGate('loading');
+    setProfileError(null);
+    if (userId) checkProfile();
+  }, [userId, checkProfile]);
+  useEffect(() => subscribeToProfileChanges(() => { checkProfile(); }), [checkProfile]);
 
   const loadRecommendations = useCallback(async () => {
     try {
