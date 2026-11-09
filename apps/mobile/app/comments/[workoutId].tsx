@@ -17,6 +17,7 @@ import {
 import { COMMENT_MAX, commentError } from '../../lib/social/commentRules';
 import { relativeTime } from '../../lib/social/time';
 import { getMyId } from '../../lib/session';
+import { useSafety } from '../../components/social/ReportSheet';
 
 export default function CommentsScreen() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function CommentsScreen() {
   const [postError, setPostError] = useState<string | null>(null);
   const postingRef = useRef(false);
   const listRef = useRef<FlatList<Comment>>(null);
+  const safety = useSafety();
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +91,19 @@ export default function CommentsScreen() {
             Alert.alert('Error', err?.message ?? 'Could not delete the comment.');
           }
         },
+      });
+    }
+    if (c.ownerId !== meId) {
+      buttons.push({
+        text: 'Report comment',
+        onPress: () =>
+          safety.openReport({
+            type: 'comment',
+            id: c.id,
+            label: 'this comment',
+            // Reported content disappears for the reporter right away.
+            after: () => setComments((prev) => prev.filter((x) => x.id !== c.id)),
+          }),
       });
     }
     buttons.push({ text: 'Cancel', style: 'cancel' });
@@ -151,6 +166,7 @@ export default function CommentsScreen() {
           </Pressable>
         )}
       />
+      {safety.element}
       <View style={styles.composer}>
         {postError && <Text style={sharedStyles.warningText}>{postError}</Text>}
         <View style={styles.composerRow}>

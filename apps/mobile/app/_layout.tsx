@@ -9,7 +9,8 @@
 // dormant rather than being torn out.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { isHealthKitSyncEnabled, syncHealthKitWorkouts, syncHealthKitDailyMetrics } from '../lib/healthkitSync';
@@ -17,6 +18,9 @@ import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommenda
 import { fetchActiveWorkout, subscribeToActiveWorkoutChanges } from '../lib/workouts';
 import { syncWorkoutLiveActivity } from '../lib/workoutActivityBridge';
 import { fetchMyProfile, subscribeToProfileChanges } from '../lib/social/profiles';
+import { ensurePushRegistered } from '../lib/social/push';
+import { safePushRoute } from '../lib/social/notificationFormat';
+import { signOut } from '../lib/signOut';
 import { COLORS, SPACING, sharedStyles, TYPE } from '../lib/theme';
 
 type RecommendationsState = {
@@ -145,6 +149,26 @@ export default function RootLayout() {
   }, [session, loadRecommendations, runHealthKitSyncIfEnabled, refreshLiveActivity]);
 
   const showApp = !!session && profileGate === 'ready';
+
+  // Push: refresh the token silently if permission was already granted, and
+  // route taps (warm and cold start) to the in-app path in data.url. Only our
+  // own known path shapes are ever navigated to.
+  const router = useRouter();
+  const handledColdStartRef = useRef(false);
+  useEffect(() => {
+    if (!showApp) return;
+    ensurePushRegistered({ ask: false });
+    const go = (response: Notifications.NotificationResponse | null) => {
+      const route = safePushRoute(response?.notification.request.content.data?.url);
+      if (route) router.push(route as any);
+    };
+    if (!handledColdStartRef.current) {
+      handledColdStartRef.current = true;
+      go(Notifications.getLastNotificationResponse());
+    }
+    const sub = Notifications.addNotificationResponseReceivedListener(go);
+    return () => sub.remove();
+  }, [showApp, router]);
   const showGate = !!session && (profileGate === 'loading' || profileGate === 'error');
 
   return (
@@ -165,6 +189,8 @@ export default function RootLayout() {
           <Stack.Screen name="follow-list" options={{ title: 'Followers', headerBackTitle: 'Back' }} />
           <Stack.Screen name="edit-profile" options={{ title: 'Edit profile', headerBackTitle: 'Back' }} />
           <Stack.Screen name="comments/[workoutId]" options={{ title: 'Comments', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="inbox" options={{ title: 'Inbox', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="blocked" options={{ title: 'Blocked users', headerBackTitle: 'Back' }} />
         </Stack.Protected>
         <Stack.Protected guard={!!session && profileGate === 'needs_onboarding'}>
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
@@ -187,7 +213,7 @@ export default function RootLayout() {
               >
                 <Text style={sharedStyles.primaryButtonText}>Try again</Text>
               </Pressable>
-              <Pressable onPress={() => supabase.auth.signOut()}>
+              <Pressable onPress={() => signOut().catch(() => supabase.auth.signOut())}>
                 <Text style={sharedStyles.helperText}>Sign out</Text>
               </Pressable>
             </>

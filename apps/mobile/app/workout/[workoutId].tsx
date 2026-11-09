@@ -56,6 +56,7 @@ import { fetchUserSettings, DEFAULT_SETTINGS, type Visibility } from '../../lib/
 import { fetchMyProfile } from '../../lib/social/profiles';
 import { initialVisibility } from '../../lib/social/visibility';
 import { photoFailureMessage, uploadWorkoutPhotos } from '../../lib/social/media';
+import { ensurePushRegistered } from '../../lib/social/push';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -482,6 +483,8 @@ export default function LoggerScreen() {
       applyHold(IDLE);
       applyRest(null);
       setFinishOpen(false);
+      // First finished workout is a natural moment to ask for push (once, ever).
+      ensurePushRegistered({ ask: true });
       // The workout is saved; a photo failure must not undo that, just say so.
       if (photoUris.length > 0) {
         const { failed } = await uploadWorkoutPhotos(workoutId, photoUris);

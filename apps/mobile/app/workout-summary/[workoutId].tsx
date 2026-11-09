@@ -36,6 +36,8 @@ import ShareCard from '../../components/share/ShareCard';
 import { shareViewAsImage } from '../../lib/shareImage';
 import { fetchSocialSummary, setLiked, type SocialSummary } from '../../lib/social/interactions';
 import { copyWorkout } from '../../lib/social/copyWorkout';
+import { useSafety } from '../../components/social/ReportSheet';
+import { hideWorkout } from '../../lib/social/safety';
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -76,6 +78,7 @@ export default function WorkoutSummaryScreen() {
   const [sharing, setSharing] = useState(false);
   const sharingRef = useRef(false);
   const shareCardRef = useRef<View>(null);
+  const safety = useSafety();
 
   const isOwner = !!workout && workout.ownerId === meId;
 
@@ -228,6 +231,37 @@ export default function WorkoutSummaryScreen() {
     }
   }
 
+  function openMenu() {
+    if (!workout) return;
+    const w = workout;
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+      {
+        text: 'Report workout',
+        onPress: () => safety.openReport({ type: 'workout', id: w.id, label: 'this workout', after: () => router.back() }),
+      },
+      {
+        text: 'Hide from my feed',
+        onPress: async () => {
+          try {
+            await hideWorkout(w.id);
+            router.back();
+          } catch (err) {
+            reportError(err, 'Could not hide this workout.');
+          }
+        },
+      },
+    ];
+    if (author) {
+      buttons.push({
+        text: `Block @${author.handle}`,
+        style: 'destructive',
+        onPress: () => safety.confirmBlock(author, () => router.back()),
+      });
+    }
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Workout', undefined, buttons);
+  }
+
   function toggleEdit() {
     if (!workout) return;
     if (!editing) {
@@ -331,7 +365,11 @@ export default function WorkoutSummaryScreen() {
               <Pressable onPress={toggleEdit} hitSlop={8}>
                 <Text style={styles.headerAction}>{editing ? 'Cancel' : 'Edit'}</Text>
               </Pressable>
-            ) : null,
+            ) : (
+              <Pressable onPress={openMenu} hitSlop={8} accessibilityLabel="More options">
+                <Ionicons name="ellipsis-horizontal" size={22} color={COLORS.accent} />
+              </Pressable>
+            ),
         }}
       />
 
@@ -462,6 +500,7 @@ export default function WorkoutSummaryScreen() {
             </View>
           );
         })}
+      {safety.element}
       {/* Rendered off-screen and captured to an image by the Share button. */}
       <View style={styles.offscreen} pointerEvents="none">
         <ShareCard

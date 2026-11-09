@@ -16,7 +16,7 @@ import { createProfile, displayNameError, handleError, isHandleAvailable, normal
 import { updateUserSettings } from '../lib/userSettings';
 import type { WeightUnit } from '../lib/units';
 import { PRIVACY_URL, TERMS_URL } from '../lib/links';
-import { supabase } from '../lib/supabase';
+import { signOut } from '../lib/signOut';
 
 type HandleState = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -232,7 +232,7 @@ export default function Onboarding() {
             <Text style={styles.link}>Back</Text>
           </Pressable>
         )}
-        <Pressable style={styles.textBtn} onPress={() => supabase.auth.signOut()}>
+        <Pressable style={styles.textBtn} onPress={() => signOut().catch(() => undefined)}>
           <Text style={sharedStyles.helperText}>Sign out</Text>
         </Pressable>
       </ScrollView>

@@ -14,6 +14,8 @@ import type { FeedCursor } from '../../lib/social/feedCursor';
 import { setLiked } from '../../lib/social/interactions';
 import { fetchUnreadCount } from '../../lib/social/notifications';
 import { getMyId } from '../../lib/session';
+import { useSafety } from '../../components/social/ReportSheet';
+import { hideWorkout } from '../../lib/social/safety';
 
 export default function FeedTab() {
   const router = useRouter();
@@ -29,6 +31,7 @@ export default function FeedTab() {
   const loadedRef = useRef(false);
   // Synchronous per-workout guard against double-tapped likes.
   const likingRef = useRef<Set<string>>(new Set());
+  const safety = useSafety();
 
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
@@ -96,6 +99,39 @@ export default function FeedTab() {
     }
   }
 
+  const dropItem = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id));
+
+  function openMenu(item: FeedItem) {
+    const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+      {
+        text: 'Report workout',
+        onPress: () => safety.openReport({ type: 'workout', id: item.id, label: 'this workout', after: () => dropItem(item.id) }),
+      },
+      {
+        text: 'Hide from my feed',
+        onPress: async () => {
+          try {
+            await hideWorkout(item.id);
+            dropItem(item.id);
+          } catch (err: any) {
+            Alert.alert('Error', err?.message ?? 'Could not hide this workout.');
+          }
+        },
+      },
+    ];
+    if (item.author) {
+      const author = item.author;
+      buttons.push({
+        text: `Block @${author.handle}`,
+        style: 'destructive',
+        onPress: () =>
+          safety.confirmBlock(author, () => setItems((prev) => prev.filter((i) => i.ownerId !== author.id))),
+      });
+    }
+    buttons.push({ text: 'Cancel', style: 'cancel' });
+    Alert.alert('Workout', undefined, buttons);
+  }
+
   const now = new Date();
 
   const header = (
@@ -144,6 +180,7 @@ export default function FeedTab() {
   }
 
   return (
+    <>
     <FlatList
       style={sharedStyles.screen}
       contentContainerStyle={sharedStyles.screenContent}
@@ -171,9 +208,12 @@ export default function FeedTab() {
           onOpenAuthor={() => router.push(`/profile/${item.ownerId}`)}
           onToggleLike={() => toggleLike(item)}
           onOpenComments={() => router.push(`/comments/${item.id}`)}
+          onMore={item.ownerId === meId ? undefined : () => openMenu(item)}
         />
       )}
     />
+    {safety.element}
+    </>
   );
 }
 

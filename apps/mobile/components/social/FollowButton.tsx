@@ -9,6 +9,7 @@ import { COLORS, RADII, SPACING } from '../../lib/theme';
 import { follow, unfollow } from '../../lib/social/follows';
 import { followButtonLabel } from '../../lib/social/followState';
 import type { FollowStatus } from '../../lib/social/profiles';
+import { ensurePushRegistered } from '../../lib/social/push';
 
 export default function FollowButton({
   userId,
@@ -46,7 +47,11 @@ export default function FollowButton({
 
   function onPress() {
     if (status === 'none') {
-      run(() => follow(userId));
+      // First follow is a natural moment to ask for push (once, ever).
+      run(async () => {
+        await follow(userId);
+        ensurePushRegistered({ ask: true });
+      });
       return;
     }
     const msg = status === 'pending' ? `Cancel your follow request to @${handle}?` : `Unfollow @${handle}?`;
