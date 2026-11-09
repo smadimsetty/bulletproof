@@ -19,12 +19,12 @@
 //   state changes (lead-in -> holding -> done) must NOT count, or the rest bar
 //   after a timed hold would be skipped.
 // - Side effects (haptics, completions) run outside state updaters.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import {
   addExercisesToWorkout, addSet, deleteSet, discardWorkout, fetchExerciseCatalog, fetchPreviousSetsForExercises,
   fetchWorkout, finishWorkout, removeWorkoutExercise, setMeasureRom, setRomUnitForExercise, updateSet,
@@ -47,7 +47,7 @@ import RestBar from '../../components/logger/RestBar';
 import Ticker from '../../components/logger/Ticker';
 import ExercisePickerSheet from '../../components/logger/ExercisePickerSheet';
 import FinishSheet from '../../components/logger/FinishSheet';
-import { useToast } from '../../components/Toast';
+import { ToastProvider, useToast } from '../../components/Toast';
 import { fetchStatsDataset } from '../../lib/stats/dataset';
 import { computePrEvents, isNewBest, prKey, setCandidates, type Bests } from '../../lib/stats/prs';
 import { prHeadline } from '../../lib/stats/format';
@@ -59,6 +59,32 @@ import { photoFailureMessage, uploadWorkoutPhotos } from '../../lib/social/media
 import { ensurePushRegistered } from '../../lib/social/push';
 import { saveWorkoutToHealth } from '../../lib/healthkitWrite';
 import { dominantKind } from '../../lib/workoutKind';
+import { Button, ConfirmSheet, EmptyState, ErrorState, IconButton, SkeletonCard } from '../../components/ui';
+import { formatClock } from '../../components/ui/TimerDisplay';
+
+function LoggerHeader({
+  title,
+  onMinimise,
+  onAssessment,
+  onFinish,
+}: {
+  title: string;
+  onMinimise: () => void;
+  onAssessment?: (() => void) | null;
+  onFinish?: (() => void) | null;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
+      <IconButton icon="chevron-down" accessibilityLabel="Minimise workout" onPress={onMinimise} />
+      <Text style={[TYPE.title3, styles.headerTitle]} numberOfLines={1}>
+        {title}
+      </Text>
+      {onAssessment ? <IconButton icon="clipboard-outline" accessibilityLabel="Last assessment" onPress={onAssessment} /> : null}
+      {onFinish ? <Button title="Finish" size="sm" onPress={onFinish} /> : null}
+    </View>
+  );
+}
 
 function reportError(err: any, fallback: string) {
   Alert.alert('Error', err?.message ?? fallback);
@@ -68,7 +94,17 @@ function valuesOf(s: WorkoutSetRow): SetValues {
   return { reps: s.reps, weightKg: s.weightKg, durationS: s.durationS, romValue: s.romValue, romUnit: s.romUnit };
 }
 
+// A native fullScreenModal covers the root ToastProvider overlay, so the logger mounts its own
+// provider inside the modal; otherwise PR and error toasts would render behind the screen.
 export default function LoggerScreen() {
+  return (
+    <ToastProvider>
+      <Logger />
+    </ToastProvider>
+  );
+}
+
+function Logger() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
   const router = useRouter();
   const [workout, setWorkout] = useState<Workout | null>(null);
@@ -84,6 +120,7 @@ export default function LoggerScreen() {
   const [finishOpen, setFinishOpen] = useState(false);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   // Finish-sheet defaults; best effort. Until the user's real default loads
   // (or if it never does) fall back to Private: posting to followers is
@@ -533,37 +570,24 @@ export default function LoggerScreen() {
     ]);
   }
 
-  // Stable header options: the header no longer re-renders on every tick.
-  const headerTitle = workout?.title ?? 'Workout';
   const painPointId = workout?.painPointId ?? null;
-  const screenOptions = useMemo(
-    () => ({
-      title: headerTitle,
-      headerRight: () => (
-        <View style={styles.headerRight}>
-          {painPointId && (
-            <Pressable onPress={() => setAssessmentOpen(true)} hitSlop={8} accessibilityLabel="Last assessment">
-              <Ionicons name="clipboard-outline" size={20} color={COLORS.accent} />
-            </Pressable>
-          )}
-          <Pressable onPress={() => openFinishRef.current()} hitSlop={8}>
-            <Text style={styles.finish}>Finish</Text>
-          </Pressable>
-        </View>
-      ),
-    }),
-    [headerTitle, painPointId]
-  );
+
+  // Minimise: the workout keeps running; the tabs' ActiveWorkoutBanner reopens
+  // this same workout. Never discards.
+  function minimise() {
+    Keyboard.dismiss();
+    router.back();
+  }
 
   // ---- render ----
   if (loadError) {
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <Text style={TYPE.body}>{loadError}</Text>
-        <Pressable
-          style={[sharedStyles.primaryButton, retrying && styles.retryingButton]}
-          disabled={retrying}
-          onPress={async () => {
+      <View style={styles.screen}>
+        <LoggerHeader title="Workout" onMinimise={minimise} />
+        <ErrorState
+          message={loadError}
+          retrying={retrying}
+          onRetry={async () => {
             setRetrying(true);
             try {
               await reload();
@@ -574,16 +598,19 @@ export default function LoggerScreen() {
               setRetrying(false);
             }
           }}
-        >
-          <Text style={sharedStyles.primaryButtonText}>{retrying ? 'Retrying…' : 'Try again'}</Text>
-        </Pressable>
+        />
       </View>
     );
   }
   if (!workout) {
+    // The header renders immediately; content is skeletons.
     return (
-      <View style={[sharedStyles.screen, styles.centered]}>
-        <ActivityIndicator color={COLORS.accent} />
+      <View style={styles.screen}>
+        <LoggerHeader title="Workout" onMinimise={minimise} />
+        <View style={styles.skeletons}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </View>
       </View>
     );
   }
@@ -592,18 +619,41 @@ export default function LoggerScreen() {
     return null;
   }
 
+  const totalSets = workout.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const doneSets = workout.exercises.reduce((n, e) => n + e.sets.filter((s) => !!s.completedAt).length, 0);
+  const startedMs = new Date(workout.startedAt).getTime();
+
   return (
-    <View style={sharedStyles.screen}>
-      <Stack.Screen options={screenOptions} />
-      {toast.element}
+    <View style={styles.screen}>
+      <LoggerHeader
+        title={workout.title}
+        onMinimise={minimise}
+        onAssessment={painPointId ? () => setAssessmentOpen(true) : null}
+        onFinish={() => openFinishRef.current()}
+      />
+      <Ticker intervalMs={1000}>
+        {(now) => (
+          <Text style={[TYPE.footnote, styles.summary]}>
+            {`${formatClock(Math.max(0, now - startedMs))} elapsed · ${workout.exercises.length} ${
+              workout.exercises.length === 1 ? 'exercise' : 'exercises'
+            } · ${doneSets}/${totalSets} sets`}
+          </Text>
+        )}
+      </Ticker>
       <ScrollView
-        contentContainerStyle={[sharedStyles.screenContent, styles.bottomPad]}
+        contentContainerStyle={[styles.content, styles.bottomPad]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         automaticallyAdjustKeyboardInsets
+        indicatorStyle="white"
       >
         {workout.exercises.length === 0 && (
-          <Text style={sharedStyles.helperText}>No exercises yet — add one below.</Text>
+          <EmptyState
+            icon="add-circle-outline"
+            title="Add your first exercise"
+            body="Pick from the library or create your own."
+            action={{ label: 'Add exercise', onPress: openPicker }}
+          />
         )}
         {workout.exercises.map((exercise) => {
           const kind = kindOf(exercise);
@@ -652,9 +702,12 @@ export default function LoggerScreen() {
             />
           );
         })}
-        <Pressable style={sharedStyles.primaryButton} onPress={openPicker}>
-          <Text style={sharedStyles.primaryButtonText}>+ Add exercise</Text>
-        </Pressable>
+        {workout.exercises.length > 0 ? (
+          <>
+            <Button title="Add exercise" icon="add" variant="secondary" size="lg" fullWidth onPress={openPicker} />
+            <Button title="Discard workout" variant="destructive" size="sm" onPress={() => setDiscardOpen(true)} style={styles.discard} />
+          </>
+        ) : null}
       </ScrollView>
       {rest && (
         <Ticker>
@@ -681,14 +734,36 @@ export default function LoggerScreen() {
         onDiscard={handleDiscard}
         onClose={() => setFinishOpen(false)}
       />
+      <ConfirmSheet
+        visible={discardOpen}
+        onClose={() => setDiscardOpen(false)}
+        title="Discard workout?"
+        body="Every set logged in it will be deleted."
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => {
+          setDiscardOpen(false);
+          handleDiscardConfirmed();
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  retryingButton: { opacity: 0.6 },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.md },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  finish: { ...TYPE.label, color: COLORS.accent, fontWeight: '700' },
+  screen: { flex: 1, backgroundColor: COLORS.bg },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingBottom: SPACING.sm,
+    backgroundColor: COLORS.bg,
+  },
+  headerTitle: { flex: 1 },
+  summary: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm, fontVariant: ['tabular-nums'] },
+  skeletons: { padding: SPACING.lg, gap: SPACING.md },
+  content: { padding: SPACING.lg, gap: SPACING.md },
   bottomPad: { paddingBottom: 120 },
+  discard: { alignSelf: 'center' },
 });

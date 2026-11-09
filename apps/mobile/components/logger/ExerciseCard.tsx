@@ -1,9 +1,17 @@
-import type { ReactNode } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { DescriptionToggleButton, useToggle } from '../DescriptionToggle';
-import { COLORS, LEGACY_SPACING as SPACING, sharedStyles, TYPE } from '../../lib/theme';
+// apps/mobile/components/logger/ExerciseCard.tsx
+//
+// One exercise in the logger (visual spec 4.6): name (taps through to the
+// exercise detail), Sprint badge, description eye toggle, a done check once
+// every set is ticked, a menu ActionSheet, the set rows and "+ Add set".
+import { useState, type ReactNode } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { DescriptionBody, DescriptionToggleButton, useToggle } from '../DescriptionToggle';
+import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import type { WorkoutExerciseRow, WorkoutSetRow } from '../../lib/workouts';
 import type { WeightUnit } from '../../lib/units';
+import { ActionSheet, Badge, Button, Card, ConfirmSheet, IconButton, PressableScale } from '../ui';
 
 export interface ExerciseCardProps {
   exercise: WorkoutExerciseRow;
@@ -12,48 +20,74 @@ export interface ExerciseCardProps {
   onAddSet: () => void;
   onToggleRom: () => void;
   onRemove: () => void;
+  /** Column header text above the set rows (SET - PREVIOUS - ...). */
+  columnLabels?: string;
 }
 
-export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRom, onRemove }: ExerciseCardProps) {
+// Let the ActionSheet finish dismissing before the next Modal presents (iOS drops overlapping presentations).
+const SHEET_HANDOFF_MS = 300;
+
+export default function ExerciseCard({ exercise, renderSet, onAddSet, onToggleRom, onRemove, columnLabels }: ExerciseCardProps) {
+  const router = useRouter();
   const [descOpen, toggleDesc] = useToggle();
-  function openMenu() {
-    Alert.alert(exercise.exerciseName, undefined, [
-      { text: exercise.measureRom ? 'Stop measuring ROM' : 'Measure ROM', onPress: onToggleRom },
-      {
-        text: 'Remove exercise',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Remove exercise?', 'Its sets will be deleted.', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: onRemove },
-          ]),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const allDone = exercise.sets.length > 0 && exercise.sets.every((s) => !!s.completedAt);
 
   return (
-    <View style={sharedStyles.card}>
+    <Card>
       <View style={styles.header}>
-        <Text style={[TYPE.sectionTitle, styles.title]}>{exercise.exerciseName}</Text>
+        <PressableScale
+          style={styles.titleWrap}
+          scaleTo={0.98}
+          onPress={() => router.push(`/exercise/${exercise.exerciseId}`)}
+          accessibilityLabel={`${exercise.exerciseName} details`}
+        >
+          <Text style={[TYPE.title3, styles.title]} numberOfLines={2}>
+            {exercise.exerciseName}
+          </Text>
+        </PressableScale>
+        {exercise.sprintDayExerciseId ? <Badge label="Sprint" tone="tint" /> : null}
+        {allDone ? <Ionicons name="checkmark-circle" size={22} color={COLORS.success} /> : null}
         {!!exercise.description && <DescriptionToggleButton open={descOpen} onToggle={toggleDesc} />}
-        <Pressable onPress={openMenu} hitSlop={10} accessibilityLabel="Exercise options">
-          <Text style={styles.menu}>⋯</Text>
-        </Pressable>
+        <IconButton icon="ellipsis-horizontal" size="sm" accessibilityLabel="Exercise options" onPress={() => setMenuOpen(true)} />
       </View>
-      {descOpen && !!exercise.description ? <Text style={sharedStyles.helperText}>{exercise.description}</Text> : null}
-      {exercise.targetText ? <Text style={sharedStyles.helperText}>Target: {exercise.targetText}</Text> : null}
-      {exercise.sets.map(renderSet)}
-      <Pressable onPress={onAddSet} hitSlop={6}>
-        <Text style={styles.add}>+ Add set</Text>
-      </Pressable>
-    </View>
+      {!!exercise.description && <DescriptionBody open={descOpen} text={exercise.description} />}
+      {exercise.targetText ? <Text style={TYPE.footnote}>{`Target ${exercise.targetText}`}</Text> : null}
+      {columnLabels ? <Text style={[TYPE.caption, styles.columns]}>{columnLabels}</Text> : null}
+      <View style={styles.sets}>{exercise.sets.map(renderSet)}</View>
+      <Button title="Add set" icon="add" variant="ghost" size="sm" onPress={onAddSet} style={styles.addSet} />
+
+      <ActionSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={exercise.exerciseName}
+        actions={[
+          { label: exercise.measureRom ? 'Stop measuring ROM' : 'Measure ROM', icon: 'resize-outline', onPress: onToggleRom },
+          { label: 'Remove exercise', icon: 'trash-outline', destructive: true, onPress: () => setTimeout(() => setConfirmRemove(true), SHEET_HANDOFF_MS) },
+        ]}
+      />
+      <ConfirmSheet
+        visible={confirmRemove}
+        onClose={() => setConfirmRemove(false)}
+        title="Remove exercise?"
+        body="Its sets will be deleted."
+        confirmLabel="Remove"
+        destructive
+        onConfirm={() => {
+          setConfirmRemove(false);
+          onRemove();
+        }}
+      />
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
-  title: { flex: 1 },
-  menu: { fontSize: 22, color: COLORS.muted, paddingHorizontal: SPACING.xs },
-  add: { ...TYPE.label, color: COLORS.accent, paddingVertical: SPACING.xs },
+  header: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  titleWrap: { flex: 1, minHeight: 36, justifyContent: 'center' },
+  title: {},
+  columns: { paddingHorizontal: SPACING.sm },
+  sets: { gap: SPACING.xs },
+  addSet: { alignSelf: 'flex-start' },
 });

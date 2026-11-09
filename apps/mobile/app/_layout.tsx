@@ -174,7 +174,8 @@ export default function RootLayout() {
       <Stack screenOptions={STACK_SCREEN_OPTIONS}>
         <Stack.Protected guard={showApp}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="workout/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
+          {/* Logger is a full-screen modal: it is minimised with its chevron, never dismissed by gesture (a swipe-down must not leave an unreachable running workout). */}
+          <Stack.Screen name="workout/[workoutId]" options={{ presentation: 'fullScreenModal', gestureEnabled: false, headerShown: false }} />
           <Stack.Screen name="workout-summary/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
           <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
           <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
