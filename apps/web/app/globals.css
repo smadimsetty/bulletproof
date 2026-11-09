@@ -80,3 +80,33 @@ p.subtitle {
   font-size: 14px;
   color: #b00020;
 }
+
+/* Legal / support pages (privacy, terms, support): plain readable prose. */
+main.legal {
+  gap: 16px;
+  line-height: 1.55;
+}
+
+main.legal h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 16px 0 0;
+}
+
+main.legal p,
+main.legal ul {
+  margin: 0;
+}
+
+main.legal ul {
+  padding-left: 20px;
+}
+
+main.legal li + li {
+  margin-top: 6px;
+}
+
+main.legal .updated {
+  color: #6e6e73;
+  font-size: 14px;
+}
