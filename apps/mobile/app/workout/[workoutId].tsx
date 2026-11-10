@@ -60,6 +60,7 @@ import { initialVisibility } from '../../lib/social/visibility';
 import { uploadWorkoutPhotos } from '../../lib/social/media';
 import { ensurePushRegistered } from '../../lib/social/push';
 import { saveWorkoutToHealth } from '../../lib/healthkitWrite';
+import { syncWorkoutLiveActivity } from '../../lib/workoutActivityBridge';
 import { dominantKind } from '../../lib/workoutKind';
 import { Button, ConfirmSheet, EmptyState, ErrorState, IconButton, SkeletonCard } from '../../components/ui';
 import { formatClock } from '../../components/ui/TimerDisplay';
@@ -477,6 +478,31 @@ function Logger() {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timerActive]);
+
+  // ---- lock-screen Live Activity: current exercise + running hold/rest timer ----
+  const liveWorkoutId = workout && !workout.endedAt ? workout.id : null;
+  const liveTitle = workout?.title ?? '';
+  const liveStartedAt = workout?.startedAt ?? '';
+  const liveSprintDayId = workout?.sprintDayId ?? null;
+  const liveExercise =
+    workout?.exercises.find((e) => e.sets.some((s) => !s.completedAt))?.exerciseName ?? '';
+  const liveTimer =
+    hold.phase === 'lead_in'
+      ? { endsAtMs: hold.endsAt + hold.targetS * 1000, label: 'Hold' }
+      : hold.phase === 'holding'
+        ? { endsAtMs: hold.endsAt, label: 'Hold' }
+        : hold.phase === 'switching'
+          ? { endsAtMs: hold.endsAt, label: 'Switch sides' }
+          : rest
+            ? { endsAtMs: rest.endsAt, label: 'Rest' }
+            : { endsAtMs: 0, label: '' };
+  useEffect(() => {
+    if (!liveWorkoutId) return;
+    syncWorkoutLiveActivity(
+      { id: liveWorkoutId, title: liveTitle, startedAt: liveStartedAt, sprintDayId: liveSprintDayId },
+      { exerciseName: liveExercise, timerEndsAtMs: liveTimer.endsAtMs, timerLabel: liveTimer.label }
+    );
+  }, [liveWorkoutId, liveTitle, liveStartedAt, liveSprintDayId, liveExercise, liveTimer.endsAtMs, liveTimer.label]);
 
   function startHoldFor(set: WorkoutSetRow) {
     const t = Date.now();
