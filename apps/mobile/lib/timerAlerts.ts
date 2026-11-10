@@ -37,9 +37,24 @@ export function playTimerEnd(): void {
   }
 }
 
+let permissionAsked = false;
+
+/** Asks for notification permission once per session if it has not been decided yet (no push registration). */
+async function ensureNotificationPermission(): Promise<void> {
+  if (permissionAsked) return;
+  permissionAsked = true;
+  try {
+    const cur = await Notifications.getPermissionsAsync();
+    if (cur.status === 'undetermined') await Notifications.requestPermissionsAsync();
+  } catch {
+    // Best effort.
+  }
+}
+
 /** Schedules the lock-screen alert for `endsAtMs`. Null when already past or on failure. */
 export async function scheduleTimerEndNotification(endsAtMs: number, body: string): Promise<string | null> {
   if (!(endsAtMs > Date.now())) return null;
+  await ensureNotificationPermission();
   try {
     return await Notifications.scheduleNotificationAsync({
       content: { title: 'Bulletproof', body, sound: 'default', data: { kind: TIMER_END_KIND } },
