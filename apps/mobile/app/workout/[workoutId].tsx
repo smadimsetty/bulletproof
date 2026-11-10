@@ -144,7 +144,6 @@ function Logger() {
   const userHoldGenRef = useRef(0);
   const restRef = useRef<RestTimer | null>(null);
   const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
-  const prevRequestedRef = useRef<Set<string>>(new Set());
   // Optimistic set changes (tick, un-tick, delete) whose write has not landed; a reload re-lays them
   // over the fetched workout so it can never flash the old state back.
   const pendingRef = useRef<Map<string, PendingOp>>(new Map());
@@ -153,12 +152,13 @@ function Logger() {
     workoutRef.current = next;
     setWorkout(next);
   }
+  const prevRequestedRef = useRef<Set<string>>(new Set());
   const toast = useToast();
-  // Prior bests from FINISHED workouts only (the in-progress one is excluded by
   // In-app toast, not a system Alert, so errors look like the rest of the app.
   function reportError(err: any, fallback: string) {
     toast.show({ message: err?.message ?? fallback, tone: 'danger' });
   }
+  // Prior bests from FINISHED workouts only (the in-progress one is excluded by
   // construction), and what this session has already toasted per key.
   const bestsRef = useRef<Bests>(new Map());
   const toastedRef = useRef<Bests>(new Map());
@@ -331,10 +331,10 @@ function Logger() {
     });
 
     if (viaTimer) setTimerDoneIds((prev) => new Set(prev).add(setId));
-    const run = (async () => {
     const completedAt = new Date().toISOString();
     // The row flips to done right now (state + haptic in SetRow); the write runs behind it and a
     // failure puts the row back with a toast.
+    const run = (async () => {
       try {
         const result = await runOptimistic({
           pending: pendingRef.current,
@@ -368,10 +368,10 @@ function Logger() {
             applyRest(startRest(defaultRestSeconds(kind), Date.now()));
           }
         }
-      } catch (err) {
         // Background sync (Finish flushes dirty rows again and reloads before saving).
         await flushDirtyCompleted(setId).catch(() => {});
         await reload();
+      } catch (err) {
         reportError(err, 'Could not save that set.');
       } finally {
         inFlightRef.current.delete(setId);
@@ -405,7 +405,6 @@ function Logger() {
     }
   }
 
-  async function commitEdit(setId: string, explicit?: SetValues) {
   /** Remove the row right away, delete in the background, put it back with a toast if that fails. */
   async function deleteSetNow(setId: string) {
     const before = workoutRef.current;
@@ -425,6 +424,7 @@ function Logger() {
     else if (result === 'ok') await reload().catch(() => undefined);
   }
 
+  async function commitEdit(setId: string, explicit?: SetValues) {
     const w = workoutRef.current;
     const found = w && findSet(w, setId);
     if (!found || !found.set.completedAt) return; // incomplete rows persist on ✓
