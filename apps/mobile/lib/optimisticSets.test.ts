@@ -1,4 +1,4 @@
-import { applyPending, runOptimistic, withoutSet, withSetCompleted, type PendingOp } from './optimisticSets';
+import { applyPending, isStaleReload, runOptimistic, withoutSet, withSetCompleted, type PendingOp } from './optimisticSets';
 import type { Workout } from './workouts';
 
 function set(id: string, completedAt: string | null = null) {
@@ -82,5 +82,25 @@ describe('runOptimistic', () => {
     expect(write).toHaveBeenCalledTimes(1);
     resolve();
     await first;
+  });
+});
+
+describe('stale reload guard', () => {
+  it('drops a reload that started at or before the last write settled, keeps later ones', () => {
+    expect(isStaleReload(3, 3)).toBe(true);
+    expect(isStaleReload(2, 3)).toBe(true);
+    expect(isStaleReload(4, 3)).toBe(false);
+  });
+  it('runOptimistic calls onSettled after the op leaves pending, on success and failure', async () => {
+    for (const fail of [false, true]) {
+      const pending = new Map<string, PendingOp>();
+      let heldDuringSettle: boolean | null = null;
+      await runOptimistic({
+        pending, key: 'a', op: { kind: 'remove' }, apply: () => {}, revert: () => {},
+        write: async () => { if (fail) throw new Error('x'); },
+        onSettled: () => { heldDuringSettle = pending.has('a'); },
+      });
+      expect(heldDuringSettle).toBe(false);
+    }
   });
 });

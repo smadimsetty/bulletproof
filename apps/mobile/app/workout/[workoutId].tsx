@@ -38,7 +38,7 @@ import {
   tickHold, type HoldTimer, type RestTimer,
 } from '../../lib/workoutTimers';
 import { formatSeconds } from '../../lib/setFormatting';
-import { applyPending, runOptimistic, withoutSet, withSetCompleted, type PendingOp } from '../../lib/optimisticSets';
+import { applyPending, isStaleReload, runOptimistic, withoutSet, withSetCompleted, type PendingOp } from '../../lib/optimisticSets';
 import { fetchWeightUnit } from '../../lib/userPreferences';
 import type { WeightUnit } from '../../lib/units';
 import { takePendingPickedExercise, type LibraryExercise } from '../../lib/library';
@@ -175,8 +175,21 @@ function Logger() {
     setRest(next);
   }
 
-  const reload = useCallback(async () => {
-    const w = applyPending(await fetchWorkout(workoutId), pendingRef.current);
+  // Reload generation: a background reload that started before the latest optimistic write settled is
+  // dropped, so it cannot flash an old tick/delete back (see isStaleReload).
+  const reloadSeqRef = useRef(0);
+  const lastSettledSeqRef = useRef(0);
+  const markSettled = () => {
+    lastSettledSeqRef.current = reloadSeqRef.current;
+  };
+
+  const reload = useCallback(async (opts?: { dropIfStale?: boolean }) => {
+    const startedSeq = ++reloadSeqRef.current;
+    const fetched = await fetchWorkout(workoutId);
+    if (opts?.dropIfStale && isStaleReload(startedSeq, lastSettledSeqRef.current) && workoutRef.current) {
+      return workoutRef.current;
+    }
+    const w = applyPending(fetched, pendingRef.current);
     workoutRef.current = w;
     setWorkout(w);
     setDrafts((prev) => {
@@ -348,6 +361,7 @@ function Logger() {
             setDrafts((d) => ({ ...d, [setId]: values }));
           },
           write: () => updateSet(setId, { ...values, completedAt }),
+          onSettled: markSettled,
           revert: () => {
             if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, null));
             if (viaTimer) setTimerDoneIds((prev) => { const n = new Set(prev); n.delete(setId); return n; });
@@ -373,7 +387,7 @@ function Logger() {
         }
         // Background sync (Finish flushes dirty rows again and reloads before saving).
         await flushDirtyCompleted(setId).catch(() => {});
-        await reload();
+        await reload({ dropIfStale: true });
       } catch (err) {
         reportError(err, 'Could not save that set.');
       } finally {
@@ -397,12 +411,13 @@ function Logger() {
           if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, null));
         },
         write: () => updateSet(setId, { completedAt: null }),
+        onSettled: markSettled,
         revert: () => {
           if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, prevCompletedAt));
         },
       });
       if (result === 'failed') toast.show({ message: 'Could not update that set.', tone: 'danger' });
-      else if (result === 'ok') await reload();
+      else if (result === 'ok') await reload({ dropIfStale: true });
     } catch (err) {
       reportError(err, 'Could not update that set.');
     }
@@ -419,12 +434,13 @@ function Logger() {
       op: { kind: 'remove' },
       apply: () => setWorkoutNow(withoutSet(before, setId)),
       write: () => deleteSet(setId),
+      onSettled: markSettled,
       revert: () => {
         reload().catch(() => setWorkoutNow(before));
       },
     });
     if (result === 'failed') toast.show({ message: 'Could not delete that set. It is back.', tone: 'danger' });
-    else if (result === 'ok') await reload().catch(() => undefined);
+    else if (result === 'ok') await reload({ dropIfStale: true }).catch(() => undefined);
   }
 
   async function commitEdit(setId: string, explicit?: SetValues) {
@@ -504,8 +520,10 @@ function Logger() {
           : rest
             ? { endsAtMs: rest.endsAt, label: 'Rest' }
             : { endsAtMs: 0, label: '' };
+  // Set once the workout is finished or discarded: the Live Activity is ended and must not be re-pushed.
+  const closedRef = useRef(false);
   useEffect(() => {
-    if (!liveWorkoutId) return;
+    if (!liveWorkoutId || closedRef.current) return;
     syncWorkoutLiveActivity(
       { id: liveWorkoutId, title: liveTitle, startedAt: liveStartedAt, sprintDayId: liveSprintDayId },
       { exerciseName: liveExercise, timerEndsAtMs: liveTimer.endsAtMs, timerLabel: liveTimer.label }
@@ -536,6 +554,7 @@ function Logger() {
   liveSyncRef.current = { w: workout, exercise: liveExercise };
   useEffect(() => {
     return () => {
+      if (closedRef.current) return;
       const { w, exercise } = liveSyncRef.current;
       if (!w || w.endedAt) return;
       syncWorkoutLiveActivity(
@@ -676,6 +695,8 @@ function Logger() {
       applyHold(IDLE);
       applyRest(null);
       setFinishOpen(false);
+      closedRef.current = true;
+      syncWorkoutLiveActivity(null);
       // Optional Apple Health write (no-op unless the setting is on; never blocks the finish).
       saveWorkoutToHealth({
         startedAt: fresh.startedAt,
@@ -714,6 +735,8 @@ function Logger() {
   async function handleDiscardConfirmed() {
     try {
       await discardWorkout(workoutId);
+      closedRef.current = true;
+      syncWorkoutLiveActivity(null);
       applyHold(IDLE);
       applyRest(null);
       setFinishOpen(false);

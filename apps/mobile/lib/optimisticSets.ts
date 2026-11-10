@@ -56,8 +56,10 @@ export async function runOptimistic(args: {
   apply: () => void;
   write: () => Promise<unknown>;
   revert: () => void;
+  /** Called once the write has settled and the op has left `pending` (success or failure). */
+  onSettled?: () => void;
 }): Promise<OptimisticResult> {
-  const { pending, key, op, apply, write, revert } = args;
+  const { pending, key, op, apply, write, revert, onSettled } = args;
   if (pending.has(key)) return 'ignored';
   pending.set(key, op);
   apply();
@@ -70,5 +72,16 @@ export async function runOptimistic(args: {
     return 'failed';
   } finally {
     pending.delete(key);
+    onSettled?.();
   }
+}
+
+/**
+ * A reload that STARTED (sequence number `startedSeq`) at or before the last optimistic write settled may have
+ * read the server before that write committed. Applying it would flash the old state back (and re-fire the
+ * tick haptic), so it must be dropped. Reload sequence numbers come from a counter bumped at each reload start;
+ * `lastSettledSeq` is that counter's value when the most recent write settled.
+ */
+export function isStaleReload(startedSeq: number, lastSettledSeq: number): boolean {
+  return startedSeq <= lastSettledSeq;
 }
