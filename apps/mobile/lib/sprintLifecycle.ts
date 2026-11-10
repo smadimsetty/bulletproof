@@ -291,6 +291,7 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
     }
 
     const daySlots = slotsForDay(template, dayNumber);
+    const pickedToday = new Set<string>();
     const exerciseRows = daySlots.map((slot) => {
       const candidates: PoolCandidate[] = filterCandidatesByTier(
         (poolBySlot.get(slot.slotKey) ?? []).map((p) => ({
@@ -300,7 +301,8 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
         })),
         equipmentTier
       );
-      const chosenExerciseId = pickExerciseForSlot(candidates, lastCompletedByExerciseId);
+      const chosenExerciseId = pickExerciseForSlot(candidates, lastCompletedByExerciseId, pickedToday);
+      pickedToday.add(chosenExerciseId);
       const chosenPoolRow = (poolBySlot.get(slot.slotKey) ?? []).find((p) => p.exercise_id === chosenExerciseId);
 
       return {

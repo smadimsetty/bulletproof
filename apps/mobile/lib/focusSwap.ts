@@ -43,6 +43,7 @@ export function pickOneOffSlots(
 ): OneOffExercise[] {
   const slots = [...slotsForDay(template, dayNumber)].sort((a, b) => a.slotOrder - b.slotOrder);
   const result: OneOffExercise[] = [];
+  const picked = new Set<string>();
   for (const slot of slots) {
     const inSlot = pool.filter((p) => p.slotKey === slot.slotKey);
     if (inSlot.length === 0) continue;
@@ -50,7 +51,8 @@ export function pickOneOffSlots(
       inSlot.map((p) => ({ exerciseId: p.exerciseId, defaultRank: p.defaultRank, equipment: p.equipment })),
       tier
     );
-    const chosenId = pickExerciseForSlot(candidates, lastCompleted);
+    const chosenId = pickExerciseForSlot(candidates, lastCompleted, picked);
+    picked.add(chosenId);
     const row = inSlot.find((p) => p.exerciseId === chosenId);
     result.push({
       exerciseId: chosenId,

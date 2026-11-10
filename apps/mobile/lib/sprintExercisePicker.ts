@@ -21,16 +21,22 @@ export interface PoolCandidate {
  *   their past and current sprints of this pain point. A candidate absent
  *   from this map has never been completed and is treated as older than
  *   any date present in it.
+ * @param alreadyPicked exercise ids already chosen for other slots of the
+ *   same day; skipped when any other candidate remains, so a day never
+ *   repeats an exercise unless the slot has no alternative.
  */
 export function pickExerciseForSlot(
   candidates: readonly PoolCandidate[],
-  lastCompletedByExerciseId: ReadonlyMap<string, string>
+  lastCompletedByExerciseId: ReadonlyMap<string, string>,
+  alreadyPicked?: ReadonlySet<string>
 ): string {
   if (candidates.length === 0) {
     throw new Error('pickExerciseForSlot called with an empty candidate list');
   }
+  const fresh = alreadyPicked ? candidates.filter((c) => !alreadyPicked.has(c.exerciseId)) : candidates;
+  const pool = fresh.length > 0 ? fresh : candidates;
 
-  const ranked = [...candidates].sort((a, b) => {
+  const ranked = [...pool].sort((a, b) => {
     const aCompleted = lastCompletedByExerciseId.get(a.exerciseId);
     const bCompleted = lastCompletedByExerciseId.get(b.exerciseId);
 

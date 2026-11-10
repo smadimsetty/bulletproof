@@ -103,3 +103,13 @@ describe('filterCandidatesByTier', () => {
     expect(filterCandidatesByTier([none, band], 'basic')).toEqual([none]);
   });
 });
+
+describe('pickExerciseForSlot alreadyPicked', () => {
+  const c = (id: string, rank: number) => ({ exerciseId: id, defaultRank: rank });
+  it('skips ids already used earlier in the day', () => {
+    expect(pickExerciseForSlot([c('a', 1), c('b', 2)], new Map(), new Set(['a']))).toBe('b');
+  });
+  it('still returns a duplicate when the slot has no other option', () => {
+    expect(pickExerciseForSlot([c('a', 1)], new Map(), new Set(['a']))).toBe('a');
+  });
+});
