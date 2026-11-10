@@ -13,8 +13,8 @@
 // ReferenceError at render time and the Live Activity renders as an empty box.
 //
 // Times are passed as epoch-ms numbers (props are JSON-serialised) and become
-// Dates inside the function. SwiftUI's Text(date, style: .timer) ticks by
-// itself on the lock screen, so no per-second updates are needed.
+// Dates inside the function. SwiftUI timer text ticks by itself on the lock
+// screen, so no per-second updates are needed.
 import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   activityBackgroundTint,
@@ -45,6 +45,9 @@ function WorkoutActivityComponent(props: WorkoutActivityProps, _environment: Liv
   const startedAt = new Date(props.startedAtMs || 0);
   const hasTimer = props.timerEndsAtMs > 0;
   const timerEndsAt = new Date(props.timerEndsAtMs || 0);
+  // Bounded countdown: with an interval the system text stops at 0:00 instead of counting up
+  // when the app is suspended and cannot clear the timer. Rest and hold timers are well under an hour.
+  const timerStart = new Date((props.timerEndsAtMs || 0) - 60 * 60 * 1000);
   const hasExercise = props.exerciseName !== '';
   const icon = 'figure.strengthtraining.traditional';
 
@@ -63,8 +66,8 @@ function WorkoutActivityComponent(props: WorkoutActivityProps, _environment: Liv
 
   const countdown = (size: number, color: string, width?: number) => (
     <Text
-      date={timerEndsAt}
-      dateStyle="timer"
+      timerInterval={{ lower: timerStart, upper: timerEndsAt }}
+      countsDown
       modifiers={[
         font({ size, weight: 'bold', design: 'rounded' }),
         monospacedDigit(),

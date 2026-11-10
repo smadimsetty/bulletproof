@@ -73,7 +73,8 @@
           "backgroundColor": "#0B0C0F",
           "resizeMode": "contain"
         }
-      ]
+      ],
+      ["expo-audio", { "microphonePermission": false, "recordAudioAndroid": false }]
     ],
     "extra": {
       "eas": {

@@ -18,12 +18,16 @@ const TOKEN_KEY = '@bulletproof/push-token';
 
 // Show pushes as banners while the app is open too.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    // Logger timer-end alerts: the app already played the sound in the foreground, so no banner.
+    const isTimerEnd = (notification.request.content.data as { kind?: string } | undefined)?.kind === 'timer_end';
+    return {
+      shouldShowBanner: !isTimerEnd,
+      shouldShowList: !isTimerEnd,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 let registering = false;

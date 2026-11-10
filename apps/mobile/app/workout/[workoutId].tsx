@@ -61,6 +61,9 @@ import { uploadWorkoutPhotos } from '../../lib/social/media';
 import { ensurePushRegistered } from '../../lib/social/push';
 import { saveWorkoutToHealth } from '../../lib/healthkitWrite';
 import { syncWorkoutLiveActivity } from '../../lib/workoutActivityBridge';
+import {
+  cancelTimerEndNotification, initTimerAudio, playTimerEnd, scheduleTimerEndNotification,
+} from '../../lib/timerAlerts';
 import { dominantKind } from '../../lib/workoutKind';
 import { Button, ConfirmSheet, EmptyState, ErrorState, IconButton, SkeletonCard } from '../../components/ui';
 import { formatClock } from '../../components/ui/TimerDisplay';
@@ -466,13 +469,18 @@ function Logger() {
       if (event && event.type === 'hold_completed') {
         // Hold reached its target: the logger owns this haptic (SetRow/TimerDisplay endHaptics are off).
         haptics.success();
+        playTimerEnd();
         completeRow(event.rowId, event.durationS, true);
+      } else if (event && event.type === 'hold_started' && cur.phase === 'switching') {
+        // Switch-sides countdown ended: the next side's hold begins.
+        playTimerEnd();
       }
       const r = restRef.current;
       if (r && restRemainingS(r, t) === 0) {
         applyRest(null);
         // Rest ended: success haptic (spec 2.6); the logger owns it because it removes the bar itself.
         haptics.success();
+        playTimerEnd();
       }
     }, 250);
     return () => clearInterval(id);
@@ -503,6 +511,39 @@ function Logger() {
       { exerciseName: liveExercise, timerEndsAtMs: liveTimer.endsAtMs, timerLabel: liveTimer.label }
     );
   }, [liveWorkoutId, liveTitle, liveStartedAt, liveSprintDayId, liveExercise, liveTimer.endsAtMs, liveTimer.label]);
+
+  // ---- timer-end sound + locked-phone notification ----
+  useEffect(() => {
+    initTimerAudio();
+  }, []);
+
+  // One local notification per running timer deadline. A change of deadline (new timer, rest +/-15s)
+  // or no timer (stopped, skipped, finished, discarded, ended in the foreground) cancels the old one.
+  const alertEndsAt = liveTimer.endsAtMs;
+  const alertLabel = liveTimer.label;
+  useEffect(() => {
+    if (alertEndsAt <= 0) return;
+    const body =
+      alertLabel === 'Rest' ? "Rest's over." : alertLabel === 'Switch sides' ? 'Time is up. Switch sides.' : "Time's up.";
+    const pending = scheduleTimerEndNotification(alertEndsAt, body);
+    return () => {
+      pending.then((id) => cancelTimerEndNotification(id));
+    };
+  }, [alertEndsAt, alertLabel]);
+
+  // Leaving the logger (minimise, finish, discard) ends its timers: clear the lock-screen countdown.
+  const liveSyncRef = useRef<{ w: Workout | null; exercise: string }>({ w: null, exercise: '' });
+  liveSyncRef.current = { w: workout, exercise: liveExercise };
+  useEffect(() => {
+    return () => {
+      const { w, exercise } = liveSyncRef.current;
+      if (!w || w.endedAt) return;
+      syncWorkoutLiveActivity(
+        { id: w.id, title: w.title, startedAt: w.startedAt, sprintDayId: w.sprintDayId ?? null },
+        { exerciseName: exercise, timerEndsAtMs: 0, timerLabel: '' }
+      );
+    };
+  }, []);
 
   function startHoldFor(set: WorkoutSetRow) {
     const t = Date.now();
