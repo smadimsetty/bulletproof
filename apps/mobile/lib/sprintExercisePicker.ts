@@ -6,9 +6,13 @@
 // docs/superpowers/specs/2026-09-16-mobility-sprint-pivot-design.md section
 // 3 -- this is deliberately the entire algorithm, no ML, consistent with
 // the project's existing rules-based-engine-first principle.
+import { requiredTier, tierAllows, type EquipmentTier } from './equipmentTiers';
+
 export interface PoolCandidate {
   readonly exerciseId: string;
   readonly defaultRank: number;
+  /** exercises.equipment_needed of the candidate; used by filterCandidatesByTier. */
+  readonly equipment?: readonly string[] | null;
 }
 
 /**
@@ -54,4 +58,17 @@ export interface TemplateRow {
 /** Filters a pain point's full 14-day template down to one day's slots. */
 export function slotsForDay(template: readonly TemplateRow[], dayNumber: number): TemplateRow[] {
   return template.filter((row) => row.dayNumber === dayNumber);
+}
+
+/**
+ * Keeps only candidates the user's equipment tier allows. A null tier keeps
+ * everything. If nothing is allowed, the original list comes back so a slot is
+ * never left empty.
+ */
+export function filterCandidatesByTier<T extends { equipment: readonly string[] | null }>(
+  candidates: readonly T[],
+  tier: EquipmentTier | null
+): T[] {
+  const allowed = candidates.filter((c) => tierAllows(tier, requiredTier(c.equipment)));
+  return allowed.length > 0 ? allowed : [...candidates];
 }

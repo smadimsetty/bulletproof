@@ -15,12 +15,15 @@ import { fetchRoutinesAndFolders, startRoutineWorkout, type Routine, type Routin
 import { fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay, type PainPoint, type Sprint, type SprintDay } from '../../lib/sprintLifecycle';
 import { defaultWorkoutTitle } from '../../lib/workoutTitles';
 import { handleStartResult } from '../../lib/workoutStart';
+import EquipmentTierPicker from '../../components/EquipmentTierPicker';
+import { fetchUserSettings, updateUserSettings } from '../../lib/userSettings';
+import type { EquipmentTier } from '../../lib/equipmentTiers';
 import WorkoutListRow from '../../components/WorkoutListRow';
 import SprintCard from '../../components/SprintCard';
 import RoutinesSection from '../../components/routines/RoutinesSection';
 import {
   Button, Card, CompactHeaderBar, EmptyState, ErrorState, IconButton, LargeHeader, ScreenScroll, SectionHeader,
-  SkeletonCard, SkeletonRow, useScreenScroll,
+  SkeletonCard, SkeletonRow, Sheet, useScreenScroll,
 } from '../../components/ui';
 
 function reportError(err: any, fallback: string) {
@@ -47,6 +50,9 @@ export default function WorkoutTab() {
   // A fast double tap would push two logger screens.
   const lastPushRef = useRef(0);
   const loadedRef = useRef(false);
+  // One-time equipment prompt: shown when settings loaded with no tier chosen yet.
+  const [tierPromptOpen, setTierPromptOpen] = useState(false);
+  const tierPromptShownRef = useRef(false);
 
   // 'initial' blanks to an error screen on failure, 'refresh' (pull) shows the
   // spinner and Alerts, 'focus' (tab focus / change events) is silent.
@@ -72,6 +78,15 @@ export default function WorkoutTab() {
       setToday(s && s.status === 'active' ? await fetchTodaySprintDay(s.id) : null);
       setLoadError(null);
       loadedRef.current = true;
+      if (!tierPromptShownRef.current) {
+        // Secondary: a settings failure must not affect the tab. The tabs only mount once
+        // onboarding is done, so a null tier here means an existing user.
+        const settings = await fetchUserSettings().catch(() => null);
+        if (settings && settings.equipmentTier === null && !tierPromptShownRef.current) {
+          tierPromptShownRef.current = true;
+          setTierPromptOpen(true);
+        }
+      }
     } catch (err: any) {
       if (mode === 'initial') setLoadError(err?.message ?? 'Failed to load.');
       else if (mode === 'refresh') reportError(err, 'Could not refresh.');
@@ -88,6 +103,15 @@ export default function WorkoutTab() {
     }, [load])
   );
   useEffect(() => subscribeToActiveWorkoutChanges(() => load('focus')), [load]);
+
+  async function handleSelectTier(tier: EquipmentTier) {
+    setTierPromptOpen(false);
+    try {
+      await updateUserSettings({ equipmentTier: tier });
+    } catch (err) {
+      reportError(err, 'Could not save your equipment.');
+    }
+  }
 
   async function handleStartEmpty() {
     if (startingRef.current) return;
@@ -231,12 +255,23 @@ export default function WorkoutTab() {
         )}
       </ScreenScroll>
       <CompactHeaderBar title="Workout" scrollY={scrollY} />
+      <Sheet
+        visible={tierPromptOpen}
+        onClose={() => setTierPromptOpen(false)}
+        title="What do you have to train with?"
+        subtitle="Sprint routines only use exercises you can do with this. Change it any time in Settings."
+      >
+        <View style={styles.sheetBody}>
+          <EquipmentTierPicker value={null} onSelect={handleSelectTier} />
+        </View>
+      </Sheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
+  sheetBody: { paddingVertical: SPACING.lg },
   withBanner: { paddingBottom: 76 },
   activeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   activeTitle: { flex: 1 },

@@ -1,4 +1,4 @@
-import { pickExerciseForSlot, slotsForDay, type PoolCandidate, type TemplateRow } from './sprintExercisePicker';
+import { filterCandidatesByTier, pickExerciseForSlot, slotsForDay, type PoolCandidate, type TemplateRow } from './sprintExercisePicker';
 
 const CANDIDATES: PoolCandidate[] = [
   { exerciseId: 'ex-a', defaultRank: 1 },
@@ -74,5 +74,32 @@ describe('slotsForDay', () => {
 
   test('a day number with no rows at all returns an empty array', () => {
     expect(slotsForDay(TEMPLATE, 7)).toEqual([]);
+  });
+});
+
+describe('filterCandidatesByTier', () => {
+  const body = { exerciseId: 'body', equipment: ['bodyweight'] };
+  const band = { exerciseId: 'band', equipment: ['resistance_band'] };
+  const cable = { exerciseId: 'cable', equipment: ['cable_machine'] };
+
+  test('basic drops a band exercise and keeps a bodyweight one', () => {
+    expect(filterCandidatesByTier([body, band], 'basic')).toEqual([body]);
+  });
+
+  test('null tier keeps everything', () => {
+    expect(filterCandidatesByTier([body, band, cable], null)).toEqual([body, band, cable]);
+  });
+
+  test('intermediate allows bands but not advanced equipment', () => {
+    expect(filterCandidatesByTier([body, band, cable], 'intermediate')).toEqual([body, band]);
+  });
+
+  test('when nothing is allowed, returns the original list', () => {
+    expect(filterCandidatesByTier([band, cable], 'basic')).toEqual([band, cable]);
+  });
+
+  test('null equipment counts as bodyweight', () => {
+    const none = { exerciseId: 'none', equipment: null };
+    expect(filterCandidatesByTier([none, band], 'basic')).toEqual([none]);
   });
 });

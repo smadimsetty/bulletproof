@@ -24,6 +24,8 @@ import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from '../lib/links';
 import { PUBLIC_DISABLED_HINT, VISIBILITY_OPTIONS, visibilityLabel } from '../lib/social/visibility';
 import type { WeightUnit } from '../lib/units';
 import Avatar from '../components/social/Avatar';
+import EquipmentTierPicker from '../components/EquipmentTierPicker';
+import { EQUIPMENT_TIER_OPTIONS } from '../lib/equipmentTiers';
 import WeeklyGoalSheet from '../components/progress/WeeklyGoalSheet';
 import {
   ConfirmSheet, ErrorState, ListGroup, ListRow, ScreenScroll, SectionHeader, SegmentedControl, Sheet, SkeletonCard, SwitchRow, useToast,
@@ -40,6 +42,7 @@ export default function SettingsScreen() {
   const [retrying, setRetrying] = useState(false);
   const [unitsOpen, setUnitsOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [equipmentOpen, setEquipmentOpen] = useState(false);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [privateConfirmOpen, setPrivateConfirmOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -230,6 +233,13 @@ export default function SettingsScreen() {
             trailing="chevron"
             onPress={() => setGoalOpen(true)}
           />
+          <ListRow
+            title="Equipment"
+            leading={{ icon: 'fitness-outline' }}
+            value={EQUIPMENT_TIER_OPTIONS.find((o) => o.tier === settings.equipmentTier)?.title ?? 'Not set'}
+            trailing="chevron"
+            onPress={() => setEquipmentOpen(true)}
+          />
         </ListGroup>
 
         <SectionHeader title="Privacy" inset={SPACING.xs} />
@@ -299,6 +309,17 @@ export default function SettingsScreen() {
             onChange={(u) => {
               void saveSettings({ weightUnit: u as WeightUnit });
               setUnitsOpen(false);
+            }}
+          />
+        </View>
+      </Sheet>
+      <Sheet visible={equipmentOpen} onClose={() => setEquipmentOpen(false)} title="Equipment" subtitle="Sprint routines only use exercises you can do with this">
+        <View style={styles.sheetBody}>
+          <EquipmentTierPicker
+            value={settings.equipmentTier}
+            onSelect={(tier) => {
+              void saveSettings({ equipmentTier: tier });
+              setEquipmentOpen(false);
             }}
           />
         </View>

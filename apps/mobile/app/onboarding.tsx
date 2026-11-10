@@ -1,7 +1,7 @@
 // apps/mobile/app/onboarding.tsx
 //
-// First-run setup for an account with no profiles row (visual spec 4.2). Three steps on one
-// screen: (1) name, handle, optional photo; (2) units and weekly goal; (3) Terms. Nothing is
+// First-run setup for an account with no profiles row (visual spec 4.2). Four steps on one
+// screen: (1) name, handle, optional photo; (2) units and weekly goal; (3) equipment; (4) Terms. Nothing is
 // written until the final step; createProfile then notifies the root layout, which re-checks and
 // swaps this screen for the tabs.
 // TODO(stage4): the spec's "content fades out 200 ms, tabs fade in" hand-off is owned by the root
@@ -20,10 +20,14 @@ import { COLORS, MOTION, RADII, SPACING, TYPE } from '../lib/theme';
 import Avatar from '../components/social/Avatar';
 import { createProfile, displayNameError, handleError, isHandleAvailable, normalizeHandle } from '../lib/social/profiles';
 import { updateUserSettings } from '../lib/userSettings';
+import type { EquipmentTier } from '../lib/equipmentTiers';
+import EquipmentTierPicker from '../components/EquipmentTierPicker';
 import type { WeightUnit } from '../lib/units';
 import { PRIVACY_URL, TERMS_URL } from '../lib/links';
 import { signOut } from '../lib/signOut';
 import { Button, Card, IconButton, ListGroup, ListRow, PressableScale, ScreenScroll, SegmentedControl, StickyFooter, Stepper, TextField, useToast } from '../components/ui';
+
+const LAST_STEP = 4;
 
 type HandleState = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -55,6 +59,7 @@ export default function Onboarding() {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [unit, setUnit] = useState<WeightUnit>('lbs');
   const [weeklyGoal, setWeeklyGoal] = useState(3);
+  const [equipmentTier, setEquipmentTier] = useState<EquipmentTier | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -109,7 +114,7 @@ export default function Onboarding() {
 
   function next() {
     if (step === 1 && step1Problem()) return;
-    go(Math.min(3, step + 1));
+    go(Math.min(LAST_STEP, step + 1));
   }
 
   async function finish() {
@@ -117,7 +122,7 @@ export default function Onboarding() {
     savingRef.current = true;
     setSaving(true);
     try {
-      await updateUserSettings({ weightUnit: unit, weeklyGoal });
+      await updateUserSettings({ weightUnit: unit, weeklyGoal, equipmentTier });
       await createProfile({ handle: normalized, displayName, avatarUri, termsAccepted: true });
       // The root layout re-checks the profile and replaces this screen.
       haptics.success();
@@ -154,12 +159,12 @@ export default function Onboarding() {
     ) : undefined;
 
   const entering = reduced ? FadeIn.duration(150) : (forward ? SlideInRight : SlideInLeft).duration(280).easing(MOTION.easeOut);
-  const canContinue = step === 1 ? step1Problem() === null : true;
+  const canContinue = step === 1 ? step1Problem() === null : step === 3 ? equipmentTier !== null : true;
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={[styles.indicator, { paddingTop: insets.top + SPACING.md }]} accessibilityLabel={`Step ${step} of 3`}>
-        {[1, 2, 3].map((n) => (
+      <View style={[styles.indicator, { paddingTop: insets.top + SPACING.md }]} accessibilityLabel={`Step ${step} of ${LAST_STEP}`}>
+        {Array.from({ length: LAST_STEP }, (_, i) => i + 1).map((n) => (
           <Segment key={n} state={n < step ? 'done' : n === step ? 'current' : 'future'} />
         ))}
       </View>
@@ -214,6 +219,14 @@ export default function Onboarding() {
 
           {step === 3 && (
             <>
+              <Text style={TYPE.title1}>What do you have to train with?</Text>
+              <Text style={TYPE.footnote}>Sprint routines only use exercises you can do with this.</Text>
+              <EquipmentTierPicker value={equipmentTier} onSelect={setEquipmentTier} />
+            </>
+          )}
+
+          {step === 4 && (
+            <>
               <Text style={TYPE.title1}>One last thing</Text>
               <Card>
                 {[
@@ -255,12 +268,12 @@ export default function Onboarding() {
       <StickyFooter style={styles.footer}>
         {step > 1 ? <Button title="Back" variant="ghost" size="lg" disabled={saving} onPress={() => go(step - 1)} /> : null}
         <Button
-          title={step === 3 ? 'Agree and start' : 'Continue'}
+          title={step === LAST_STEP ? 'Agree and start' : 'Continue'}
           size="lg"
           style={styles.cta}
           loading={saving}
-          disabled={step === 3 ? !agreed : !canContinue}
-          onPress={step === 3 ? finish : next}
+          disabled={step === LAST_STEP ? !agreed : !canContinue}
+          onPress={step === LAST_STEP ? finish : next}
         />
       </StickyFooter>
     </KeyboardAvoidingView>

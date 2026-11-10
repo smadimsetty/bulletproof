@@ -15,7 +15,8 @@
 // single-purpose functions are unit tested below.
 import { supabase } from './supabase';
 import { localDateString } from './localDate';
-import { pickExerciseForSlot, slotsForDay, type PoolCandidate, type TemplateRow } from './sprintExercisePicker';
+import { fetchUserSettings } from './userSettings';
+import { filterCandidatesByTier, pickExerciseForSlot, slotsForDay, type PoolCandidate, type TemplateRow } from './sprintExercisePicker';
 
 export type SprintStatus = 'pending_baseline' | 'active' | 'pending_reassessment' | 'completed' | 'abandoned';
 
@@ -219,11 +220,13 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
 
   const { data: pool, error: poolError } = await supabase
     .from('sprint_exercise_pool')
-    .select('slot_key, exercise_id, default_rank, prescribed_sets, prescribed_reps_or_duration')
+    .select('slot_key, exercise_id, default_rank, prescribed_sets, prescribed_reps_or_duration, exercises!sprint_exercise_pool_exercise_id_fkey ( equipment_needed )')
     .eq('pain_point_id', sprint.painPointId);
   if (poolError) throw new Error(poolError.message);
 
   const lastCompletedByExerciseId = await fetchLastCompletedByExerciseId(sprint.painPointId);
+  // A settings failure must not block activation: no tier means no filtering.
+  const equipmentTier = (await fetchUserSettings().catch(() => null))?.equipmentTier ?? null;
 
   const poolBySlot = new Map<string, any[]>();
   for (const row of (pool ?? []) as any[]) {
@@ -286,10 +289,14 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
 
     const daySlots = slotsForDay(template, dayNumber);
     const exerciseRows = daySlots.map((slot) => {
-      const candidates: PoolCandidate[] = (poolBySlot.get(slot.slotKey) ?? []).map((p) => ({
-        exerciseId: p.exercise_id,
-        defaultRank: p.default_rank,
-      }));
+      const candidates: PoolCandidate[] = filterCandidatesByTier(
+        (poolBySlot.get(slot.slotKey) ?? []).map((p) => ({
+          exerciseId: p.exercise_id,
+          defaultRank: p.default_rank,
+          equipment: (p.exercises?.equipment_needed ?? null) as string[] | null,
+        })),
+        equipmentTier
+      );
       const chosenExerciseId = pickExerciseForSlot(candidates, lastCompletedByExerciseId);
       const chosenPoolRow = (poolBySlot.get(slot.slotKey) ?? []).find((p) => p.exercise_id === chosenExerciseId);
 
@@ -387,18 +394,21 @@ export async function fetchSwapCandidates(
 ): Promise<ReadonlyArray<SwapCandidate>> {
   const { data, error } = await supabase
     .from('sprint_exercise_pool')
-    .select('exercise_id, prescribed_sets, prescribed_reps_or_duration, exercises!sprint_exercise_pool_exercise_id_fkey ( name )')
+    .select('exercise_id, prescribed_sets, prescribed_reps_or_duration, exercises!sprint_exercise_pool_exercise_id_fkey ( name, equipment_needed )')
     .eq('pain_point_id', painPointId)
     .eq('slot_key', slotKey)
     .neq('exercise_id', excludingExerciseId);
 
   if (error) throw new Error(error.message);
-  return ((data ?? []) as any[]).map((row) => ({
+  const equipmentTier = (await fetchUserSettings().catch(() => null))?.equipmentTier ?? null;
+  const mapped = ((data ?? []) as any[]).map((row) => ({
     exerciseId: row.exercise_id,
     name: row.exercises?.name ?? 'Unknown exercise',
     prescribedSets: row.prescribed_sets ?? null,
     prescribedRepsOrDuration: row.prescribed_reps_or_duration ?? null,
+    equipment: (row.exercises?.equipment_needed ?? null) as string[] | null,
   }));
+  return filterCandidatesByTier(mapped, equipmentTier).map(({ equipment: _equipment, ...candidate }) => candidate);
 }
 
 /**
