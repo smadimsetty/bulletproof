@@ -25,6 +25,7 @@ export interface PainPoint {
   readonly id: string;
   readonly displayName: string;
   readonly description: string;
+  readonly tagline: string | null;
 }
 
 export interface Sprint {
@@ -86,7 +87,7 @@ function toSprintDayExercise(row: any): SprintDayExercise {
 export async function fetchPainPoints(): Promise<PainPoint[]> {
   const { data, error } = await supabase
     .from('pain_points')
-    .select('id, display_name, description')
+    .select('id, display_name, description, tagline')
     .order('sort_order');
 
   if (error) {
@@ -96,6 +97,7 @@ export async function fetchPainPoints(): Promise<PainPoint[]> {
     id: row.id,
     displayName: row.display_name,
     description: row.description,
+    tagline: row.tagline ?? null,
   }));
 }
 
@@ -165,7 +167,7 @@ export async function beginSprint(painPointId: string): Promise<Sprint> {
   return toSprint(data);
 }
 
-async function fetchLastCompletedByExerciseId(painPointId: string): Promise<Map<string, string>> {
+export async function fetchLastCompletedByExerciseId(painPointId: string): Promise<Map<string, string>> {
   const { data: sprintRows, error: sprintsError } = await supabase
     .from('sprints')
     .select('id')

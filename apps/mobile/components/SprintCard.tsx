@@ -59,6 +59,7 @@ export default function SprintCard({
   starting,
   onStartRoutine,
   onOpenSprint,
+  onChangeFocus,
 }: {
   sprint: Sprint | null;
   painPointName: string | null;
@@ -67,6 +68,8 @@ export default function SprintCard({
   starting: boolean;
   onStartRoutine: () => void;
   onOpenSprint: () => void;
+  /** Shown on an active sprint's day card; opens the change-focus flow. */
+  onChangeFocus?: () => void;
 }) {
   const name = painPointName ?? 'Sprint';
 
@@ -115,6 +118,9 @@ export default function SprintCard({
           loading={starting}
           onPress={onStartRoutine}
         />
+        {onChangeFocus ? (
+          <Button title="Change today's focus" variant="secondary" size="sm" onPress={onChangeFocus} style={styles.alignStart} />
+        ) : null}
         <Button title="View sprint" variant="ghost" size="sm" onPress={onOpenSprint} style={styles.alignStart} />
       </Card>
     );

@@ -32,7 +32,7 @@ function mockChain(overrides: Record<string, any>) {
 describe('fetchPainPoints', () => {
   test('maps snake_case rows to camelCase PainPoint objects, ordered by sort_order', async () => {
     const rows = [
-      { id: 'ankle', display_name: 'Ankles', description: 'Ankle stuff' },
+      { id: 'ankle', display_name: 'Ankles', description: 'Ankle stuff', tagline: 'Move freely' },
       { id: 'nerd_neck', display_name: 'Nerd Neck', description: 'Neck stuff' },
     ];
     (supabase.from as jest.Mock).mockReturnValue(
@@ -42,8 +42,8 @@ describe('fetchPainPoints', () => {
     const result = await fetchPainPoints();
 
     expect(result).toEqual([
-      { id: 'ankle', displayName: 'Ankles', description: 'Ankle stuff' },
-      { id: 'nerd_neck', displayName: 'Nerd Neck', description: 'Neck stuff' },
+      { id: 'ankle', displayName: 'Ankles', description: 'Ankle stuff', tagline: 'Move freely' },
+      { id: 'nerd_neck', displayName: 'Nerd Neck', description: 'Neck stuff', tagline: null },
     ]);
   });
 });

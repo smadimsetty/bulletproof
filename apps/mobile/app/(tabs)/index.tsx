@@ -12,7 +12,12 @@ import {
   type ActiveWorkoutSummary, type WorkoutListItem,
 } from '../../lib/workouts';
 import { fetchRoutinesAndFolders, startRoutineWorkout, type Routine, type RoutineFolder } from '../../lib/routines';
-import { fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay, type PainPoint, type Sprint, type SprintDay } from '../../lib/sprintLifecycle';
+import {
+  abandonSprint, beginSprint, fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay,
+  type PainPoint, type Sprint, type SprintDay,
+} from '../../lib/sprintLifecycle';
+import { startOneOffWorkout } from '../../lib/focusSwap';
+import ChangeFocusSheet from '../../components/ChangeFocusSheet';
 import { defaultWorkoutTitle } from '../../lib/workoutTitles';
 import { handleStartResult } from '../../lib/workoutStart';
 import EquipmentTierPicker from '../../components/EquipmentTierPicker';
@@ -44,6 +49,7 @@ export default function WorkoutTab() {
   const [folders, setFolders] = useState<RoutineFolder[]>([]);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [starting, setStarting] = useState(false);
+  const [changeFocusOpen, setChangeFocusOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   // Synchronous guard: two taps can land before `starting` re-renders.
   const startingRef = useRef(false);
@@ -145,6 +151,40 @@ export default function WorkoutTab() {
     }
   }
 
+  async function handleJustToday(painPoint: PainPoint) {
+    if (!today || startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
+    try {
+      const result = await startOneOffWorkout(painPoint.id, painPoint.displayName, today.dayNumber);
+      setChangeFocusOpen(false);
+      handleStartResult(result, router);
+    } catch (err) {
+      reportError(err, 'Could not start that routine.');
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  }
+
+  async function handleStartNewSprint(painPoint: PainPoint) {
+    if (!sprint || startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
+    try {
+      await abandonSprint(sprint.id);
+      await beginSprint(painPoint.id);
+      setChangeFocusOpen(false);
+      await load('focus');
+      router.push('/sprint');
+    } catch (err) {
+      reportError(err, 'Could not start a new sprint.');
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  }
+
   async function handleStartRoutine() {
     if (!today || !sprint) return;
     if (startingRef.current) return;
@@ -238,6 +278,7 @@ export default function WorkoutTab() {
           starting={starting}
           onStartRoutine={handleStartRoutine}
           onOpenSprint={() => router.push('/sprint')}
+          onChangeFocus={painPoints.length > 1 ? () => setChangeFocusOpen(true) : undefined}
         />
         {active ? null : (
           <Button title="Start empty workout" icon="add" variant="secondary" size="lg" fullWidth loading={starting} onPress={handleStartEmpty} />
@@ -255,6 +296,15 @@ export default function WorkoutTab() {
         )}
       </ScreenScroll>
       <CompactHeaderBar title="Workout" scrollY={scrollY} />
+      <ChangeFocusSheet
+        visible={changeFocusOpen}
+        onClose={() => setChangeFocusOpen(false)}
+        sprintName={painPointName ?? 'sprint'}
+        painPoints={painPoints.filter((p) => p.id !== sprint?.painPointId)}
+        busy={starting}
+        onJustToday={handleJustToday}
+        onStartNewSprint={handleStartNewSprint}
+      />
       <Sheet
         visible={tierPromptOpen}
         onClose={() => setTierPromptOpen(false)}

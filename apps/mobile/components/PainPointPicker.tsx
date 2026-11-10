@@ -9,6 +9,7 @@ import { COLORS, RADII, SPACING, TYPE } from '../lib/theme';
 import * as haptics from '../lib/haptics';
 import type { PainPoint } from '../lib/sprintLifecycle';
 import { Button, PressableScale, StickyFooter } from './ui';
+import { DescriptionBody } from './DescriptionToggle';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -29,6 +30,7 @@ export default function PainPointPicker({
   onSelect: (painPoint: PainPoint) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const selected = painPoints.find((p) => p.id === selectedId) ?? null;
 
   return (
@@ -39,6 +41,7 @@ export default function PainPointPicker({
         <View style={styles.grid}>
           {painPoints.map((pp) => {
             const isSelected = pp.id === selectedId;
+            const expanded = pp.id === expandedId;
             return (
               <PressableScale
                 key={pp.id}
@@ -58,9 +61,21 @@ export default function PainPointPicker({
                   <Ionicons name={iconFor(pp)} size={32} color={COLORS.accent} />
                 </View>
                 <Text style={TYPE.title3}>{pp.displayName}</Text>
-                <Text style={TYPE.footnote} numberOfLines={3}>
-                  {pp.description}
-                </Text>
+                {pp.tagline ? <Text style={TYPE.footnote}>{pp.tagline}</Text> : null}
+                <PressableScale
+                  haptic="select"
+                  scaleTo={0.95}
+                  hitSlop={8}
+                  onPress={() => setExpandedId(expanded ? null : pp.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={expanded ? 'Hide description' : 'Show description'}
+                  accessibilityState={{ expanded }}
+                  style={styles.moreRow}
+                >
+                  <Text style={styles.moreLabel}>{expanded ? 'Less' : 'More'}</Text>
+                  <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={COLORS.textTertiary} />
+                </PressableScale>
+                <DescriptionBody open={expanded} text={pp.description} />
               </PressableScale>
             );
           })}
@@ -96,6 +111,8 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     gap: SPACING.sm,
   },
+  moreRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
+  moreLabel: { ...TYPE.footnote, color: COLORS.textTertiary },
   cardSelected: { borderColor: COLORS.accent },
   iconCircle: {
     width: 56,
