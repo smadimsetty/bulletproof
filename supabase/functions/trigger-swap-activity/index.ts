@@ -11,7 +11,7 @@
 // supabase/config.toml, which it is not here) -- mobile-app-only, same as
 // trigger-daily-engine.
 const GITHUB_OWNER = "smadimsetty";
-const GITHUB_REPO = "bulletproof";
+const GITHUB_REPO = "movemaxx";
 const GITHUB_WORKFLOW_FILE = "swap-activity.yml";
 const GITHUB_REF = "master";
 
@@ -73,7 +73,7 @@ Deno.serve(async (req: Request) => {
       Authorization: `Bearer ${githubPat}`,
       "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
-      "User-Agent": "bulletproof-trigger-swap-activity",
+      "User-Agent": "movemaxx-trigger-swap-activity",
     },
     body: JSON.stringify({ ref: GITHUB_REF, inputs: { date, activity } }),
   });

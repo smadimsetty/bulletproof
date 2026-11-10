@@ -5,7 +5,7 @@
 // before publishing, and have the text reviewed if you want legal sign-off.
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Privacy Policy - Bulletproof' };
+export const metadata: Metadata = { title: 'Privacy Policy - MoveMaxx' };
 
 const CONTACT = 'support@example.com'; // TODO(Sohan): real support address
 
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
       <p className="updated">Last updated: November 2026</p>
 
       <p>
-        Bulletproof is a mobility-first workout logger. This page explains what the app collects, why, who can see
+        MoveMaxx is a mobility-first workout logger. This page explains what the app collects, why, who can see
         it, and how to delete it.
       </p>
 
@@ -31,7 +31,7 @@ export default function PrivacyPage() {
         <li>Push notification tokens, if you allow notifications.</li>
       </ul>
       <p>
-        Apple Health: if you turn it on in Settings, Bulletproof saves your finished workouts to Apple Health. The
+        Apple Health: if you turn it on in Settings, MoveMaxx saves your finished workouts to Apple Health. The
         app only writes to Health. It never reads your Health data.
       </p>
 
@@ -69,7 +69,7 @@ export default function PrivacyPage() {
       </p>
 
       <h2>Children</h2>
-      <p>Bulletproof is not for children under 13, and we do not knowingly collect their data.</p>
+      <p>MoveMaxx is not for children under 13, and we do not knowingly collect their data.</p>
 
       <h2>Changes</h2>
       <p>

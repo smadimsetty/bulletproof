@@ -130,7 +130,7 @@ export default function SettingsScreen() {
     if (next) {
       const ok = await requestHealthWriteAccess();
       if (!ok) {
-        Alert.alert('Apple Health', 'Bulletproof needs permission to save workouts. You can allow it in the Health app under Sharing.');
+        Alert.alert('Apple Health', 'MoveMaxx needs permission to save workouts. You can allow it in the Health app under Sharing.');
         return;
       }
     }
@@ -174,7 +174,7 @@ export default function SettingsScreen() {
   const openUrl = (url: string) => WebBrowser.openBrowserAsync(url).catch(() => undefined);
   const open = <Ionicons name="open-outline" size={18} color={COLORS.textTertiary} />;
   const build = Constants.nativeBuildVersion;
-  const version = `Bulletproof ${Constants.expoConfig?.version ?? ''}${build ? ` (${build})` : ''}`.trim();
+  const version = `MoveMaxx ${Constants.expoConfig?.version ?? ''}${build ? ` (${build})` : ''}`.trim();
 
   if (loading) {
     return (
@@ -275,7 +275,7 @@ export default function SettingsScreen() {
         <ListGroup>
           <SwitchRow
             title="Save workouts to Apple Health"
-            subtitle="Bulletproof only writes finished workouts. It never reads your Health data."
+            subtitle="MoveMaxx only writes finished workouts. It never reads your Health data."
             value={settings.healthkitWriteEnabled}
             onValueChange={toggleHealth}
           />

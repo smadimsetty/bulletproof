@@ -1,4 +1,4 @@
-# Outstanding Work — Bulletproof App
+# Outstanding Work — MoveMaxx (formerly Bulletproof)
 
 Living backlog of known bugs and features, in priority order. Check items off as they're fixed/shipped; add new ones as they come up. For what's already been built and verified, see `docs/superpowers/reports/autonomous-build-log.md`. For one-off implementation plans, see `docs/superpowers/plans/`.
 

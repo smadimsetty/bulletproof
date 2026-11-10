@@ -11,7 +11,7 @@
 // supabase/config.toml, which it is not here) -- this is what keeps this
 // endpoint mobile-app-only; the public web dashboard never calls it.
 const GITHUB_OWNER = "smadimsetty";
-const GITHUB_REPO = "bulletproof";
+const GITHUB_REPO = "movemaxx";
 const GITHUB_WORKFLOW_FILE = "daily-cron.yml";
 const GITHUB_REF = "master";
 
@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
       Authorization: `Bearer ${githubPat}`,
       "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
-      "User-Agent": "bulletproof-trigger-daily-engine",
+      "User-Agent": "movemaxx-trigger-daily-engine",
     },
     body: JSON.stringify({ ref: GITHUB_REF }),
   });

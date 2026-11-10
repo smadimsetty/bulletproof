@@ -4,8 +4,9 @@
 // and App Store Connect.
 // TODO(Sohan): replace support@example.com with the real support address.
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
-export const metadata: Metadata = { title: 'Support - Bulletproof' };
+export const metadata: Metadata = { title: 'Support - MoveMaxx' };
 
 const CONTACT = 'support@example.com'; // TODO(Sohan): real support address
 
@@ -31,7 +32,7 @@ export default function SupportPage() {
       <p>
         You choose per workout: Private (only you), Followers, or Public. Mobility sprint workouts start as Private.
         Your profile can be public or private in Settings; a private profile only shows your name, handle and photo
-        to people who do not follow you. See the <a href="/privacy">Privacy Policy</a> for details.
+        to people who do not follow you. See the <Link href="/privacy">Privacy Policy</Link> for details.
       </p>
 
       <h2>I did not get my sign-in code</h2>

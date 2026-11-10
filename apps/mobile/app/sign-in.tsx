@@ -164,7 +164,7 @@ export default function SignIn() {
 
         <View style={styles.hero}>
           <AnimatedBrandMark size={96} />
-          <Text style={styles.wordmark}>BULLETPROOF</Text>
+          <Text style={styles.wordmark}>MOVEMAXX</Text>
           <Text style={[TYPE.body, styles.tagline]}>Mobility that sticks.{'\n'}Fix one pain point in 14 days.</Text>
         </View>
 

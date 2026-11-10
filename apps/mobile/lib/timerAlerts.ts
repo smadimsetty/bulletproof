@@ -57,7 +57,7 @@ export async function scheduleTimerEndNotification(endsAtMs: number, body: strin
   await ensureNotificationPermission();
   try {
     return await Notifications.scheduleNotificationAsync({
-      content: { title: 'Bulletproof', body, sound: 'default', data: { kind: TIMER_END_KIND } },
+      content: { title: 'MoveMaxx', body, sound: 'default', data: { kind: TIMER_END_KIND } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(endsAtMs) },
     });
   } catch {

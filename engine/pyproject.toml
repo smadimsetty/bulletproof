@@ -1,7 +1,7 @@
 [project]
-name = "bulletproof-engine"
+name = "movemaxx-engine"
 version = "0.1.0"
-description = "Oura ingestion and deterministic training-recommendation engine for the Bulletproof project"
+description = "Oura ingestion and deterministic training-recommendation engine for the MoveMaxx project"
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.70",

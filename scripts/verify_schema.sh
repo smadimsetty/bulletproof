@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verifies the core RLS contract for the Bulletproof schema:
+# Verifies the core RLS contract for the MoveMaxx schema:
 # - exercises and recommendations_public are anon-readable
 # - user_profile, recovery, recommendations (base), and sessions are anon-blocked
 set -euo pipefail

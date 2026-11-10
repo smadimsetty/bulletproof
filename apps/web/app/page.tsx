@@ -1,105 +1,121 @@
 // apps/web/app/page.tsx
 //
-// The dashboard's only page: today's and yesterday's recommendations,
-// fetched client-side on mount against the public recommendations_public
-// view (anon key, no auth -- see
-// docs/superpowers/specs/2026-06-22-web-dashboard-design.md). Mirrors the
-// mobile app's App.tsx rendering structure and copy (same two-card layout,
-// same "hasn't generated yet" placeholder) so the two surfaces present the
-// same two outputs consistently.
-'use client';
+// MoveMaxx landing page (static). The site root is what App Store Connect's
+// marketing URL and the in-app legal links point at, so it describes the app
+// as it is today: pain-point mobility sprints + a mobility-first workout
+// logger. The original Oura recommendation dashboard lives at /dashboard.
+import type { Metadata } from 'next';
+import Link from 'next/link';
 
-import { useEffect, useState } from 'react';
-import { fetchRecommendations, RecommendationPublicRow } from '../lib/recommendations';
-import { labelForSessionType } from '../lib/sessionTypeLabels';
-
-type RecommendationsState = {
-  today: RecommendationPublicRow | null;
-  yesterday: RecommendationPublicRow | null;
-  loading: boolean;
-  error: string | null;
+export const metadata: Metadata = {
+  title: 'MoveMaxx',
+  description: 'Mobility that sticks. Pick one pain point, test it, train it for 14 days, and test it again.',
 };
 
-const INITIAL_STATE: RecommendationsState = {
-  today: null,
-  yesterday: null,
-  loading: true,
-  error: null,
-};
+const SPRINTS: { name: string; tagline: string }[] = [
+  { name: 'Ankles', tagline: 'Steadier ankles that hold up when you move fast' },
+  { name: 'Rounded Shoulders', tagline: 'Open up your chest and strengthen your upper back' },
+  { name: 'Nerd Neck', tagline: 'Ease neck strain from long hours at a screen' },
+  { name: 'Anterior Pelvic Tilt', tagline: 'Balance tight hips with a stronger core and glutes' },
+  { name: 'Knees', tagline: 'Stronger hips, quads and ankles so knees handle stairs and squats' },
+  { name: 'Full Body', tagline: 'A little movement for stiff spines, hips and shoulders' },
+  { name: 'Total Mobility', tagline: 'The mobility and recovery work training usually skips' },
+];
 
-export default function Page() {
-  const [recommendations, setRecommendations] = useState<RecommendationsState>(INITIAL_STATE);
+const STEPS: { n: string; title: string; body: string }[] = [
+  { n: '01', title: 'Test', body: 'A few simple measurements with a wall, a tape measure and a timer. No guessing where you start.' },
+  { n: '02', title: 'Train', body: 'Short daily routines for 14 days, built from your equipment: bodyweight, a home setup or a full gym.' },
+  { n: '03', title: 'Retest', body: 'Run the same tests again and see the before and after in numbers, not vibes.' },
+];
 
-  useEffect(() => {
-    let cancelled = false;
+const FEATURES: { title: string; body: string }[] = [
+  { title: 'A logger built for mobility', body: 'Holds, side-by-side work, rest timers with a beep that plays on silent, and a lock-screen timer.' },
+  { title: 'Every exercise explained', body: 'A one-line cue, a demo video, how to do it and why it helps.' },
+  { title: 'Progress you can see', body: 'Streaks, assessment trends, personal records and a monthly recap you can share.' },
+  { title: 'Train with friends', body: 'Follow people, share workouts, copy a routine. Every workout is private unless you say otherwise.' },
+];
 
-    fetchRecommendations(new Date())
-      .then((result) => {
-        if (cancelled) return;
-        setRecommendations({
-          today: result.today,
-          yesterday: result.yesterday,
-          loading: false,
-          error: null,
-        });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setRecommendations((prev) => ({
-          ...prev,
-          loading: false,
-          error: err instanceof Error ? err.message : 'Failed to load recommendations',
-        }));
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+function Mark() {
   return (
-    <main>
-      <header>
-        <h1>Bulletproof</h1>
-        <p className="subtitle">A daily, Oura-integrated training recommendation.</p>
+    <svg className="mark" viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="30" fill="none" stroke="var(--track)" strokeWidth="11" />
+      <circle
+        cx="50"
+        cy="50"
+        r="30"
+        fill="none"
+        stroke="var(--accent)"
+        strokeWidth="11"
+        strokeLinecap="round"
+        strokeDasharray="150 189"
+        transform="rotate(130 50 50)"
+      />
+      <circle cx="71" cy="71" r="8.5" fill="var(--accent)" stroke="var(--bg)" strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <main className="landing">
+      <header className="hero">
+        <div className="brand">
+          <Mark />
+          <span className="wordmark">MOVEMAXX</span>
+        </div>
+        <h1>Mobility that sticks.</h1>
+        <p className="lede">
+          Pick the one thing that bothers you most, whether that's stiff ankles, a forward neck or tight hips. Test it,
+          train it for 14 days, and test it again.
+        </p>
+        <p className="availability">Coming soon to iPhone.</p>
       </header>
 
-      {recommendations.loading && <p>Loading today&rsquo;s recommendation&hellip;</p>}
+      <section>
+        <h2 className="eyebrow">How a sprint works</h2>
+        <ol className="steps">
+          {STEPS.map((s) => (
+            <li key={s.n} className="tile">
+              <span className="step-n">{s.n}</span>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-      {recommendations.error && (
-        <p className="error-text">Couldn&rsquo;t load recommendations: {recommendations.error}</p>
-      )}
+      <section>
+        <h2 className="eyebrow">Seven sprints</h2>
+        <ul className="sprints">
+          {SPRINTS.map((s) => (
+            <li key={s.name}>
+              <span className="sprint-name">{s.name}</span>
+              <span className="sprint-tagline">{s.tagline}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      {!recommendations.loading && !recommendations.error && (
-        <>
-          {recommendations.yesterday && (
-            <section className="card">
-              <span className="card-label">Yesterday</span>
-              <h2 className="headline">{labelForSessionType(recommendations.yesterday.top_pick)}</h2>
-              <p className="rationale">{recommendations.yesterday.public_rationale}</p>
-            </section>
-          )}
+      <section>
+        <h2 className="eyebrow">Everything else</h2>
+        <ul className="features">
+          {FEATURES.map((f) => (
+            <li key={f.title} className="tile">
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-          <section className="card">
-            <span className="card-label">Today</span>
-            {recommendations.today ? (
-              <>
-                <h2 className="headline">{labelForSessionType(recommendations.today.top_pick)}</h2>
-                {recommendations.today.runner_up && (
-                  <p className="runner-up">
-                    Runner-up: {labelForSessionType(recommendations.today.runner_up)}
-                  </p>
-                )}
-                <p className="rationale">{recommendations.today.public_rationale}</p>
-              </>
-            ) : (
-              <p className="rationale">
-                Today&rsquo;s recommendation hasn&rsquo;t generated yet &mdash; check back this morning.
-              </p>
-            )}
-          </section>
-        </>
-      )}
+      <footer className="site-footer">
+        <nav>
+          <Link href="/support">Support</Link>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+        </nav>
+        <p>MoveMaxx is general fitness information, not medical advice.</p>
+      </footer>
     </main>
   );
 }

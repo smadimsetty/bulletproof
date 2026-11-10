@@ -13,6 +13,8 @@ import { Platform } from 'react-native';
 import { supabase } from '../supabase';
 import { getMyId } from '../session';
 
+// Storage keys keep the pre-rename '@bulletproof/' prefix on purpose: renaming them
+// would silently reset this state for every existing install.
 const ASKED_KEY = '@bulletproof/push-asked';
 const TOKEN_KEY = '@bulletproof/push-token';
 

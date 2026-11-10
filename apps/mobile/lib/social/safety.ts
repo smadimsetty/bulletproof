@@ -9,6 +9,7 @@ import { getMyId } from '../session';
 import { fetchProfileCards } from './profiles';
 import { reportFailureMessage, type ReportReason, type ReportTargetType } from './reportReasons';
 
+// Keeps the pre-rename '@bulletproof/' prefix on purpose (renaming resets existing installs' cache).
 const BLOCKED_CACHE_KEY = '@bulletproof/blocked-users';
 
 export async function report(

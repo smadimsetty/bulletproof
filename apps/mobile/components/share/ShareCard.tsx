@@ -36,7 +36,7 @@ const ShareCard = forwardRef<View, ShareCardProps>(function ShareCard({ title, s
       <View style={styles.top}>
         <View style={styles.brandRow}>
           <BrandMark size={28} />
-          <Text style={styles.brand}>BULLETPROOF</Text>
+          <Text style={styles.brand}>MOVEMAXX</Text>
         </View>
         {recap ? (
           <View style={styles.heroBlock}>

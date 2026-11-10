@@ -3,9 +3,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Bulletproof',
+  title: 'MoveMaxx',
   description:
-    "Sohan's daily training recommendation -- an Oura-integrated training engine, read-only public dashboard.",
+    'Mobility that sticks. Pick one pain point, test it, train it for 14 days, and test it again.',
 };
 
 export default function RootLayout({
