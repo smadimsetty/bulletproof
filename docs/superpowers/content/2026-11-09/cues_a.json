@@ -1,0 +1,434 @@
+[
+  {
+    "id": "41bd7339-91c4-4e77-9b1c-1e6561ad00ed",
+    "name": "90/90 hip stretch",
+    "cue": "Sit with both knees bent at right angles, then lean your chest over the front shin.",
+    "description": "Sit on the floor with your front shin in front of you and your back leg bent out to the side. Keep both knees at about 90 degrees. Sit tall, then lean forward over the front shin until you feel it in the front hip. Don't let your back hip lift off the floor. Hold, then switch legs."
+  },
+  {
+    "id": "ac508d2c-52a1-45a5-8d02-f7a46472f2eb",
+    "name": "90/90 Hip Switch",
+    "cue": "Sit in 90/90, then rotate both knees over to the other side without using your hands.",
+    "description": "Start seated with both knees bent at right angles, one leg in front and one to the side. Lift your knees and swing them across so the legs swap places. Keep your chest tall the whole time. Don't push off the floor with your hands. Do the reps one way, then the other."
+  },
+  {
+    "id": "df029f0e-dd4f-434d-a8ce-799e6a9e0a97",
+    "name": "Active Straight-Leg Raise Hamstring Stretch",
+    "cue": "Lie on your back, loop a strap around one foot, and lift that straight leg as high as you can.",
+    "description": "Lie flat with one leg straight on the floor. Wrap the strap around the other foot and raise that leg with the knee straight. Use your leg muscles to lift it, and let the strap only guide you. Hold at the top for 15 seconds. Don't let the bottom leg roll out or the knee bend. Then switch legs."
+  },
+  {
+    "id": "325cb9e1-9c61-47e9-93c8-34225d11a778",
+    "name": "Adductor Stretch (seated)",
+    "cue": "Sit with your legs wide apart and slowly lean forward, keeping your knees pointing at the ceiling.",
+    "description": "Sit on a mat with your legs spread as wide as is comfortable. Put your hands on the floor in front of you and walk them forward. Keep your back long, and your toes and kneecaps pointing up. Stop where you feel a pull on the inner thighs. Don't round your back to get lower."
+  },
+  {
+    "id": "65cbe33a-5fb0-44b3-9cec-1285875257cc",
+    "name": "Ankle Circles",
+    "cue": "Lift one foot and draw big slow circles with your toes, moving only the ankle.",
+    "description": "Sit or stand holding one foot off the floor. Trace the biggest circle you can with your toes. Keep your leg still so only the ankle moves. Go slowly and smoothly, and try not to rush the top of the circle. Switch directions halfway, then switch feet."
+  },
+  {
+    "id": "e3f51f04-1cc2-42a3-8cbc-cf100ee5071b",
+    "name": "Ankle: Banded Eversion",
+    "cue": "Loop a band around your foot, then turn the sole outward against the pull.",
+    "description": "Sit with your leg out and a band anchored on the inside of your foot. Pull the band around the outside of your forefoot. Turn the sole of the foot out and away, then return slowly. Keep your knee and lower leg still. Don't let the band snap you back. Finish the reps, then switch feet."
+  },
+  {
+    "id": "21e5d812-5cb5-4e11-b30a-4e0fc6472f15",
+    "name": "Ankle: Banded Inversion and Dorsiflexion",
+    "cue": "Sit with a band anchored in front, then turn your foot inward and pull your toes toward your shin.",
+    "description": "Sit with your leg out and the band pulling your foot away and out. Pull your toes up toward your shin while turning the sole inward. Hold for a beat, then go back slowly. Keep your knee still and let only the ankle move. Don't rush the return. Finish the reps, then switch feet."
+  },
+  {
+    "id": "7f18c8c6-af30-476c-979e-670f404e8e6e",
+    "name": "Ankle: Banded Knee-to-Wall Mobilization",
+    "cue": "Tie a band around your front ankle and push your knee forward over your toes, keeping the heel down.",
+    "description": "Stand facing a wall with a band pulling your ankle back. Put one foot forward, toes a few inches from the wall. Drive your knee toward the wall without lifting the heel. Move it back, and keep your knee tracking over the middle toes. Don't let your arch collapse. Then switch feet."
+  },
+  {
+    "id": "58f93b54-a6dc-4d29-992f-01c071e09fc0",
+    "name": "Ankle: Banded Lateral Walk",
+    "cue": "Put a band above your knees, bend a little, and step sideways while keeping your feet pointing forward.",
+    "description": "Place the band around your legs and drop into a quarter squat. Step out to the side with the lead foot, then bring the other foot in. Keep your toes pointing forward and the tension on the band the whole time. Don't let your knees cave in. Go one direction, then come back the other way."
+  },
+  {
+    "id": "cc21ca30-89cc-4346-aea7-af01acd9d652",
+    "name": "Ankle: Deep Squat Hold",
+    "cue": "Drop into a deep squat, sit low, and keep both heels flat on the floor.",
+    "description": "Stand with your feet about shoulder-width apart and toes turned out a little. Lower into the deepest squat you can with your heels down. Put your elbows inside your knees and press them out. Keep your chest up. If your heels lift, hold onto something or put a small plate under them."
+  },
+  {
+    "id": "f29272d3-0950-45ce-a12b-7d7f9a9743e5",
+    "name": "Ankle: Side-Lying Hip Abduction",
+    "cue": "Lie on your side, keep the top leg straight, and lift it up and slightly back, then lower slowly.",
+    "description": "Lie on your side with your bottom knee bent for balance. Keep the top leg straight and your toes pointing forward. Lift the leg to about hip height, then lower it with control. Don't roll your hips backward to get higher. Finish the reps, then switch sides."
+  },
+  {
+    "id": "94fcd815-a788-4fe0-9e71-d75cad4ffeb7",
+    "name": "Ankle: Single-Leg Balance with Head Turns",
+    "cue": "Stand on one foot on a foam pad and slowly turn your head left and right.",
+    "description": "Stand barefoot on a foam pad on one leg with a soft knee. Pick a spot ahead and look at it first. Then turn your head slowly left, back to centre, then right. Keep your hips level and your body quiet. If you wobble, tap the other toe down and go again. Then switch legs."
+  },
+  {
+    "id": "5c38f903-16ba-465c-bafa-69c3ca3841e1",
+    "name": "Ankle: Single-Leg Balance, Eyes Closed (Floor)",
+    "cue": "Stand on one foot, close your eyes, and stay as still as you can.",
+    "description": "Stand barefoot on a flat floor on one leg. Keep a slight bend in the knee and your hips level. Close your eyes once you feel steady. Let your foot make small adjustments. If you lose balance, open your eyes and start again. Then switch legs."
+  },
+  {
+    "id": "9fc082ec-8d3d-4f21-9f81-4b2a4924f61f",
+    "name": "Ankle: Single-Leg Balance, Eyes Closed (Foam Pad)",
+    "cue": "Stand on one foot on a foam pad, close your eyes, and keep your body still.",
+    "description": "Step onto the foam pad barefoot and lift the other foot. Keep your knee soft and your hips level. Find your balance with your eyes open, then close them. Expect the foot to work hard underneath you. Don't grab for the wall unless you have to. Then switch legs."
+  },
+  {
+    "id": "b9a88595-e470-45b6-bd0c-3405fefa0af1",
+    "name": "Ankle: Single-Leg Heel Raises",
+    "cue": "Stand on one foot, rise onto your toes as high as you can, and lower slowly.",
+    "description": "Stand tall on one leg with a finger on a wall if you need it. Push up through the ball of your foot until you're as high as you can go. Pause for a second at the top. Lower slowly over three seconds. Don't let the ankle roll out to the side. Then switch legs."
+  },
+  {
+    "id": "b94a0cff-9df0-42d5-99d9-f03847b179cb",
+    "name": "Ankle: Toe and Heel Walks",
+    "cue": "Walk forward on your toes, then walk back on your heels, taking small steady steps.",
+    "description": "Pick a straight 20 meters of floor. Rise onto your toes and walk to the far end. Then turn around and walk back on your heels with your toes lifted. Keep your steps short and your posture tall. Don't let your ankles wobble in or out."
+  },
+  {
+    "id": "4975fe52-47c7-411c-9a0a-6bac277f7a93",
+    "name": "Ankle: Wall Tibialis Raise",
+    "cue": "Stand with your back against a wall, feet out front, and lift your toes toward your shins.",
+    "description": "Lean your back on a wall with your feet about a foot and a half out. Keep your legs straight and your heels planted. Pull your toes up as high as they'll go, then lower slowly. Keep the movement at the ankle and don't bend the knees. Count each one."
+  },
+  {
+    "id": "e7b3ff67-465e-4704-9e13-62d50306d322",
+    "name": "Ankle: Weighted Single-Leg Calf Raise (Bent-Knee)",
+    "cue": "Hold a dumbbell, stand on one leg on a step with the knee bent, and rise onto your toes.",
+    "description": "Stand with the ball of one foot on the step and the heel hanging off. Hold a dumbbell at your side and bend your knee slightly. Drop the heel below the step, then drive up as high as you can. Keep the knee bend the same the whole set. Don't bounce at the bottom. Then switch legs."
+  },
+  {
+    "id": "0271ffa8-a641-452e-bf51-92f4ea18ac49",
+    "name": "Ankle: Weighted Single-Leg Calf Raise (Straight-Knee)",
+    "cue": "Hold a dumbbell, stand on one leg on a step with the knee straight, and rise onto your toes.",
+    "description": "Stand with the ball of one foot on the step and the heel hanging off. Hold a dumbbell in the hand on the same side as the working leg. Lower the heel down slowly, then push up as high as you can with the knee locked straight. Pause at the top. Don't lean forward to cheat. Then switch legs."
+  },
+  {
+    "id": "e6c7da2c-aa8e-40d2-a101-cc8b12b3e5db",
+    "name": "Ankle: Wobble Board Balance",
+    "cue": "Stand on one foot on a wobble board and keep the edges from touching the floor.",
+    "description": "Place the wobble board on a flat floor and step on with one foot. Find the middle where the board sits level. Keep your knee soft and your eyes ahead. Small quick corrections are fine. If the edge hits the floor, reset and go again. Then switch legs."
+  },
+  {
+    "id": "7526e815-814a-44d3-bd45-1f5df7ed33f9",
+    "name": "APT: Bird Dog",
+    "cue": "Get on hands and knees, then reach one arm and the opposite leg out long and level.",
+    "description": "Start on all fours, hands under shoulders and knees under hips. Slide one leg back and reach the opposite arm forward until they're both straight. Keep your hips and shoulders square to the floor. Don't let your lower back sag. Pause, return, and then do the other side."
+  },
+  {
+    "id": "0230e799-8c47-4ca5-b7a2-2d68f68a1a98",
+    "name": "APT: Bulgarian Split Squat",
+    "cue": "Rest your back foot on a bench, then lower straight down on your front leg with a dumbbell in each hand.",
+    "description": "Stand a big step in front of a bench and put the top of one foot on it. Hold a dumbbell in each hand. Lower your back knee toward the floor, keeping your torso upright. Push through the front foot to stand. Don't let your front knee drift in. Finish the reps, then switch legs."
+  },
+  {
+    "id": "381115fb-eb11-491e-a199-60bea0e72e63",
+    "name": "APT: Couch Stretch",
+    "cue": "Put your back knee on the floor, foot up a wall or couch, and squeeze your glute to stand tall.",
+    "description": "Kneel with one knee near the wall and your shin and foot against it. Plant the other foot out in front in a lunge. Squeeze the back-leg glute and lift your chest until you feel a stretch at the front of the hip. Don't arch your lower back. Hold, then switch sides."
+  },
+  {
+    "id": "608ce2f5-9dd3-4aaf-867f-42319ba81b85",
+    "name": "APT: Dead Bug",
+    "cue": "Lie on your back, arms up, knees over hips, then lower opposite arm and leg slowly.",
+    "description": "Lie on your back with your arms straight up and your knees bent at 90 degrees. Press your lower back gently into the floor. Reach one arm back overhead and lower the opposite leg toward the floor. Don't let your back arch up. Return and swap sides."
+  },
+  {
+    "id": "e50ab2b2-1b87-4c23-9b05-f42b8cf9132a",
+    "name": "APT: Modified Curl-Up",
+    "cue": "Lie on your back with knees bent, lift your head and shoulders a little, and hold.",
+    "description": "Lie on your back with your knees bent and feet flat. Put your hands under your lower back to keep the natural curve. Lift your head and shoulders just a few inches off the floor. Hold for eight seconds, then lower slowly. Don't pull on your neck."
+  },
+  {
+    "id": "c416732c-6a1a-4b02-b717-6e01236fd62f",
+    "name": "APT: Romanian Deadlift",
+    "cue": "Hold a dumbbell in each hand, push your hips back, and lower until you feel your hamstrings.",
+    "description": "Stand tall with the dumbbells in front of your thighs. Soften your knees and push your hips back like closing a car door. Keep your back flat and the weights close to your legs. Stop when you feel the stretch in the backs of your thighs. Squeeze your glutes to stand. Don't round your back."
+  },
+  {
+    "id": "7f1c6bcc-b275-4bfa-bada-53e0d5e2bb4d",
+    "name": "APT: Side Plank",
+    "cue": "Lie on your side, prop up on your forearm, and lift your hips into a straight line.",
+    "description": "Lie on your side with your elbow under your shoulder and your legs stacked. Lift your hips until your body is straight from head to feet. Keep your hips from sagging or twisting forward. Hold for the full time, then lower and switch sides."
+  },
+  {
+    "id": "ade59796-7100-487f-8b37-cf4448b5675e",
+    "name": "APT: Single-Leg Glute Bridge",
+    "cue": "Lie on your back with one foot flat, lift the other leg straight, and drive your hips up.",
+    "description": "Lie on your back with one knee bent and that foot flat on the floor. Extend the other leg straight in the air. Press through the planted heel and lift your hips until your body is in a straight line. Don't let your hips tilt or your back arch. Lower slowly, then switch legs."
+  },
+  {
+    "id": "4dfbd6a0-0dfb-493c-ad40-06122cdbc5ab",
+    "name": "Arm Circles",
+    "cue": "Hold your arms out to the sides and draw large slow circles.",
+    "description": "Stand tall with your arms out at shoulder height. Make circles with the arms, starting small and growing bigger. Keep your shoulders away from your ears. Go ten one way, then ten the other. Don't swing wildly or arch your lower back."
+  },
+  {
+    "id": "04f00b8b-5356-46c8-9959-fbe696989399",
+    "name": "Asian Squat Hold",
+    "cue": "Drop into a deep squat with your feet flat and just stay there, relaxed.",
+    "description": "Stand with your feet wider than your hips and your toes turned out. Sit down between your knees as low as you can with your heels flat. Put your palms together and press your elbows against your knees. Keep your chest up and breathe slowly. If it's too hard, hold onto a post or doorframe."
+  },
+  {
+    "id": "48200d34-b90e-4293-a899-2780c17dc89b",
+    "name": "Band Pull-Apart",
+    "cue": "Hold a band in front of you and pull your hands apart until it touches your chest.",
+    "description": "Stand with your arms straight out in front at chest height, holding the band with an overhand grip. Pull your hands apart, squeezing your shoulder blades together. Bring the band to your chest if you can. Keep your ribs down. Don't shrug. Let the band back slowly."
+  },
+  {
+    "id": "8e4630cf-ea82-4f91-ba60-27b2d98b7fc2",
+    "name": "Banded ankle distraction",
+    "cue": "Loop a band around your ankle and let it pull you gently backward while you hold.",
+    "description": "Anchor the band low and loop it around the front of the ankle, with it pulling you back. Step away until there is steady tension. Rock your weight forward over the foot, keeping the heel down. Do ten pulses, then hold for 30 to 60 seconds. Then switch feet."
+  },
+  {
+    "id": "918e4a8e-037d-45e2-a7f3-a8b91efc3a82",
+    "name": "Banded Shoulder External Rotation",
+    "cue": "Hold a band, elbow against your side, and rotate your forearm outward.",
+    "description": "Stand with a band anchored at elbow height and your elbow tucked into your side, bent at 90 degrees. Rotate your hand outward, away from your belly. Keep the elbow pinned. Don't twist your body to help. Return slowly, then switch arms."
+  },
+  {
+    "id": "d796261b-b65a-41a9-8f12-53dd4490ad3a",
+    "name": "Bosu Ball Single-Leg Stand",
+    "cue": "Stand on a Bosu ball on one foot and stay still.",
+    "description": "Stand beside the Bosu and step onto the middle of it with one foot. Lift the other foot and balance. Keep your knee slightly bent and your eyes on a fixed spot. Make small corrections with your foot. Don't let the edge of the ball touch the floor. Then switch legs."
+  },
+  {
+    "id": "0fc294f5-d9c5-42b8-914e-eee456a97515",
+    "name": "Bosu Ball Squat",
+    "cue": "Stand on the Bosu with both feet and squat down and back up under control.",
+    "description": "Stand on the flat side of the Bosu ball with your feet shoulder-width apart. Squat down, pushing your hips back and keeping your heels down. Go as deep as you can control, then stand. Keep your knees in line with your toes. Don't rush. If it's too easy, hold a weight at your chest."
+  },
+  {
+    "id": "cca300de-f82f-4a57-87a7-cb1cd6d6a22e",
+    "name": "Calf Foam Roll",
+    "cue": "Lie the calf on a foam roller and roll slowly from ankle to knee.",
+    "description": "Sit with your calf on top of the foam roller. Lift your hips off the floor with your hands. Roll slowly from just above the ankle up to below the knee. Stop and breathe on any tender spot. Cross the other leg over for more pressure. Then switch legs."
+  },
+  {
+    "id": "c9ef2252-d4ae-4de7-bcd5-342d94fee52f",
+    "name": "Calf Raise on Step (eyes closed)",
+    "cue": "Stand on one foot on a step, close your eyes, and rise onto your toes slowly.",
+    "description": "Stand on one foot on the edge of a step with the other foot lifted. Hold a rail lightly if you need it. Rise onto the ball of the foot, then lower slowly. Close your eyes once you feel steady. Don't let the ankle roll. Then switch legs."
+  },
+  {
+    "id": "ed5b6822-3404-4ccd-9d05-14a2278d99cd",
+    "name": "Calf Raise Stretch on Step",
+    "cue": "Stand with the ball of one foot on a step and let the heel sink slowly below it.",
+    "description": "Stand on the edge of a step with the ball of one foot on it and the heel hanging. Hold a rail or wall for balance. Let your heel drop slowly with a straight knee until you feel the stretch in the calf. Hold it there. Don't bounce. Then switch feet."
+  },
+  {
+    "id": "5b9fc1d4-db97-4cc0-bbba-e6210c5e8085",
+    "name": "Cat-Cow",
+    "cue": "Start on hands and knees, round your back up, then arch it down, moving with your breath.",
+    "description": "Get on all fours with your hands under shoulders and knees under hips. Breathe out and round your spine up toward the ceiling, tucking your chin. Breathe in and drop your belly, lifting your chest and tailbone. Move slowly through the whole spine. Don't force the end of the range."
+  },
+  {
+    "id": "c35f433c-0062-4e43-8956-22a87dd9a1e1",
+    "name": "Cervical Lateral Flexion Stretch",
+    "cue": "Sit tall and tilt your ear toward your shoulder, keeping the other shoulder down.",
+    "description": "Sit or stand with your shoulders relaxed. Tilt your head so your ear moves toward your shoulder. Let the weight of your head do the work, or rest a light hand on the side of the head. Keep the opposite shoulder pulled down. Don't turn your head or shrug. Hold, then switch sides."
+  },
+  {
+    "id": "76a1da93-ff31-4215-b928-731a0b4914b2",
+    "name": "Childs Pose",
+    "cue": "Sit back on your heels, stretch your arms forward, and rest your forehead on the floor.",
+    "description": "Kneel on the mat with your big toes touching and your knees wide. Sit your hips back toward your heels and walk your hands forward. Let your forehead rest down. Breathe slowly into your lower back. If your hips don't reach your heels, put a pillow underneath."
+  },
+  {
+    "id": "4db1d930-92bf-46cf-a0c7-8b1d1a30d324",
+    "name": "Chin tucks",
+    "cue": "Pull your chin straight back, like making a double chin, without tilting your head.",
+    "description": "Sit or stand tall and look straight ahead. Slide your chin straight back without tilting up or down. Hold for a second, then relax. Think of making a double chin. Keep your eyes level. Don't push so hard that it hurts."
+  },
+  {
+    "id": "ed99f143-14f7-413e-9755-86e8d243c32e",
+    "name": "Clamshell",
+    "cue": "Lie on your side with knees bent and feet together, then open the top knee like a clamshell.",
+    "description": "Lie on your side with your hips and knees bent and the band above your knees. Keep your feet together and stacked. Lift the top knee as high as you can without rolling your hips backward. Lower slowly. Keep your hips stacked. Finish the reps, then switch sides."
+  },
+  {
+    "id": "9ac0261a-7e08-472b-82eb-a4c454db60af",
+    "name": "Cobra Stretch",
+    "cue": "Lie on your belly, put your hands under your shoulders, and press your chest up.",
+    "description": "Lie face down with your hands flat beside your chest. Press up through your hands, lifting your chest while keeping your hips on the floor. Keep your shoulders away from your ears. Breathe slowly. Don't crunch your lower back. Only go as high as feels comfortable."
+  },
+  {
+    "id": "1a987455-9e98-4980-96af-d645f143d5d9",
+    "name": "Copenhagen plank",
+    "cue": "Lie on your side with your top foot on a bench and lift your hips so your body is straight.",
+    "description": "Lie on your side next to a bench. Put your top leg on the bench with the inner knee or foot against it, and your forearm under your shoulder. Lift your hips until your body is in a line. Keep your bottom leg under the bench. Don't let your hips sag. Hold, then switch sides."
+  },
+  {
+    "id": "dcacbeb5-c7f3-4882-8742-35e8d32f2c32",
+    "name": "Couch stretch",
+    "cue": "Put one knee behind you on the floor, foot up on a couch, and sink your hips forward.",
+    "description": "Kneel with your back foot up against a couch or wall. Step the other foot forward into a lunge. Squeeze the glute of the back leg and press your hips forward. Stay tall with your chest up. Don't arch your lower back. Hold, then switch sides."
+  },
+  {
+    "id": "b5f1606a-44e4-4901-ba33-493048211c03",
+    "name": "Cross-Arm Internal Rotation Stretch (right)",
+    "cue": "Reach your right arm behind your back and gently pull it upward with the other hand.",
+    "description": "Stand tall and reach your right hand behind your back with the palm facing out. Use a towel or your left hand to gently pull the right hand upward. Keep your shoulders square and your chest forward. Stop at a mild stretch. Don't lean forward or twist."
+  },
+  {
+    "id": "84dfd89f-fb5c-4e3e-9981-3c581466bb84",
+    "name": "Cross-Body Shoulder Stretch",
+    "cue": "Bring one arm across your chest and pull it close with the other hand.",
+    "description": "Stand tall and raise one arm across your body at shoulder height. Hold it above the elbow with your other hand and pull it toward your chest. Keep your shoulders down. Don't twist your body. Hold, then switch arms."
+  },
+  {
+    "id": "8b89c621-2a04-41d0-9c28-4f57285564a1",
+    "name": "Dead Bug",
+    "cue": "Lie on your back, arms up, knees over hips, then lower opposite arm and leg and return.",
+    "description": "Lie on your back with your arms straight up and your knees bent over your hips. Press your lower back lightly into the floor. Reach one arm back and lower the opposite leg at the same time. Return and switch. Don't let your back arch off the floor."
+  },
+  {
+    "id": "f6f18285-d191-4287-8c0a-77c37a5f9217",
+    "name": "Deep Lunge Hip Opener",
+    "cue": "Step into a deep lunge, drop your hips low, and press your elbow toward the floor.",
+    "description": "Start in a lunge with your front foot between your hands. Sink your hips down and forward. Drop your back knee or keep it lifted. Press the inside of your front knee out with your elbow. Keep your chest up. Don't let your front knee collapse in. Hold, then switch sides."
+  },
+  {
+    "id": "abc47c5a-0b14-437a-99b8-3de64dfeb6a1",
+    "name": "Deep squat hold",
+    "cue": "Sit into a deep squat with your heels down and hold it for a few minutes.",
+    "description": "Stand with your feet a bit wider than your hips and toes turned out. Squat as low as you can, keeping your heels on the floor. Press your elbows out against your knees and keep your chest up. Shift around when you need to. Hold onto a post if you can't stay down."
+  },
+  {
+    "id": "f2d0b99d-5b32-452a-9366-9ac81b411e15",
+    "name": "Doorway Pec Stretch",
+    "cue": "Stand in a doorway with your forearm on the frame and step through until you feel your chest stretch.",
+    "description": "Stand in a doorway with your elbow bent at 90 degrees and your forearm on the frame. Step the same-side foot forward and let your chest open. Keep your ribs down and your shoulder away from your ear. Stop at a mild stretch. Don't arch your back. Hold, then switch arms."
+  },
+  {
+    "id": "ea36887a-72b0-4d15-8370-1a0328c202e0",
+    "name": "Down dog progression",
+    "cue": "Go from hands and knees into an inverted V, pushing your hips up and back.",
+    "description": "Start on hands and knees with your toes tucked under. Press your hips up and back so your body forms a V. Spread your fingers and push the floor away. Bend your knees if your back rounds. Let your heels reach toward the floor. Hold and breathe slowly."
+  },
+  {
+    "id": "de4f8f62-7498-4c5e-bcb2-1a399b35653e",
+    "name": "Eccentric Heel Drop",
+    "cue": "Stand on the edge of a step and slowly lower your heel on one leg.",
+    "description": "Stand with the balls of both feet on a step. Rise up on both feet, shift your weight to one foot, and lower slowly for three seconds. Keep the knee straight. Use both feet to get back up. Don't drop quickly. Finish the reps, then switch legs."
+  },
+  {
+    "id": "eac16892-a7fc-4f45-93c1-0e27caa2f284",
+    "name": "Face Pull",
+    "cue": "Pull the rope toward your face with your elbows high and spread the ends apart.",
+    "description": "Set the cable at upper chest height with a rope. Grab it with your palms facing in and step back. Pull the rope toward your face, elbows high, and spread your hands apart at the end. Squeeze your shoulder blades. Don't lean back or shrug. Return slowly."
+  },
+  {
+    "id": "7fd3fbfd-1726-467b-aba5-dfc8b4601028",
+    "name": "Fire Hydrant",
+    "cue": "From hands and knees, lift one bent knee out to the side without twisting your hips.",
+    "description": "Start on all fours with your hands under shoulders and knees under hips. Keep your knee bent and lift it out to the side like a dog at a hydrant. Keep your hips level and your back still. Lower slowly. Don't rotate your trunk to get higher. Finish the reps, then switch legs."
+  },
+  {
+    "id": "e08f0fb4-547e-4ed3-9139-49c6db2d23ef",
+    "name": "Foam Roll IT Band",
+    "cue": "Lie on your side with the roller under the outside of your thigh and roll slowly hip to knee.",
+    "description": "Lie on your side with the foam roller under the outside of your thigh. Support yourself on your forearm and the other foot. Roll slowly from just below the hip to above the knee. Stop and breathe on tender spots. Don't roll over the knee joint. Then switch legs."
+  },
+  {
+    "id": "909106cf-2d7f-481f-a65d-2d1ecd97e37d",
+    "name": "Foam Roll Quads",
+    "cue": "Lie face down with the roller under your thighs and roll from hip to just above the knee.",
+    "description": "Lie face down on your forearms with the foam roller under the front of your thighs. Roll slowly from the hip to just above the knee. Turn your feet slightly in and out to find different spots. Pause on tight areas. Don't let your lower back sag. Then switch legs."
+  },
+  {
+    "id": "8c982b40-80e4-475c-87a5-b5007566acfb",
+    "name": "Foot Doming (short foot exercise)",
+    "cue": "Stand barefoot and lift your arch by pulling the ball of your foot toward your heel, toes flat.",
+    "description": "Stand on one foot, barefoot, with your toes relaxed. Pull the ball of your foot back toward your heel so the arch lifts. Keep your toes flat on the floor. Hold for ten seconds. Don't curl your toes. Then switch feet."
+  },
+  {
+    "id": "c15761ff-7f71-48f5-bd63-78dd652323fd",
+    "name": "Frog Stretch",
+    "cue": "Get on hands and knees, spread your knees wide, and sit back with your hips over your heels.",
+    "description": "Get on all fours on a mat and slide your knees out as wide as you can. Keep your ankles in line with your knees. Lower onto your forearms and sit your hips back. Breathe slowly. Don't force the stretch. Use padding under your knees if it hurts."
+  },
+  {
+    "id": "90db04fb-5c1a-4e99-8ee1-d6d831ed2a10",
+    "name": "Glute-Ham Raise",
+    "cue": "Lock your feet under the pads and lower your body toward the floor, then curl back up with your hamstrings.",
+    "description": "Set your feet against the foot plate and your knees on the pad, hips just in front. Lower your torso forward under control. Use your hamstrings and glutes to pull yourself back up. Keep your body in a line from knees to shoulders. Don't bend at the hips."
+  },
+  {
+    "id": "08120a15-88a0-4ec3-ae42-650dbec17076",
+    "name": "Half-Kneeling Ankle Mobilization",
+    "cue": "Kneel on one knee and rock forward until your front knee moves over your toes, keeping the heel down.",
+    "description": "Kneel on one knee with the other foot flat on the floor in front. Keep your front heel down and rock your knee forward over your toes. Come back slowly. Keep your chest up. Don't let your heel lift or your arch collapse. Finish the reps, then switch legs."
+  },
+  {
+    "id": "398dca45-0072-43ac-96f0-3dacfd16940c",
+    "name": "Half-Kneeling Hip Flexor Stretch with Reach",
+    "cue": "Kneel on one knee, squeeze your back glute, and reach the same-side arm up and over.",
+    "description": "Kneel on one knee with a cushion under it. Tuck your pelvis slightly and squeeze the back glute. Reach the same-side arm overhead and lean away slightly. Keep your ribs down. Don't arch your lower back. Hold, then switch sides."
+  },
+  {
+    "id": "747babdf-34fc-42ef-bd9a-36ec2e772cec",
+    "name": "Hip Circles",
+    "cue": "Stand tall and draw circles with your knee, moving from the hip.",
+    "description": "Stand holding a wall or rail with one leg lifted. Bend your knee to about hip height. Draw large slow circles with the knee, keeping your pelvis still. Go one way, then the other. Don't swing from your lower back. Then switch legs."
+  },
+  {
+    "id": "859da98f-4773-405e-a31e-ece554cd2f5e",
+    "name": "Jefferson curl",
+    "cue": "Hold a light weight, hinge forward and curl your spine down one bone at a time, then roll back up.",
+    "description": "Stand with a light weight held close to your chest. Tuck your chin and curl down slowly, one segment at a time, letting your hands hang. Go only as low as is comfortable. Reverse the move and stack your spine back up. Don't rush. Use a very light weight."
+  },
+  {
+    "id": "33c26ce9-8110-406d-93cb-2bdac01dff38",
+    "name": "Knee-to-Chest Stretch",
+    "cue": "Lie on your back, pull one knee to your chest, and keep the other leg flat on the floor.",
+    "description": "Lie on your back with both legs straight. Bend one knee and pull it toward your chest with both hands. Keep the other leg flat on the floor and your lower back down. Breathe slowly. Don't lift your head. Hold, then switch legs."
+  },
+  {
+    "id": "2de90e16-3978-4955-b060-d10a8fb7ce3a",
+    "name": "Lateral Band Walk",
+    "cue": "Put a band above your knees, bend a little, and step sideways with your feet pointing forward.",
+    "description": "Place the band above your knees and sit into a quarter squat. Step sideways with the lead foot and follow with the other. Keep tension on the band the whole time. Keep your toes forward and knees out. Don't let your knees cave. Go ten steps, then come back."
+  },
+  {
+    "id": "2a1b6d97-dc44-40de-901e-e60a5b4a4eb1",
+    "name": "Leg Swings",
+    "cue": "Stand on one leg and swing the other forward and back like a pendulum.",
+    "description": "Stand tall with one hand on a wall. Swing the leg forward and back, letting it get a little higher each time. Keep your torso upright and your standing knee soft. Don't let your back arch as the leg goes behind you. Finish the reps, then switch legs."
+  },
+  {
+    "id": "9bc730ca-8711-42f1-9422-77fa3ad46931",
+    "name": "Levator scapulae stretch",
+    "cue": "Tilt your ear toward your shoulder while gently turning your nose toward your armpit.",
+    "description": "Sit tall and turn your head about 45 degrees toward one armpit. Gently tilt your chin toward your chest. Rest a light hand on the back of your head to add a bit of weight. Keep the opposite shoulder down. Don't pull hard. Hold, then switch sides."
+  },
+  {
+    "id": "32d7ef87-1ee6-4ac2-a492-dbaaf20d9720",
+    "name": "Monster Walk",
+    "cue": "Put a band above your knees, stay low, and step diagonally forward and back like a monster.",
+    "description": "Place the band around your legs above the knees and sit into a quarter squat. Step diagonally forward with one foot, then the other, keeping your feet wide. Stay low and keep your toes pointing forward. Don't let your knees cave in. Walk forward for ten steps, then back."
+  },
+  {
+    "id": "6637c3cc-0d01-4283-9c27-d0f7598a4862",
+    "name": "Neck Isometric Holds (4-way)",
+    "cue": "Press your hand against your head and push back with your neck, holding for ten seconds in each direction.",
+    "description": "Put your palm on your forehead and press your head into your hand without moving. Hold for ten seconds. Repeat on each side and the back of the head. Keep your jaw relaxed and your shoulders down. Push gently, not hard. Don't hold your breath."
+  },
+  {
+    "id": "9ddc07c2-8fcb-4b84-9db7-98e60d1e228f",
+    "name": "Neck Rotation Stretch",
+    "cue": "Slowly turn your head to look over one shoulder and back to the other.",
+    "description": "Sit or stand tall with your shoulders down. Slowly turn your head to look over one shoulder, as far as is comfortable. Pause, then turn to the other side. Keep your chin level. Don't tilt your head or shrug. Move gently and breathe."
+  }
+]
