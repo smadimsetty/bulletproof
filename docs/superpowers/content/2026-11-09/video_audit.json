@@ -1,0 +1,351 @@
+{
+ "audited_on": "2026-11-09",
+ "method": "YouTube oEmbed per url + title read; 38 pre-existing demo_video_url links",
+ "dead": 0,
+ "replaced": 0,
+ "nulled": 0,
+ "items": [
+  {
+   "name": "90/90 Hip Switch",
+   "url": "https://www.youtube.com/watch?v=HUZimFZJZWU",
+   "oembed_status": "ok",
+   "oembed_title": "How to Do the 90/90 Switch for Hip Mobility (Step-by-Step Tutorial)",
+   "channel": "Alejandro Matias",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Active Straight-Leg Raise Hamstring Stretch",
+   "url": "https://www.youtube.com/watch?v=Il1L75v6gq0",
+   "oembed_status": "ok",
+   "oembed_title": "Hamstring Stretch with a Strap, Supine - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "decision": "keep",
+   "note": "Supine strap hamstring stretch; close enough (same leg-raise hamstring stretch), kept."
+  },
+  {
+   "name": "Asian Squat Hold",
+   "url": "https://www.youtube.com/watch?v=oya7G1djWyQ",
+   "oembed_status": "ok",
+   "oembed_title": "Asian Squat Tutorial: Ankle Mobility",
+   "channel": "Upright Health",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Band Pull-Apart",
+   "url": "https://www.youtube.com/watch?v=3OYSIWaJJk4",
+   "oembed_status": "ok",
+   "oembed_title": "The Band Pull-Apart for a Stronger Back",
+   "channel": "Men's Health",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Banded Shoulder External Rotation",
+   "url": "https://www.youtube.com/watch?v=ybNV36DoRfY",
+   "oembed_status": "ok",
+   "oembed_title": "Banded Shoulder External Rotation | Band | Strength and Conditioning Exercises",
+   "channel": "Rehab My Patient",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Calf Raise Stretch on Step",
+   "url": "https://www.youtube.com/watch?v=yhnBpnrhRpk",
+   "oembed_status": "ok",
+   "oembed_title": "Stretch Tutorial: Calf Stretch On A Step",
+   "channel": "Travis Tarrant",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Cat-Cow",
+   "url": "https://www.youtube.com/watch?v=kqnua4rHVVA",
+   "oembed_status": "ok",
+   "oembed_title": "How to Do a Cat Cow Pose for Energy | Yoga",
+   "channel": "Howcast",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Childs Pose",
+   "url": "https://www.youtube.com/watch?v=2MJGg-dUKh0",
+   "oembed_status": "ok",
+   "oembed_title": "Beginners Yoga: How to do Balasana - Child's Pose",
+   "channel": "Yoga & You",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Clamshell",
+   "url": "https://www.youtube.com/watch?v=ymjOGuPjOSE",
+   "oembed_status": "ok",
+   "oembed_title": "Clam Shell Exercise for Hips | Banded Clamshells for Abductor Activation",
+   "channel": "FITBODY with Julie Lohre",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Cobra Stretch",
+   "url": "https://www.youtube.com/watch?v=JDcdhTuycOI",
+   "oembed_status": "ok",
+   "oembed_title": "Cobra Stretch",
+   "channel": "FitnessBlender",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Cross-Arm Internal Rotation Stretch (right)",
+   "url": "https://www.youtube.com/watch?v=HaHQTTcYv4E",
+   "oembed_status": "ok",
+   "oembed_title": "Shoulder Internal Rotation Stretches",
+   "channel": "Overhead Athletics",
+   "decision": "keep",
+   "note": "Generic shoulder internal-rotation stretches; kept."
+  },
+  {
+   "name": "Dead Bug",
+   "url": "https://www.youtube.com/watch?v=3eqodmkpkfA",
+   "oembed_status": "ok",
+   "oembed_title": "Proper Dead Bug Form | Core Exercise Demo",
+   "channel": "Nat Wilson Fitness",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Doorway Pec Stretch",
+   "url": "https://www.youtube.com/watch?v=M850sCj9LHQ",
+   "oembed_status": "ok",
+   "oembed_title": "How to Do a Doorway Pec Stretch Exercise | 90 Degrees Abduction | MedBridge",
+   "channel": "Medbridge",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Eccentric Heel Drop",
+   "url": "https://www.youtube.com/watch?v=hoheL7eei40",
+   "oembed_status": "ok",
+   "oembed_title": "Eccentric Heel Drops - REHAB YOUR ACHILLES TENDON PAIN!",
+   "channel": "Adhesion Release Methods",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Face Pull",
+   "url": "https://www.youtube.com/watch?v=rep-qVOkqgk",
+   "oembed_status": "ok",
+   "oembed_title": "How To: Face Pull",
+   "channel": "ScottHermanFitness",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Fire Hydrant",
+   "url": "https://www.youtube.com/watch?v=9JB38HZEbrQ",
+   "oembed_status": "ok",
+   "oembed_title": "How to: Fire Hydrant (Hip Abduction) Exercise",
+   "channel": "Baxter Basics Group Personal Training",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Glute-Ham Raise",
+   "url": "https://www.youtube.com/watch?v=v1DJzwKUGg0",
+   "oembed_status": "ok",
+   "oembed_title": "How To Do A GLUTE HAM RAISE (GHR) | Exercise Demonstration Video and Guide",
+   "channel": "Live Lean TV Daily Exercises",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Half-Kneeling Ankle Mobilization",
+   "url": "https://www.youtube.com/watch?v=Hm_Iu72bJJg",
+   "oembed_status": "ok",
+   "oembed_title": "Half Kneeling Ankle Rocks - Ankle Mobility",
+   "channel": "80/20 Endurance",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Half-Kneeling Hip Flexor Stretch with Reach",
+   "url": "https://www.youtube.com/watch?v=KyoK4Rf6_bE",
+   "oembed_status": "ok",
+   "oembed_title": "Half-Kneeling Hip Flexor Stretch w/ Overhead Reach",
+   "channel": "The Setup - Golf Performance by Tiffany",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Lateral Band Walk",
+   "url": "https://www.youtube.com/watch?v=PhNkkOieB-8",
+   "oembed_status": "ok",
+   "oembed_title": "Lateral Band Walk",
+   "channel": "Women's Strength Nation by Holly Perkins",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Neck Isometric Holds (4-way)",
+   "url": "https://www.youtube.com/watch?v=0kWF968uFXY",
+   "oembed_status": "ok",
+   "oembed_title": "6 - Isometric Neck Strengthening Exercises - Ask Dr. Abelson",
+   "channel": "Dr. Brian Abelson",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Pigeon Pose",
+   "url": "https://www.youtube.com/watch?v=M1gEGLtF1p0",
+   "oembed_status": "ok",
+   "oembed_title": "How To Do Pigeon Pose | The Right Way | Well+Good",
+   "channel": "Well+Good",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Plank with Shoulder Taps",
+   "url": "https://www.youtube.com/watch?v=gKA5LBy7WAI",
+   "oembed_status": "ok",
+   "oembed_title": "How To Properly Do a Plank with Shoulder Taps - Strength Exercises - Wellen",
+   "channel": "Wellen",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Resistance Band Shoulder Pass-Through",
+   "url": "https://www.youtube.com/watch?v=riVxa9By-pM",
+   "oembed_status": "ok",
+   "oembed_title": "How To Do Band Dislocates / Pass-Throughs (Shoulder Mobility)",
+   "channel": "66 Days Fitness Coaching",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Reverse Nordic Curl",
+   "url": "https://www.youtube.com/watch?v=PvJDjcfZe1c",
+   "oembed_status": "ok",
+   "oembed_title": "How to Safely Set Up, Perform, & Program Reverse Nordics (Progressions | Regressions | Alternatives)",
+   "channel": "E3 Rehab",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Scapular Wall Slides",
+   "url": "https://www.youtube.com/watch?v=UB_n4DxOTCo",
+   "oembed_status": "ok",
+   "oembed_title": "Scapular Wall Slides",
+   "channel": "Dr. Taylor Levick",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Single-Leg Balance (eyes closed)",
+   "url": "https://www.youtube.com/watch?v=4HtOeds_vyw",
+   "oembed_status": "ok",
+   "oembed_title": "Single Leg Balance with Eyes Closed",
+   "channel": "RunDNA",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Single-Leg Romanian Deadlift Balance Reach",
+   "url": "https://www.youtube.com/watch?v=wTqPn_EUzVY",
+   "oembed_status": "ok",
+   "oembed_title": "How To Do A DUMBBELL SINGLE LEG ROMANIAN DEADLIFT WITH REACH | Exercise Demonstration Video",
+   "channel": "Live Lean TV Daily Exercises",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Terminal Knee Extension",
+   "url": "https://www.youtube.com/watch?v=WEcLkuvcMZc",
+   "oembed_status": "ok",
+   "oembed_title": "How To: Banded Terminal Knee Extension (TKE)",
+   "channel": "Live Lean TV Daily Exercises",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Thoracic Rotation on Foam Roller",
+   "url": "https://www.youtube.com/watch?v=GaEuHC3E68I",
+   "oembed_status": "ok",
+   "oembed_title": "Thoracic Rotation Mobility Foam Roller Exercise : POGO Physio",
+   "channel": "POGO Physio",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Thread the Needle",
+   "url": "https://www.youtube.com/watch?v=7C8-zj3nRro",
+   "oembed_status": "ok",
+   "oembed_title": "Thread The Needle For Thoracic Rotation",
+   "channel": "Elite Performance Institute",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Upper Trap Stretch",
+   "url": "https://www.youtube.com/watch?v=-r0eoFS7_5Q",
+   "oembed_status": "ok",
+   "oembed_title": "Upper Trapezius Stretch - Ask Doctor Jo",
+   "channel": "AskDoctorJo",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Wall Slide with External Rotation",
+   "url": "https://www.youtube.com/watch?v=hUO4MGIVAyc",
+   "oembed_status": "ok",
+   "oembed_title": "Shoulder Pain Exercises - Wall slides Progression With External Rotation",
+   "channel": "Noregretspt",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Wall-Supported Chin Tuck",
+   "url": "https://www.youtube.com/watch?v=TWzly9Xswt8",
+   "oembed_status": "ok",
+   "oembed_title": "Chin Tucks Against Wall - Deep Neck Flexors",
+   "channel": "TELON Physiotherapy (Peter Teloniatis)",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "World's Greatest Stretch",
+   "url": "https://www.youtube.com/watch?v=-CiWQ2IvY34",
+   "oembed_status": "ok",
+   "oembed_title": "The World's Greatest Stretch (Mobility Exercise) by Squat University",
+   "channel": "Squat University",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Wrist Curl",
+   "url": "https://www.youtube.com/watch?v=7ac_qmBjkFI",
+   "oembed_status": "ok",
+   "oembed_title": "How to Do Dumbbell Wrist Curls",
+   "channel": "LIVESTRONG",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Y-Balance Reach",
+   "url": "https://www.youtube.com/watch?v=qFVuS-P2FrI",
+   "oembed_status": "ok",
+   "oembed_title": "Y-Balance Test",
+   "channel": "Physiotutors",
+   "decision": "keep",
+   "note": "title matches exercise"
+  },
+  {
+   "name": "Y-T-W Raises",
+   "url": "https://www.youtube.com/watch?v=KNbWAi-V434",
+   "oembed_status": "ok",
+   "oembed_title": "Dumbbell Y-T-W's [YTW's]",
+   "channel": "Hockey Training Exercise Demonstrations",
+   "decision": "keep",
+   "note": "title matches exercise"
+  }
+ ]
+}
