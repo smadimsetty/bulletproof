@@ -454,6 +454,20 @@ export async function submitDayFeedback(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * End `oldSprintId` and start a new sprint on `painPointId` in one transaction
+ * (rpc switch_sprint), so a failed start never leaves the user with no sprint.
+ */
+export async function switchSprint(oldSprintId: string, painPointId: string): Promise<Sprint> {
+  const { data, error } = await supabase.rpc('switch_sprint', {
+    p_old_sprint_id: oldSprintId,
+    p_pain_point_id: painPointId,
+    p_started_on: localDateString(new Date()),
+  });
+  if (error) throw new Error(error.message);
+  return toSprint(data);
+}
+
 export async function abandonSprint(sprintId: string): Promise<void> {
   const { error } = await supabase.from('sprints').update({ status: 'abandoned' }).eq('id', sprintId);
   if (error) throw new Error(error.message);

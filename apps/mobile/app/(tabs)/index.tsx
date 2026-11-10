@@ -13,7 +13,7 @@ import {
 } from '../../lib/workouts';
 import { fetchRoutinesAndFolders, startRoutineWorkout, type Routine, type RoutineFolder } from '../../lib/routines';
 import {
-  abandonSprint, beginSprint, fetchInFlightSprint, fetchPainPoints, fetchTodaySprintDay,
+  fetchInFlightSprint, switchSprint, fetchPainPoints, fetchTodaySprintDay,
   type PainPoint, type Sprint, type SprintDay,
 } from '../../lib/sprintLifecycle';
 import { startOneOffWorkout } from '../../lib/focusSwap';
@@ -22,6 +22,7 @@ import { defaultWorkoutTitle } from '../../lib/workoutTitles';
 import { handleStartResult } from '../../lib/workoutStart';
 import EquipmentTierPicker from '../../components/EquipmentTierPicker';
 import { fetchUserSettings, updateUserSettings } from '../../lib/userSettings';
+import { refitInFlightSprintToTier } from '../../lib/sprintTierRefit';
 import type { EquipmentTier } from '../../lib/equipmentTiers';
 import WorkoutListRow from '../../components/WorkoutListRow';
 import SprintCard from '../../components/SprintCard';
@@ -116,6 +117,13 @@ export default function WorkoutTab() {
       await updateUserSettings({ equipmentTier: tier });
     } catch (err) {
       reportError(err, 'Could not save your equipment.');
+      return;
+    }
+    // The running sprint predates the tier; best effort, the next sprint uses it regardless.
+    try {
+      if ((await refitInFlightSprintToTier(tier)) > 0) await load('focus');
+    } catch {
+      // Not worth interrupting the user over.
     }
   }
 
@@ -172,8 +180,7 @@ export default function WorkoutTab() {
     startingRef.current = true;
     setStarting(true);
     try {
-      await abandonSprint(sprint.id);
-      await beginSprint(painPoint.id);
+      await switchSprint(sprint.id, painPoint.id);
       setChangeFocusOpen(false);
       await load('focus');
       router.push('/sprint');

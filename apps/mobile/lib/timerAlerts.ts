@@ -37,6 +37,15 @@ export function playTimerEnd(): void {
   }
 }
 
+/**
+ * The logger's 250 ms tick only runs while JS does. Back from the background, it finds a deadline that
+ * passed long ago; the scheduled notification already made the sound then, so a beep now is just late.
+ */
+export const LATE_BEEP_GRACE_MS = 2000;
+export function isTimerEndFresh(endsAtMs: number, nowMs: number): boolean {
+  return nowMs - endsAtMs <= LATE_BEEP_GRACE_MS;
+}
+
 let permissionAsked = false;
 
 /** Asks for notification permission once per session if it has not been decided yet (no push registration). */

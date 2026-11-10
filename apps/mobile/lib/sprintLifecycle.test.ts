@@ -8,10 +8,11 @@ import {
   fetchSwapCandidates,
   fetchInFlightSprint,
   isSprintPastFinalDay,
+  switchSprint,
 } from './sprintLifecycle';
 
 jest.mock('./supabase', () => ({
-  supabase: { from: jest.fn() },
+  supabase: { from: jest.fn(), rpc: jest.fn() },
 }));
 
 import { supabase } from './supabase';
@@ -239,5 +240,23 @@ describe('abandonSprint', () => {
 
     expect(updateSpy).toHaveBeenCalledWith({ status: 'abandoned' });
     expect(eqSpy).toHaveBeenCalledWith('id', 'sprint-1');
+  });
+});
+
+describe('switchSprint', () => {
+  test('ends the old sprint and starts the new one in a single rpc call', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({
+      data: { id: 'new', pain_point_id: 'knees', cycle_number: 2, started_on: '2026-11-10', status: 'pending_baseline' },
+      error: null,
+    });
+    const sprint = await switchSprint('old', 'knees');
+    expect(supabase.rpc).toHaveBeenCalledWith('switch_sprint', expect.objectContaining({ p_old_sprint_id: 'old', p_pain_point_id: 'knees' }));
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(sprint).toEqual({ id: 'new', painPointId: 'knees', cycleNumber: 2, startedOn: '2026-11-10', status: 'pending_baseline' });
+  });
+
+  test('throws the server error so the old sprint is never left ended on its own', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: { message: 'That sprint is no longer in progress.' } });
+    await expect(switchSprint('old', 'knees')).rejects.toThrow('That sprint is no longer in progress.');
   });
 });

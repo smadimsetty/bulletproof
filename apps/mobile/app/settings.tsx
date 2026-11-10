@@ -25,7 +25,8 @@ import { PUBLIC_DISABLED_HINT, VISIBILITY_OPTIONS, visibilityLabel } from '../li
 import type { WeightUnit } from '../lib/units';
 import Avatar from '../components/social/Avatar';
 import EquipmentTierPicker from '../components/EquipmentTierPicker';
-import { EQUIPMENT_TIER_OPTIONS } from '../lib/equipmentTiers';
+import { EQUIPMENT_TIER_OPTIONS, type EquipmentTier } from '../lib/equipmentTiers';
+import { refitInFlightSprintToTier } from '../lib/sprintTierRefit';
 import WeeklyGoalSheet from '../components/progress/WeeklyGoalSheet';
 import {
   ConfirmSheet, ErrorState, ListGroup, ListRow, ScreenScroll, SectionHeader, SegmentedControl, Sheet, SkeletonCard, SwitchRow, useToast,
@@ -95,6 +96,18 @@ export default function SettingsScreen() {
       return false;
     } finally {
       savingRef.current = false;
+    }
+  }
+
+  /** The running sprint was built for the old tier; swap out anything the new tier rules out. */
+  async function refitSprint(tier: EquipmentTier) {
+    try {
+      const changed = await refitInFlightSprintToTier(tier);
+      if (changed > 0) {
+        toast.show({ message: `Updated ${changed} ${changed === 1 ? 'exercise' : 'exercises'} in your sprint to match.`, tone: 'success' });
+      }
+    } catch {
+      toast.show({ message: "Saved, but your current sprint couldn't be updated to match.", tone: 'danger' });
     }
   }
 
@@ -318,8 +331,11 @@ export default function SettingsScreen() {
           <EquipmentTierPicker
             value={settings.equipmentTier}
             onSelect={(tier) => {
-              void saveSettings({ equipmentTier: tier });
               setEquipmentOpen(false);
+              if (tier === settings.equipmentTier) return;
+              void saveSettings({ equipmentTier: tier }).then((saved) => {
+                if (saved) void refitSprint(tier);
+              });
             }}
           />
         </View>

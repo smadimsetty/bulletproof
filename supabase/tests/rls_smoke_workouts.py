@@ -29,6 +29,16 @@ try:
     s,sp=req('POST','/rest/v1/sprints?select=id',{'pain_point_id':pp[0]['id'],'cycle_number':1,'started_on':'2026-11-07','status':'active'},token=A); ok(s==201,f"A creates sprint ({s} {sp})")
     s,sd=req('POST','/rest/v1/sprint_days?select=id',{'sprint_id':sp[0]['id'],'day_number':1,'date':'2026-11-07'},token=A); ok(s==201,f"A creates sprint day ({s})")
     s,r=req('POST','/rest/v1/workouts',{'source':'sprint','title':'Hijack','sprint_day_id':sd[0]['id']},token=B); ok(s>=400,f"user B cannot claim A's sprint day ({s})")
+    # switch_sprint RPC (2026-11-10): runs as the caller, abandon + start in one transaction.
+    pp2=req('GET','/rest/v1/pain_points?select=id&order=sort_order&limit=2',token=A)[1][-1]['id']
+    s,r=req('POST','/rest/v1/rpc/switch_sprint',{'p_old_sprint_id':sp[0]['id'],'p_pain_point_id':pp2,'p_started_on':'2026-11-10'},token=B); ok(s>=400,f"B cannot switch A's sprint ({s})")
+    s,r=req('GET',f"/rest/v1/sprints?select=status&id=eq.{sp[0]['id']}",token=A); ok(r and r[0]['status']=='active',f"A's sprint still active after B's attempt ({r})")
+    s,r=req('POST','/rest/v1/rpc/switch_sprint',{'p_old_sprint_id':str(uuid.uuid4()),'p_pain_point_id':pp2,'p_started_on':'2026-11-10'},token=A); ok(s>=400,f"switch with a bogus old sprint fails ({s})")
+    s,r=req('GET','/rest/v1/sprints?select=id&status=eq.pending_baseline',token=A); ok(r==[],f"failed switch started nothing ({r})")
+    s,ns=req('POST','/rest/v1/rpc/switch_sprint',{'p_old_sprint_id':sp[0]['id'],'p_pain_point_id':pp2,'p_started_on':'2026-11-10'},token=A); ok(s==200 and ns['owner_id']==a_id and ns['status']=='pending_baseline',f"A switches own sprint ({s})")
+    s,r=req('GET',f"/rest/v1/sprints?select=status&id=eq.{sp[0]['id']}",token=A); ok(r and r[0]['status']=='abandoned',f"old sprint abandoned by switch ({r})")
+    s,r=req('POST','/rest/v1/rpc/switch_sprint',{'p_old_sprint_id':sp[0]['id'],'p_pain_point_id':pp2,'p_started_on':'2026-11-10'},token=A); ok(s>=400,f"switching an already-ended sprint fails ({s})")
+    s,r=req('DELETE',f"/rest/v1/sprints?id=eq.{ns['id']}",token=A); ok(s==200,f"cleanup switched sprint ({s})")
     s,r=req('DELETE',f"/rest/v1/sprints?id=eq.{sp[0]['id']}",token=A); ok(s==200,f"cleanup sprint ({s})")
     s,r=req('DELETE',f"/rest/v1/workout_sets?id=eq.{ss[1]['id']}",token=A); ok(s==200,f"delete uncompleted set ({s})")
     s,r=req('PATCH',f"/rest/v1/workouts?id=eq.{wid}",{'ended_at':'2026-11-07T12:30:00Z'},token=A); ok(s==200,f"finish workout ({s})")

@@ -62,7 +62,7 @@ import { ensurePushRegistered } from '../../lib/social/push';
 import { saveWorkoutToHealth } from '../../lib/healthkitWrite';
 import { syncWorkoutLiveActivity } from '../../lib/workoutActivityBridge';
 import {
-  cancelTimerEndNotification, initTimerAudio, playTimerEnd, scheduleTimerEndNotification,
+  cancelTimerEndNotification, initTimerAudio, isTimerEndFresh, playTimerEnd, scheduleTimerEndNotification,
 } from '../../lib/timerAlerts';
 import { dominantKind } from '../../lib/workoutKind';
 import { Button, ConfirmSheet, EmptyState, ErrorState, IconButton, SkeletonCard } from '../../components/ui';
@@ -425,6 +425,9 @@ function Logger() {
 
   /** Remove the row right away, delete in the background, put it back with a toast if that fails. */
   async function deleteSetNow(setId: string) {
+    // A ✓ still writing holds this row's pending slot, so a delete now would be ignored and the row would
+    // spring back with no explanation. Let the tick land first, then delete.
+    await inFlightRef.current.get(setId)?.catch(() => undefined);
     const before = workoutRef.current;
     if (!before) return;
     clearHoldFor([setId]);
@@ -440,6 +443,7 @@ function Logger() {
       },
     });
     if (result === 'failed') toast.show({ message: 'Could not delete that set. It is back.', tone: 'danger' });
+    else if (result === 'ignored') toast.show({ message: 'That set is still saving. Try again in a moment.' });
     else if (result === 'ok') await reload({ dropIfStale: true }).catch(() => undefined);
   }
 
@@ -482,21 +486,24 @@ function Logger() {
       const cur = holdRef.current;
       const { timer, event } = tickHold(cur, t);
       if (timer !== cur) applyHold(timer);
+      // Beep only for a deadline that just passed (see isTimerEndFresh): after a suspension the
+      // locked-phone notification already sounded on time.
+      const curEndsAt = cur.phase === 'idle' ? 0 : cur.endsAt;
       if (event && event.type === 'hold_completed') {
         // Hold reached its target: the logger owns this haptic (SetRow/TimerDisplay endHaptics are off).
         haptics.success();
-        playTimerEnd();
+        if (isTimerEndFresh(curEndsAt, t)) playTimerEnd();
         completeRow(event.rowId, event.durationS, true);
       } else if (event && event.type === 'hold_started' && cur.phase === 'switching') {
         // Switch-sides countdown ended: the next side's hold begins.
-        playTimerEnd();
+        if (isTimerEndFresh(curEndsAt, t)) playTimerEnd();
       }
       const r = restRef.current;
       if (r && restRemainingS(r, t) === 0) {
         applyRest(null);
         // Rest ended: success haptic (spec 2.6); the logger owns it because it removes the bar itself.
         haptics.success();
-        playTimerEnd();
+        if (isTimerEndFresh(r.endsAt, t)) playTimerEnd();
       }
     }, 250);
     return () => clearInterval(id);

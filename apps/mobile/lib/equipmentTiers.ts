@@ -8,11 +8,12 @@ const RANK: Record<EquipmentTier, number> = { basic: 0, intermediate: 1, advance
 
 const BASIC = new Set([
   'none', 'bodyweight', 'wall', 'wall_or_couch', 'doorway', 'towel', 'step',
-  'floor_markers', 'cone_or_marker', 'cones', 'cones_or_floor_markers', 'partner_or_bench',
+  'floor_markers', 'cone_or_marker', 'cones', 'cones_or_floor_markers',
 ]);
 
 const INTERMEDIATE = new Set([
-  'bench', 'dumbbell', 'bodyweight_or_dumbbell', 'light_barbell_or_dumbbell', 'light_plate',
+  // partner_or_bench (Nordic curl's ankle anchor) counts as a bench: Basic is bodyweight only.
+  'bench', 'partner_or_bench', 'dumbbell', 'bodyweight_or_dumbbell', 'light_barbell_or_dumbbell', 'light_plate',
   'resistance_band', 'pull_up_bar', 'foam_roller', 'foam_pad', 'balance_pad', 'yoga_mat',
   'strap', 'massage_ball', 'kettlebell', 'dumbbell_or_kettlebell', 'jump_rope', 'box',
   'plyo_box', 'wobble_board', 'medicine_ball',

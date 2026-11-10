@@ -20,3 +20,7 @@ test('tierAllows', () => {
 test('options', () => {
   expect(EQUIPMENT_TIER_OPTIONS.map((o) => o.title)).toEqual(['Basic', 'Intermediate', 'Advanced']);
 });
+
+test('a Nordic curl anchor (partner_or_bench) is not bodyweight-only', () => {
+  expect(requiredTier(['bodyweight', 'partner_or_bench'])).toBe('intermediate');
+});

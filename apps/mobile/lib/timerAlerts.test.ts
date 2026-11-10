@@ -14,7 +14,7 @@ jest.mock('expo-audio', () => ({
 
 import { setAudioModeAsync } from 'expo-audio';
 import {
-  cancelTimerEndNotification, initTimerAudio, playTimerEnd, scheduleTimerEndNotification,
+  cancelTimerEndNotification, initTimerAudio, isTimerEndFresh, playTimerEnd, scheduleTimerEndNotification,
 } from './timerAlerts';
 
 beforeEach(() => {
@@ -57,5 +57,16 @@ describe('timerAlerts', () => {
 
   it('playTimerEnd never throws', () => {
     expect(() => playTimerEnd()).not.toThrow();
+  });
+});
+
+describe('isTimerEndFresh', () => {
+  test('a deadline that just passed still beeps', () => {
+    expect(isTimerEndFresh(10_000, 10_250)).toBe(true);
+    expect(isTimerEndFresh(10_000, 12_000)).toBe(true);
+  });
+  test('a deadline found after a suspension does not (the notification already sounded)', () => {
+    expect(isTimerEndFresh(10_000, 12_001)).toBe(false);
+    expect(isTimerEndFresh(10_000, 70_000)).toBe(false);
   });
 });
