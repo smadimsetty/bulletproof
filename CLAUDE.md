@@ -1,6 +1,20 @@
-# CLAUDE.md — Bulletproof Training App
+# CLAUDE.md — MoveMaxx (formerly Bulletproof)
 
-Project context for building Sohan's personal dynamic training system. Read this first.
+Project context for MoveMaxx, a mobility-first workout app that started as Sohan's personal dynamic training system. Read this first.
+
+## Name (renamed 2026-11-10)
+The app is **MoveMaxx**. It was called "Bulletproof" until 2026-11-10, and older docs, specs and this file's history sections still use that name; treat them as the same project.
+- **Renamed:**
+  - the app's display name, URL scheme (`movemaxx`), wordmarks and notification titles
+  - the website (https://smadimsetty.github.io/movemaxx/; the landing page is at `/` and the old Oura dashboard at `/dashboard`)
+  - the GitHub repo (`smadimsetty/movemaxx`; old URLs redirect)
+  - package names and Edge Function constants
+- **Deliberately NOT renamed:**
+  - the bundle ID `com.sohan.bulletproof` and the App Store Connect record (`ascAppId` 6783128365). A new bundle ID = a new App Store app and lost TestFlight history.
+  - the Sign in with Apple service ID `com.sohan.bulletproof.signin`
+  - the EAS project and Supabase project
+  - AsyncStorage keys (`@bulletproof/...`; renaming them resets state on existing installs)
+  - the local checkout folder `c:\Dev\Bulletproof`
 
 ## What this is
 A personal, data-driven dynamic training system. Every morning it ingests recovery data + recent training history and produces **two outputs**: (1) a summary of yesterday, and (2) a recommendation for today's optimal session (gym upper/lower, pickleball, run, mobility, or rest) — with demo-video links for complex movements and target rep ranges. Built for Sohan first, but the data model is designed so multi-user is a later *addition*, not a rewrite. Philosophy/voice: Bryan Johnson / Blueprint — measured, optimal, evidence-based, "bulletproof" total-body health. Secondary purpose: it's a public portfolio piece that doubles as SE/FDE job-search proof ("built an Oura-integrated training engine").
@@ -178,3 +192,22 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
 - **Equipment tiers:** `user_settings.equipment_tier` (null = not asked → treated as advanced); mapping in `lib/equipmentTiers.ts`; `filterCandidatesByTier` in `lib/sprintExercisePicker.ts`. Every slot of every sprint has a bodyweight candidate (`check_basic_coverage.sql` = 0 rows, live).
 - **Sprints:** new `full_body`, `total_mobility`, `knees` (4 easy tests each); `pain_points.tagline`; "Change today's focus" (`lib/focusSwap.ts`, `ChangeFocusSheet`) — one-off workouts never complete the sprint day.
 - **Verified:** 313/313 jest, clean tsc, expo export; migrations 20261109150000/150500/151000 live; live suites 47/73/11 all pass. **Still needs Sohan:** the on-device checklist in the handoff doc.
+
+**2026-11-10 — renamed to MoveMaxx, plus the logger leftovers (v1.3.0).** See the "Name" section at the top for what was and wasn't renamed.
+- **Website:**
+  - new dark landing page at `/`; the Oura dashboard moved to `/dashboard`
+  - `WEB_BASE_URL` now points at GitHub Pages, so the legal links in the app work. This closes the "deploy apps/web + set WEB_BASE_URL" launch blocker until a custom domain exists.
+  - Fixed the support page's raw `/privacy` link, which skipped the basePath and 404'd.
+- **Edge Functions:** `trigger-daily-engine` and `trigger-swap-activity` were redeployed with the new repo name. A POST to a renamed repo's API URL does not survive GitHub's redirect.
+- **Logger leftovers fixed:**
+  - Swipe-delete during a pending ✓ now waits for the ✓ instead of springing back.
+  - "Start a new sprint" is atomic: the `switch_sprint` RPC (security invoker; migration `20261110120000`, pushed) replaces the old two-call flow.
+  - A tier change re-fits the running sprint (`lib/sprintTierRefit.ts`). It only touches today/later exercises that aren't done, whose day hasn't been started, and that the new tier rules out.
+  - `partner_or_bench` now counts as Intermediate.
+  - The timer-end beep no longer plays late after a suspension (`isTimerEndFresh`).
+- **Verified:**
+  - 322/322 jest, clean tsc, expo export
+  - live suites: workouts 55/55 (8 new `switch_sprint` checks), social 73/73, embed 11/11
+  - the site returns 200 at the new URL
+- **Pick-up doc:** `docs/superpowers/reports/2026-11-10-movemaxx-handoff.md`.
+

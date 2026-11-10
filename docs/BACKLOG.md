@@ -10,8 +10,9 @@ Last reordered: 2026-07-06.
 - [ ] Own / AI-generated demo videos (YouTube links are the stopgap).
 - [ ] Rethink the original 4 sprints's assessments to feel as easy as the new ones.
 - [ ] Beta testers (people Sohan knows) before public App Store launch; Sohan registers a website/domain.
-- [ ] Small logger leftovers: swipe-delete during a pending tick springs back silently; tier change doesn't re-filter an existing sprint; Start-new-sprint not atomic; partner_or_bench counted as Basic; late beep if app was suspended; same-day repeats fixed but cross-slot reuse remains in content.
-- [ ] Public launch blockers (SMTP, Apple key, Supabase Pro, legal pages hosting, listing) — deprioritized behind beta.
+- [x] Small logger leftovers (fixed 2026-11-10, v1.3.0): swipe-delete during a pending tick, tier change re-fits the running sprint, Start-new-sprint atomic (`switch_sprint` RPC), partner_or_bench -> Intermediate, no late beep after suspension.
+- [ ] Content: the same exercise can still appear in several slots of one sprint (same-day repeats are already prevented by the picker).
+- [ ] Public launch blockers (SMTP, Apple key, Supabase Pro, listing, real support email) — deprioritized behind beta. Legal pages hosting done 2026-11-10 (GitHub Pages, https://smadimsetty.github.io/movemaxx/); move to a custom domain once registered.
 
 ## Roadmap item 1 — Workout Logger fixes (in progress, started 2026-07-07)
 
