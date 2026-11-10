@@ -367,3 +367,65 @@ Two things explicitly ruled out during brainstorming, for future reference: pull
 **Explicitly deferred again today:** Settings screen -- Sohan confirmed it's "fine for now," staying untouched per `docs/BACKLOG.md`'s existing "out of scope" note.
 
 **Outstanding, needs Sohan:** deploy the `trigger-daily-engine` Edge Function (generate a fine-grained GitHub PAT scoped to `actions:write` on `smadimsetty/bulletproof`, then `npx supabase secrets set GITHUB_PAT=...` and `npx supabase functions deploy trigger-daily-engine`) and the on-device walkthrough confirming the real trigger/poll flow. Until deployed, the system behaves exactly as before -- cron-only, no regression risk in the meantime.
+
+## 2026-11-10 -- Renamed to MoveMaxx, logger leftovers fixed, v1.3.0 (build 24) on TestFlight
+
+**Why:** Sohan renamed the app from Bulletproof to **MoveMaxx** (more credible, more room to grow) and asked for every open item that didn't need his input to be finished.
+
+**Name check:** a web search found no existing "MoveMaxx" app. The nearest names are a "Movemax" driver app and the "MaxXmove" camera companion app, both different categories.
+
+**Rename (commit `2e46cd0`):**
+- **Mobile:**
+  - display name and URL scheme (`movemaxx`)
+  - sign-in and share-card wordmarks, timer-notification title, HealthKit permission strings, Settings copy
+  - `WEB_BASE_URL` changed from the `bulletproof.example` placeholder to GitHub Pages
+- **Web:**
+  - `basePath` is now `/movemaxx`
+  - new dark landing page at `/`; the old Oura dashboard moved to `/dashboard`
+  - favicon added
+  - **Bug fixed:** the support page's raw `<a href="/privacy">` skipped the basePath and would have 404'd live. It now uses `next/link`.
+- **Repo:** GitHub repo renamed to `smadimsetty/movemaxx` and the git remote updated. Package names were updated too.
+- **Edge Functions:** `trigger-daily-engine` and `trigger-swap-activity` were redeployed with `GITHUB_REPO = "movemaxx"`. A POST to a renamed repo's API URL doesn't reliably survive GitHub's redirect.
+- **Deliberately unchanged:**
+  - bundle ID `com.sohan.bulletproof` and the App Store Connect app (a new bundle ID means a new App Store app and lost TestFlight history)
+  - the Sign in with Apple service ID
+  - the EAS and Supabase projects
+  - `@bulletproof/` AsyncStorage keys (renaming them resets state on existing installs)
+  - the local folder
+  - historical docs
+- **Live check:** https://smadimsetty.github.io/movemaxx/ and `/privacy`, `/terms`, `/support`, `/dashboard` all return 200.
+
+**Logger leftovers from the v1.2.0 handoff (commit `82b87bc`):**
+- **Swipe-delete during a pending ✓:**
+  - *Cause:* `runOptimistic` returned `'ignored'` and the row sprang back silently.
+  - *Fix:* `deleteSetNow` now waits for the in-flight ✓, then deletes. Any remaining `'ignored'` case shows a toast.
+- **Start a new sprint wasn't atomic:**
+  - *Cause:* it was two client calls (abandon, then insert); a failed insert left the user with no sprint.
+  - *Fix:* new `switch_sprint` RPC (`20261110120000_switch_sprint_rpc.sql`, `security invoker` so RLS still applies, pushed after `migration list`), called via `switchSprint()`.
+- **A tier change didn't reach the running sprint:**
+  - *Cause:* all 14 sprint days are materialised up front at activation.
+  - *Fix:* new `lib/sprintTierRefit.ts`. A pure `planTierRefit` plus I/O re-picks exercises that are today or later, not done, on a day with no workout started, and ruled out by the new tier. It reuses the slot's least-recently-used picker and records `swapped_from_exercise_id`.
+  - *Wired into:* Settings → Equipment (toast "Updated N exercises…") and the one-time tier sheet on the Workout tab, so Sohan's pre-tier sprint gets re-fitted.
+- **`partner_or_bench` counted as Basic:** moved to Intermediate. It is only used by the Nordic hamstring curl. The live basic-coverage query is still 0 rows, and `check_basic_coverage.sql` was updated to match.
+- **Late beep after a suspension:**
+  - *Cause:* the 250 ms tick only runs while JS does, so coming back from the background it beeped for a long-past deadline that the local notification had already sounded.
+  - *Fix:* new `isTimerEndFresh` (2 s grace) gates `playTimerEnd`.
+
+**Verified:**
+- 322/322 mobile jest, clean tsc, clean `expo export --platform ios`, web jest 10/10 + `next build`
+- live suites: `rls_smoke_workouts.py` 55/55 (8 new `switch_sprint` checks: B can't switch A's sprint, a bogus id fails without side effects, the happy path abandons the old sprint and creates the new one, re-switching an ended sprint fails), `rls_smoke_social.py` 73/73, `embed_smoke.py` 11/11
+- the refit query's nested FK-hinted embed was checked read-only against production
+
+**Shipped:** version bumped to 1.3.0 (commit `732c909`). EAS build `630bd44c-f7de-4835-b132-f34b9084a804` = build 24, submitted to App Store Connect.
+
+**Docs:**
+- `CLAUDE.md` has a new "Name" section and a status entry
+- `docs/BACKLOG.md` updated
+- pick-up doc: `docs/superpowers/reports/2026-11-10-movemaxx-handoff.md`, with the on-device checklist
+
+**Outstanding, needs Sohan:**
+- install build 24 and run the on-device checklist
+- the real support email (the legal pages still say `support@example.com`)
+- registering a domain
+- naming the App Store listing MoveMaxx
+- planned for later this week: progressions, own/AI demo videos, a rethink of the original 4 sprints' tests, beta testers, and the remaining launch blockers (SMTP and email templates, Apple key secrets, Supabase Pro)
