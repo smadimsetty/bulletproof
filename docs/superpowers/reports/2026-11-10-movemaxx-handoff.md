@@ -1,7 +1,7 @@
 # Handoff (2026-11-10): MoveMaxx, v1.3.0
 
 ## Install it first
-Open **TestFlight**. The app now shows as **MoveMaxx**; install **1.3.0**. It's the same app record as before, so your data, sign-in and TestFlight history carry over.
+Open **TestFlight**. The app now shows as **MoveMaxx**; install **1.3.0 (24)**. Uploaded 2026-11-10 (EAS build `630bd44c-f7de-4835-b132-f34b9084a804`); Apple takes about 10 min to process it. It's the same app record as before, so your data, sign-in and TestFlight history carry over.
 
 ## The rename
 **Now called MoveMaxx:**

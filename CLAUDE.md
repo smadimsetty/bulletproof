@@ -209,5 +209,6 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
   - 322/322 jest, clean tsc, expo export
   - live suites: workouts 55/55 (8 new `switch_sprint` checks), social 73/73, embed 11/11
   - the site returns 200 at the new URL
+- **TestFlight build 24 (1.3.0) submitted 2026-11-10** (EAS build `630bd44c`).
 - **Pick-up doc:** `docs/superpowers/reports/2026-11-10-movemaxx-handoff.md`.
 
