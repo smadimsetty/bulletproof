@@ -14,7 +14,7 @@ function chain(result: any) {
 
 const ROW = {
   weight_unit: 'kg', weekly_goal: 4, default_visibility: 'public', healthkit_write_enabled: true,
-  notify_follows: false, notify_likes: true, notify_comments: false, notify_reports: true,
+  notify_follows: false, notify_likes: true, notify_comments: false, notify_reports: true, equipment_tier: "basic",
 };
 
 beforeEach(() => (supabase.from as jest.Mock).mockReset());
@@ -28,7 +28,7 @@ test('row maps to camelCase', async () => {
   (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: ROW, error: null }));
   await expect(fetchUserSettings()).resolves.toEqual({
     weightUnit: 'kg', weeklyGoal: 4, defaultVisibility: 'public', healthkitWriteEnabled: true,
-    notifyFollows: false, notifyLikes: true, notifyComments: false, notifyReports: true,
+    notifyFollows: false, notifyLikes: true, notifyComments: false, notifyReports: true, equipmentTier: "basic",
   });
 });
 
@@ -43,4 +43,13 @@ test('update upserts only the patched snake_case columns on owner_id', async () 
 test('fetch error throws', async () => {
   (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: null, error: { message: 'boom' } }));
   await expect(fetchUserSettings()).rejects.toThrow('boom');
+});
+
+test("equipment tier defaults to null and maps to equipment_tier", async () => {
+  expect(DEFAULT_SETTINGS.equipmentTier).toBeNull();
+  const c = chain({ data: { ...ROW, equipment_tier: null }, error: null });
+  (supabase.from as jest.Mock).mockReturnValueOnce(c);
+  const saved = await updateUserSettings({ equipmentTier: "advanced" });
+  expect(c.upsert).toHaveBeenCalledWith({ equipment_tier: "advanced" }, { onConflict: "owner_id" });
+  expect(saved.equipmentTier).toBeNull();
 });

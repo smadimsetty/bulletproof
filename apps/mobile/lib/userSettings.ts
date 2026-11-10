@@ -3,6 +3,7 @@
 // One user_settings row per user, created lazily on first write. A missing
 // row is normal (not an error): readers get DEFAULT_SETTINGS.
 import { supabase } from './supabase';
+import type { EquipmentTier } from './equipmentTiers';
 import type { WeightUnit } from './units';
 
 export type Visibility = 'private' | 'followers' | 'public';
@@ -17,6 +18,7 @@ export interface UserSettings {
   notifyComments: boolean;
   /** Moderators only: push for new content reports. */
   notifyReports: boolean;
+  equipmentTier: EquipmentTier | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -28,10 +30,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notifyLikes: true,
   notifyComments: true,
   notifyReports: true,
+  equipmentTier: null,
 };
 
 const COLUMNS =
-  'weight_unit, weekly_goal, default_visibility, healthkit_write_enabled, notify_follows, notify_likes, notify_comments, notify_reports';
+  'weight_unit, weekly_goal, default_visibility, healthkit_write_enabled, notify_follows, notify_likes, notify_comments, notify_reports, equipment_tier';
 
 function fromRow(r: any): UserSettings {
   return {
@@ -43,6 +46,7 @@ function fromRow(r: any): UserSettings {
     notifyLikes: r.notify_likes,
     notifyComments: r.notify_comments,
     notifyReports: r.notify_reports ?? true,
+    equipmentTier: r.equipment_tier ?? null,
   };
 }
 
@@ -55,6 +59,7 @@ const COLUMN_BY_KEY: Record<keyof UserSettings, string> = {
   notifyLikes: 'notify_likes',
   notifyComments: 'notify_comments',
   notifyReports: 'notify_reports',
+  equipmentTier: 'equipment_tier',
 };
 
 export async function fetchUserSettings(): Promise<UserSettings> {
