@@ -38,8 +38,8 @@ export default function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps
     };
   }, []);
 
-  // One-shot: a second swipe/tap while the delete is in flight is ignored. If the row is still
-  // mounted afterwards (delete failed or was declined), spring it back.
+  // One-shot: a second swipe/tap while the delete is in flight is ignored. The parent removes the row
+  // optimistically; if it is still mounted afterwards (delete declined), spring it back.
   const triggerDelete = useRef(() => {
     if (deletedRef.current) return;
     deletedRef.current = true;
@@ -62,7 +62,10 @@ export default function SwipeToDelete({ onDelete, children }: SwipeToDeleteProps
       },
       onPanResponderRelease: (_, gesture) => {
         if (gesture.dx < DELETE_THRESHOLD) {
-          Animated.timing(translateX, { toValue: -400, duration: 180, useNativeDriver: true }).start(triggerDelete);
+          // Optimistic: the delete fires on release, not after the slide-out; the parent drops the row
+          // immediately and the short slide (<=120 ms) just runs alongside.
+          Animated.timing(translateX, { toValue: -400, duration: 120, useNativeDriver: true }).start();
+          triggerDelete();
         } else {
           Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
         }

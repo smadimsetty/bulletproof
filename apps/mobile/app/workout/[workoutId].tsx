@@ -20,7 +20,7 @@
 //   after a timed hold would be skipped.
 // - Side effects (haptics, completions) run outside state updaters.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as haptics from '../../lib/haptics';
@@ -38,6 +38,7 @@ import {
   tickHold, type HoldTimer, type RestTimer,
 } from '../../lib/workoutTimers';
 import { formatSeconds } from '../../lib/setFormatting';
+import { applyPending, runOptimistic, withoutSet, withSetCompleted, type PendingOp } from '../../lib/optimisticSets';
 import { fetchWeightUnit } from '../../lib/userPreferences';
 import type { WeightUnit } from '../../lib/units';
 import { takePendingPickedExercise, type LibraryExercise } from '../../lib/library';
@@ -85,10 +86,6 @@ function LoggerHeader({
       {onFinish ? <Button title="Finish" size="sm" onPress={onFinish} /> : null}
     </View>
   );
-}
-
-function reportError(err: any, fallback: string) {
-  Alert.alert('Error', err?.message ?? fallback);
 }
 
 function valuesOf(s: WorkoutSetRow): SetValues {
@@ -147,8 +144,20 @@ function Logger() {
   const restRef = useRef<RestTimer | null>(null);
   const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
   const prevRequestedRef = useRef<Set<string>>(new Set());
+  // Optimistic set changes (tick, un-tick, delete) whose write has not landed; a reload re-lays them
+  // over the fetched workout so it can never flash the old state back.
+  const pendingRef = useRef<Map<string, PendingOp>>(new Map());
+  /** Swap in a new workout synchronously (ref first, so same-tick readers agree with the screen). */
+  function setWorkoutNow(next: Workout) {
+    workoutRef.current = next;
+    setWorkout(next);
+  }
   const toast = useToast();
   // Prior bests from FINISHED workouts only (the in-progress one is excluded by
+  // In-app toast, not a system Alert, so errors look like the rest of the app.
+  function reportError(err: any, fallback: string) {
+    toast.show({ message: err?.message ?? fallback, tone: 'danger' });
+  }
   // construction), and what this session has already toasted per key.
   const bestsRef = useRef<Bests>(new Map());
   const toastedRef = useRef<Bests>(new Map());
@@ -163,7 +172,7 @@ function Logger() {
   }
 
   const reload = useCallback(async () => {
-    const w = await fetchWorkout(workoutId);
+    const w = applyPending(await fetchWorkout(workoutId), pendingRef.current);
     workoutRef.current = w;
     setWorkout(w);
     setDrafts((prev) => {
@@ -322,27 +331,46 @@ function Logger() {
 
     if (viaTimer) setTimerDoneIds((prev) => new Set(prev).add(setId));
     const run = (async () => {
+    const completedAt = new Date().toISOString();
+    // The row flips to done right now (state + haptic in SetRow); the write runs behind it and a
+    // failure puts the row back with a toast.
       try {
-        await updateSet(setId, { ...values, completedAt: new Date().toISOString() });
-        setDrafts((d) => ({ ...d, [setId]: values }));
+        const result = await runOptimistic({
+          pending: pendingRef.current,
+          key: setId,
+          op: { kind: 'complete', completedAt, values },
+          apply: () => {
+            if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, completedAt, values));
+            setDrafts((d) => ({ ...d, [setId]: values }));
+          },
+          write: () => updateSet(setId, { ...values, completedAt }),
+          revert: () => {
+            if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, null));
+            if (viaTimer) setTimerDoneIds((prev) => { const n = new Set(prev); n.delete(setId); return n; });
+          },
+        });
+        if (result === 'failed') {
+          toast.show({ message: 'Could not save that set. It is unticked.', tone: 'danger' });
+          return;
+        }
+        if (result !== 'ok') return;
         announcePrs(found.exercise, found.set, values);
-        await flushDirtyCompleted(setId).catch(() => {}); // Finish flushes again
-        const fresh = await reload();
-        // The user started another hold meanwhile: leave their timer alone
-        // and start nothing.
-        if (userHoldGenRef.current !== gen) return;
-        const again = findSet(fresh, setId);
-        const partner = again ? rightPartner(again.exercise, again.set) : null;
-        // Another hold is already running: start neither rest nor switch.
-        if (holdRef.current.phase !== 'idle') return;
-        if (partner && viaTimer && kind === 'hold') {
-          applyRest(null);
-          applyHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));
-          // Switch-sides heavy tap now fires from TimerDisplay (mode="switch") when its banner mounts.
-        } else if (!partner) {
-          applyRest(startRest(defaultRestSeconds(kind), Date.now()));
+        // Rest / switch start from the local state, not from a refetch.
+        if (userHoldGenRef.current === gen && holdRef.current.phase === 'idle') {
+          const local = workoutRef.current ? findSet(workoutRef.current, setId) : null;
+          const partner = local ? rightPartner(local.exercise, local.set) : null;
+          if (partner && viaTimer && kind === 'hold') {
+            applyRest(null);
+            applyHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));
+            // Switch-sides heavy tap now fires from TimerDisplay (mode="switch") when its banner mounts.
+          } else if (!partner) {
+            applyRest(startRest(defaultRestSeconds(kind), Date.now()));
+          }
         }
       } catch (err) {
+        // Background sync (Finish flushes dirty rows again and reloads before saving).
+        await flushDirtyCompleted(setId).catch(() => {});
+        await reload();
         reportError(err, 'Could not save that set.');
       } finally {
         inFlightRef.current.delete(setId);
@@ -356,14 +384,46 @@ function Logger() {
     try {
       // A ✓ still writing would land after this and re-complete the row.
       await inFlightRef.current.get(setId);
-      await updateSet(setId, { completedAt: null });
-      await reload();
+      const prevCompletedAt = (workoutRef.current && findSet(workoutRef.current, setId)?.set.completedAt) || null;
+      const result = await runOptimistic({
+        pending: pendingRef.current,
+        key: setId,
+        op: { kind: 'complete', completedAt: null },
+        apply: () => {
+          if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, null));
+        },
+        write: () => updateSet(setId, { completedAt: null }),
+        revert: () => {
+          if (workoutRef.current) setWorkoutNow(withSetCompleted(workoutRef.current, setId, prevCompletedAt));
+        },
+      });
+      if (result === 'failed') toast.show({ message: 'Could not update that set.', tone: 'danger' });
+      else if (result === 'ok') await reload();
     } catch (err) {
       reportError(err, 'Could not update that set.');
     }
   }
 
   async function commitEdit(setId: string, explicit?: SetValues) {
+  /** Remove the row right away, delete in the background, put it back with a toast if that fails. */
+  async function deleteSetNow(setId: string) {
+    const before = workoutRef.current;
+    if (!before) return;
+    clearHoldFor([setId]);
+    const result = await runOptimistic({
+      pending: pendingRef.current,
+      key: setId,
+      op: { kind: 'remove' },
+      apply: () => setWorkoutNow(withoutSet(before, setId)),
+      write: () => deleteSet(setId),
+      revert: () => {
+        reload().catch(() => setWorkoutNow(before));
+      },
+    });
+    if (result === 'failed') toast.show({ message: 'Could not delete that set. It is back.', tone: 'danger' });
+    else if (result === 'ok') await reload().catch(() => undefined);
+  }
+
     const w = workoutRef.current;
     const found = w && findSet(w, setId);
     if (!found || !found.set.completedAt) return; // incomplete rows persist on ✓
@@ -723,10 +783,7 @@ function Logger() {
                     onToggleWarmup={() =>
                       run(() => updateSet(set.id, { setType: set.setType === 'warmup' ? 'working' : 'warmup' }), 'Could not update.')
                     }
-                    onDelete={() => {
-                      clearHoldFor([set.id]);
-                      run(() => deleteSet(set.id), 'Could not delete that set.');
-                    }}
+                    onDelete={() => deleteSetNow(set.id)}
                     timerLabel={timerLabelFor(set.id)}
                     onStartHold={kind === 'hold' && !set.completedAt && !isTimerRow ? () => startHoldFor(set) : null}
                     onStopHold={isTimerRow ? stopHoldNow : null}

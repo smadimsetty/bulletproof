@@ -18,7 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, MOTION, RADII, SPACING, TYPE } from '../../lib/theme';
+import { COLORS, MOTION, NUMERAL_MAX_FONT_SCALE, RADII, SPACING, TYPE } from '../../lib/theme';
 import * as haptics from '../../lib/haptics';
 import type { WorkoutSetRow } from '../../lib/workouts';
 import type { RomUnit, SetKind, SetValues } from '../../lib/setFields';
@@ -146,6 +146,8 @@ export default function SetRow(props: SetRowProps) {
   const { set, kind, measureRom, unit, draft, onChange, onCommitEdit, timerLabel, onStartHold, onStopHold, hint, prevHint, timer, isNextUp, isPr, quietComplete } = props;
   const quietRef = useRef(quietComplete);
   quietRef.current = quietComplete;
+  // The Rigid tap plays on press-in (the instant the finger lands); the completion effect then skips it.
+  const pressInHapticRef = useRef(false);
   const reduced = useReducedMotion();
   const commit = () => onCommitEdit();
   const completed = !!set.completedAt;
@@ -178,7 +180,7 @@ export default function SetRow(props: SetRowProps) {
   const wasCompleted = useRef(completed);
   useEffect(() => {
     if (completed && !wasCompleted.current) {
-      if (!quietRef.current) haptics.rigid();
+      if (!quietRef.current && !pressInHapticRef.current) haptics.rigid();
       if (!reduced) {
         pop.value = 0.6;
         pop.value = withSpring(1, { ...MOTION.popSpring });
@@ -210,15 +212,23 @@ export default function SetRow(props: SetRowProps) {
         maxFontSizeMultiplier={1.2}
       >
         {warmup ? 'W' : String(set.setNumber)}
-        {sideLetter ? <Text style={[styles.sideLetter, { color: warmup || completed ? undefined : sideColor }]}>{sideLetter}</Text> : null}
+        {sideLetter ? <Text style={[TYPE.callout, styles.sideLetter, { color: warmup || completed ? undefined : sideColor }]}>{sideLetter}</Text> : null}
       </Text>
     </PressableScale>
   );
 
   const checkButton = (
     <PressableScale
+      onPressIn={() => {
+        if (completed || quietRef.current) return;
+        pressInHapticRef.current = true;
+        haptics.rigid();
+        setTimeout(() => {
+          pressInHapticRef.current = false;
+        }, 400);
+      }}
       onPress={() => {
-        // Completing fires its Rigid tap when the completion lands (see above); un-ticking is a plain tap.
+        // Completing already played its Rigid tap on press-in; un-ticking is a plain tap.
         if (completed) haptics.tap();
         props.onToggleComplete();
       }}
@@ -256,7 +266,7 @@ export default function SetRow(props: SetRowProps) {
             <View style={styles.leadIn}>
               <Ticker intervalMs={200}>
                 {(now) => (
-                  <Text style={styles.leadInText} maxFontSizeMultiplier={1.2}>
+                  <Text style={[TYPE.numeral, styles.leadInText]} maxFontSizeMultiplier={NUMERAL_MAX_FONT_SCALE}>
                     {timerLabel ? timerLabel(now) : 'Get ready'}
                   </Text>
                 )}
@@ -383,7 +393,7 @@ export default function SetRow(props: SetRowProps) {
             onCommit={commit}
           />
           <PressableScale haptic="select" hitSlop={6} onPress={() => props.onChangeRomUnit(ROM_CYCLE[romUnit])} accessibilityLabel={`ROM unit ${romUnit}, tap to change`}>
-            <Text style={[TYPE.callout, { color: COLORS.accent, fontWeight: '700' }]}>{romUnit}</Text>
+            <Text style={[TYPE.bodyStrong, { color: COLORS.accent }]}>{romUnit}</Text>
           </PressableScale>
         </View>
       )}
@@ -417,7 +427,7 @@ const styles = StyleSheet.create({
   setCol: { width: SET_COL, alignItems: 'flex-start' },
   labelCircle: { minWidth: 28, height: 28, borderRadius: 14, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   labelText: { fontWeight: '700', lineHeight: 18 },
-  sideLetter: { fontSize: 14, fontWeight: '700' },
+  sideLetter: { fontWeight: '700' },
   prev: { minWidth: 0 },
   holdBtn: {
     width: 36,
@@ -446,7 +456,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
   },
   leadIn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md },
-  leadInText: { fontSize: 32, lineHeight: 38, fontWeight: '800', color: COLORS.accent, fontVariant: ['tabular-nums'], flex: 1 },
+  leadInText: { color: COLORS.accent, flex: 1 },
   stopBtn: {
     height: 36,
     paddingHorizontal: 14,
