@@ -1,0 +1,428 @@
+[
+  {
+    "id": "e6b12814-0615-46f3-8b88-bb8ca9087438",
+    "name": "Neck: Cervical Rotation, Slow Full Range",
+    "cue": "Turn your head slowly to one side as far as it goes, then slowly to the other.",
+    "description": "Sit or stand tall with your shoulders relaxed. Turn until you feel a gentle stop, pause, and come back through the middle to the other side. Don't shrug or twist your chest to cheat the turn."
+  },
+  {
+    "id": "f92e43dd-28bc-4e48-aeaa-d78a398e3029",
+    "name": "Neck: Craniocervical Flexion Hold",
+    "cue": "Lie on your back and nod your chin down like you're saying yes, then hold it.",
+    "description": "Keep the back of your head resting on the floor. Make a small nod, as if you're lengthening the back of your neck. Hold for ten seconds. Don't lift your head or jam your chin toward your chest."
+  },
+  {
+    "id": "ed6489fd-ce6e-4c13-b386-beca676e53fc",
+    "name": "Neck: Dumbbell Row",
+    "cue": "Put one hand on a bench, pull the dumbbell up to your hip, and lower it slowly.",
+    "description": "Start with the left arm, then switch. Keep your back flat and your neck in line with your spine. Pull your elbow back instead of lifting with your shoulder. Don't twist your torso to swing the weight up."
+  },
+  {
+    "id": "a9184b7a-e4e5-4e79-9540-dbb88d9335eb",
+    "name": "Neck: Farmer's Carry",
+    "cue": "Pick up a heavy dumbbell in each hand and walk tall without letting your shoulders creep up.",
+    "description": "Stand with the weights at your sides and your chin level. Take steady steps for about 40 meters. Everyone lets their shoulders rise toward their ears as they tire. Keep them down."
+  },
+  {
+    "id": "dc7521d7-ae7b-4e51-a38e-b2afefa23bc4",
+    "name": "Neck: Four-Direction Isometric Neck Hold",
+    "cue": "Press your head into your hand and don't let it move, front, back, and both sides.",
+    "description": "Put your palm on your forehead and push gently while your neck pushes back. Hold ten seconds, then do the same on each side and the back of your head. Keep the push light and steady, not a jerk."
+  },
+  {
+    "id": "b50418d5-f491-4efc-8561-4ca468558097",
+    "name": "Neck: Prone Neck Extension",
+    "cue": "Lie face down, lift your head slowly until it's in line with your body, then lower it.",
+    "description": "Rest your forehead off the edge of a bed or just above the floor. Lift only until your neck is neutral. Don't crank your head back to look at the ceiling."
+  },
+  {
+    "id": "21f39759-e61a-4d42-987e-603ba4e9bdab",
+    "name": "Neck: Thoracic Extension Over Chair Back",
+    "cue": "Sit with a chair back across your upper back and lean over it, letting your chest open up.",
+    "description": "Put your hands behind your head to support your neck. Lean back over the top of the chair at the level of your shoulder blades. Move up or down the spine a bit between reps. Don't let your lower back do the bending."
+  },
+  {
+    "id": "4be70c46-c55f-4e02-bc84-d0c32404e110",
+    "name": "Neck: Upper Trapezius and Levator Stretch",
+    "cue": "Tilt your ear toward your shoulder, turn your nose toward your armpit, and let your head weigh it down.",
+    "description": "Start with the left side. Sit tall and hold the seat with your same-side hand to keep that shoulder down. Breathe for thirty seconds, then switch sides. Don't yank on your head."
+  },
+  {
+    "id": "c0d5f73c-b7fc-4e46-b781-8bf80754bfb8",
+    "name": "Nordic hamstring curl",
+    "cue": "Kneel with your feet anchored and lower your body forward as slowly as you can.",
+    "description": "Keep your body in one straight line from knees to head and your hips open. Catch yourself with your hands at the bottom, then push back up. Don't fold at the hips."
+  },
+  {
+    "id": "c3a8b7e6-59e4-49a2-b68f-4f983659b290",
+    "name": "Pigeon Pose",
+    "cue": "Bring one shin across in front of you, slide the back leg long, and fold forward over it.",
+    "description": "Start with the left leg in front. Keep your hips pointing at the floor as much as you can. Use your hands or a pillow under you if the hip is high. Don't force the front knee down. Hold, then switch."
+  },
+  {
+    "id": "c98bcca5-31d2-4093-87c8-72c7547ade1e",
+    "name": "Plank with Shoulder Taps",
+    "cue": "From a plank, tap one shoulder with the opposite hand, then switch, without rocking your hips.",
+    "description": "Spread your feet wider than usual to stay steady. Tap with the left hand first. Squeeze your glutes and keep your hips level. If your hips swing side to side, slow down."
+  },
+  {
+    "id": "9bd9afc4-b85a-4fe0-bd0b-7194b2dc450c",
+    "name": "PNF hamstring stretch",
+    "cue": "Lie on your back, loop a strap on your raised leg, push into it, then relax and pull closer.",
+    "description": "Do the left leg first. Push your heel into the strap for about five seconds, let go, and gently pull the leg higher. Keep the other leg flat on the floor. Don't bend the knee of the leg you're stretching."
+  },
+  {
+    "id": "464ec67b-55e0-4037-8f52-41b4e738cb2b",
+    "name": "Prone Neck Retraction with Extension",
+    "cue": "Lie face down, pull your chin straight back, then lift your head a little.",
+    "description": "Think of making a double chin against the floor first. Then raise your forehead just slightly and lower it. Keep the movement small. Don't push your chin forward."
+  },
+  {
+    "id": "58e737b0-4918-4bf2-90a5-486600da87d7",
+    "name": "Push-Up to Single-Arm Reach",
+    "cue": "Do a push-up, and at the top reach one arm straight out in front of you.",
+    "description": "Start with the left arm reaching. Keep your hips square and don't let them twist. Place your feet a little wider to stay steady. If you rock side to side, slow the reach down."
+  },
+  {
+    "id": "a2d80f01-35e0-4d69-8e82-6aae75345322",
+    "name": "Resistance Band Shoulder Pass-Through",
+    "cue": "Hold a band wide in front of you and swing it overhead and down behind you with straight arms.",
+    "description": "Grip as wide as you need so your elbows stay straight. Go slowly and keep your ribs from flaring. Move your hands closer only when it feels easy. Don't arch your back to get the band past."
+  },
+  {
+    "id": "f1f4937e-fff9-4357-96b8-bbb157fbb158",
+    "name": "Reverse Nordic Curl",
+    "cue": "Kneel tall and lean back slowly from your knees, then pull yourself back up.",
+    "description": "Keep your body in one straight line from knees to head. Go only as far as you can control. Squeeze your glutes. Don't bend at the hips or sit back onto your heels."
+  },
+  {
+    "id": "3a281f8e-11cf-4229-93f4-36afe796a7fd",
+    "name": "Reverse Wrist Curl",
+    "cue": "Rest your forearm on your thigh, palm down, and curl the weight up by bending your wrist back.",
+    "description": "Let the dumbbell drop slowly at the bottom. Keep your forearm still and let only your wrist move. Use a light weight. Don't swing it up."
+  },
+  {
+    "id": "7237d518-6315-488c-b823-4e1156740231",
+    "name": "Scalene Stretch",
+    "cue": "Sit tall, tuck one hand under your collarbone, and tilt your head away and slightly back.",
+    "description": "Start with the left side. Press your collarbone down lightly with your hand. Breathe slowly for thirty seconds, then switch. Don't pull your head with your other hand."
+  },
+  {
+    "id": "e50ce8d2-afd3-483d-ae22-7e4be8430e7a",
+    "name": "Scapular Wall Slides",
+    "cue": "Put your forearms on the wall and slide them up, keeping your shoulder blades moving smoothly.",
+    "description": "Stand close with your forearms flat on the wall. Slide up until you feel your upper back working, then come back down. Don't shrug your shoulders or let your lower back arch."
+  },
+  {
+    "id": "0b153a34-0855-40eb-aef0-20760b519070",
+    "name": "Seated Ankle Dorsiflexion with Band",
+    "cue": "Sit with a band looped around the top of your foot and pull your toes up toward your shin.",
+    "description": "Do the left foot first, then switch. Keep your heel on the floor and your leg straight. Pull up, hold a beat, and lower slowly. Don't let your knee roll in or out."
+  },
+  {
+    "id": "33dd31cb-ff6d-4e6f-b463-1c3c82443f60",
+    "name": "Seated Figure-4 Stretch",
+    "cue": "Sit on a bench, rest one ankle on the other knee, and lean forward with a flat back.",
+    "description": "Start with the left ankle on the right knee. Press your knee away gently with your hand. Lean from your hips, not by rounding your back. Hold, then switch."
+  },
+  {
+    "id": "272d11d0-c25c-4ae8-87b4-21c4f4de1bde",
+    "name": "Seated Wide-Leg Forward Fold",
+    "cue": "Sit with your legs wide apart and walk your hands forward as far as feels comfortable.",
+    "description": "Keep your toes pointing up and your knees straight. Hinge from your hips, not your upper back. Hold the stretch and breathe. Don't force your chest to the floor."
+  },
+  {
+    "id": "19aa9f7a-e6b2-4c24-82de-2f635fafaa89",
+    "name": "Shoulder CARs",
+    "cue": "Make the biggest slow circle you can with your arm, moving only at the shoulder.",
+    "description": "Do the left arm first, then switch. Keep your ribs and hips still. Take your arm up, back, and around as one smooth circle. Don't lean your body to make the circle bigger."
+  },
+  {
+    "id": "aa84dd5d-f763-4a45-a7f2-78210420eff5",
+    "name": "Shoulder: Active Scapular Hang",
+    "cue": "Hang from a bar and pull your shoulder blades down away from your ears without bending your elbows.",
+    "description": "Hold the bar with a firm grip and straight arms. Pull yourself up a couple of inches using only your shoulders. Hold. Don't bend your elbows or kick your legs."
+  },
+  {
+    "id": "6d83463a-b652-4e40-8876-8ccd2407996e",
+    "name": "Shoulder: Band Pull-Apart",
+    "cue": "Hold a band in front of you and pull it apart until your hands reach your sides.",
+    "description": "Keep your arms straight and level with your chest. Squeeze your shoulder blades together at the end. Don't shrug or lean back."
+  },
+  {
+    "id": "d9e3563f-6554-4fb8-b670-c1a094d54adc",
+    "name": "Shoulder: Banded External Rotation at 90 Abduction",
+    "cue": "Lift your elbow out to the side at shoulder height and rotate your hand up against the band.",
+    "description": "Do the left arm first. Keep your elbow bent at ninety degrees and fixed in place. Turn your hand up like you're raising a stop sign, then lower slowly. Don't let your elbow drop."
+  },
+  {
+    "id": "dc3cfd82-ac4b-4085-b0f1-ec9c9aec0a8e",
+    "name": "Shoulder: Bottoms-Up Kettlebell Carry",
+    "cue": "Hold a kettlebell upside down at shoulder height and walk, keeping the bell perfectly still.",
+    "description": "Start with the left arm, then switch. Grip the handle tight and keep your wrist straight. Keep your elbow tucked near your ribs. If the bell tips, lighten the weight."
+  },
+  {
+    "id": "82a71cba-baf3-4e3a-8984-145f3c52dade",
+    "name": "Shoulder: Bottoms-Up Kettlebell Press",
+    "cue": "Hold a kettlebell upside down and press it overhead without letting it wobble.",
+    "description": "Start with the left arm, then switch. Squeeze the handle hard and keep your wrist stacked over your elbow. Press slowly in a straight line. Don't let the bell drift forward."
+  },
+  {
+    "id": "5b4956dc-1c90-432b-8eaa-975f572cc987",
+    "name": "Shoulder: Face Pull",
+    "cue": "Pull a band toward your face, with your elbows high and wide, then squeeze your shoulder blades back.",
+    "description": "Anchor the band at eye height. Pull your hands to either side of your face. Rotate your hands back at the end. Don't lean back to pull harder."
+  },
+  {
+    "id": "649c6199-6d8a-4f6c-a668-e0b0fbee0806",
+    "name": "Shoulder: Full-Range Dumbbell Overhead Press",
+    "cue": "Press the dumbbells overhead and bring them down until they're level with your shoulders, then press again.",
+    "description": "Keep your ribs down and your glutes squeezed. Lock your arms out fully at the top by your ears. Don't arch your lower back to get the weight up."
+  },
+  {
+    "id": "c39d432e-8fc0-4001-b0a3-6fa80026300f",
+    "name": "Shoulder: Passive Hang",
+    "cue": "Hang from a bar with your arms straight and let your shoulders stretch and your body hang loose.",
+    "description": "Hold on with both hands and relax your shoulders up toward your ears. Breathe slowly. Keep your feet off the floor or bend your knees. Let go if your grip fails."
+  },
+  {
+    "id": "1bfab813-5a51-4ff7-b2bf-bbc3d1db1391",
+    "name": "Shoulder: Prone T Raise",
+    "cue": "Lie face down with your arms out to the sides and lift them up, squeezing your shoulder blades together.",
+    "description": "Keep your thumbs pointing up and your forehead off the floor. Lift your arms from your upper back, then lower slowly. Don't lift with your neck."
+  },
+  {
+    "id": "cf6fdadb-2db4-4ce7-a0ee-f367d66a1bc3",
+    "name": "Shoulder: Prone W Raise",
+    "cue": "Lie face down with your elbows bent and pull your arms back into a W, squeezing your shoulder blades.",
+    "description": "Start with your hands by your head and pull your elbows toward your hips. Lift up, hold a beat, and lower. Don't shrug your shoulders toward your ears."
+  },
+  {
+    "id": "3d786f53-b0a1-401e-91ff-2edc849d2833",
+    "name": "Shoulder: Prone Y Raise",
+    "cue": "Lie face down with your arms overhead in a Y and lift them off the floor.",
+    "description": "Keep your thumbs pointing up. Lift from your upper back, not your lower back. Go slowly and lower under control. Don't lift your chest off the floor."
+  },
+  {
+    "id": "eb1a9704-3164-425f-aa9f-74b1f76898e4",
+    "name": "Shoulder: Serratus Wall Slide with Band",
+    "cue": "Press your forearms into the wall against a band and slide them up, pushing the wall away.",
+    "description": "Loop the band around your forearms. Push out into the band as you slide up. Keep your ribs down. Don't let your shoulder blades wing out or your lower back arch."
+  },
+  {
+    "id": "190d25e1-569f-4469-bbf0-0b2ec55d05a1",
+    "name": "Shoulder: Thoracic Extension Over Foam Roller",
+    "cue": "Lie back on a foam roller under your upper back and let your chest open over it.",
+    "description": "Support your head with your hands. Move the roller to a new spot between your shoulder blades after each rep. Don't let your ribs flare or your lower back arch."
+  },
+  {
+    "id": "cc6481af-15ba-46c6-af71-6132deb7ce0b",
+    "name": "Shoulder: Wall Slide",
+    "cue": "Stand with your back to the wall and slide your arms up and down, hands and elbows touching.",
+    "description": "Keep your head and lower back touching the wall. Slide up as far as you can without losing contact. Don't arch your back to get higher."
+  },
+  {
+    "id": "6d42cae8-b84d-4ab6-93f6-cdd3a1106b3c",
+    "name": "Side-Lying Hip Adduction",
+    "cue": "Lie on your side and lift your bottom leg toward the ceiling, then lower it slowly.",
+    "description": "Do the left side first. Cross your top leg in front or bend it behind you. Keep your bottom leg straight and your hips stacked. Don't roll your hips backward."
+  },
+  {
+    "id": "0e842306-3881-47f6-a875-625b29ac155b",
+    "name": "Single-Arm Band Row to Balance Reach",
+    "cue": "Stand on one leg, pull the band to your ribs, and reach the other arm forward.",
+    "description": "Start with the left leg. Hinge forward with a flat back. Row, then reach, then lower slowly. Don't let your hips twist or your standing knee collapse inward."
+  },
+  {
+    "id": "1c2e9b44-1d95-4b34-a268-dc03690f6824",
+    "name": "Single-Leg Balance (eyes closed)",
+    "cue": "Stand on one foot, close your eyes, and stay as still as you can.",
+    "description": "Start on the left leg, then switch. Keep a slight bend in your standing knee. Stand next to a wall in case you need to catch yourself. Don't hop or hold your breath."
+  },
+  {
+    "id": "1e7426e9-3402-4840-9057-acfa62e70be1",
+    "name": "Single-Leg Balance on Pillow",
+    "cue": "Stand on one foot on a pillow or foam pad and hold still.",
+    "description": "Start on the left leg, then switch. Look at a spot ahead of you and keep your standing knee slightly soft. Your foot and ankle will wobble a lot. That's the point. Don't lock your knee."
+  },
+  {
+    "id": "6f5bb3cc-5032-4250-92ed-a0f4bb41ddef",
+    "name": "Single-leg balance, eyes closed",
+    "cue": "Stand on one foot, close your eyes, and stay as still as you can.",
+    "description": "Start on the left leg, then switch. Keep your hips level and your standing knee soft. Stay near a wall for safety. Don't let your lifted foot touch your standing leg."
+  },
+  {
+    "id": "0d72889e-5999-4a37-a72a-55f26cae8131",
+    "name": "Single-Leg Deadlift Reach to Cone",
+    "cue": "Stand on one leg, hinge forward, and reach your hand to a cone on the floor.",
+    "description": "Start with the left leg. Send your other leg straight back behind you. Keep your back flat. Touch the cone, then stand back up. Don't let your hips open toward the side."
+  },
+  {
+    "id": "585f0978-f638-48c2-9197-1e45b2302a6e",
+    "name": "Single-Leg Romanian Deadlift Balance Reach",
+    "cue": "Stand on one leg, hold a dumbbell, and hinge forward while your other leg goes straight back.",
+    "description": "Start with the left leg. Keep a soft knee and a flat back. Lower the weight along your leg and stand up by squeezing your glutes. Don't round your back."
+  },
+  {
+    "id": "856d8229-dff5-4508-8ec4-92fc56390e75",
+    "name": "Sled Drag (reverse)",
+    "cue": "Face the sled, hold the straps, and walk backward, dragging it with you.",
+    "description": "Keep your chest tall and take steady steps, pushing through your whole foot. Stay low with your knees bent. Don't lean back or take short, choppy steps."
+  },
+  {
+    "id": "da654dd2-ca49-4690-a0f9-326ef621a374",
+    "name": "Sleeper stretch (right)",
+    "cue": "Lie on your right side, elbow bent in front, and gently press your right wrist toward the floor.",
+    "description": "Keep your upper arm at ninety degrees to your body. Use your left hand to press softly. Stop when you feel a stretch in the back of your shoulder. Don't push into pain or roll your body forward."
+  },
+  {
+    "id": "4e9d97a5-e784-4db7-89fe-fad5019a0320",
+    "name": "Standing Forward Fold with Shoulder Flexion",
+    "cue": "Fold forward from your hips and let your arms hang and reach overhead toward the floor.",
+    "description": "Clasp your hands behind your back first, then let them fall over your head. Bend your knees as much as you need. Breathe. Don't round your back to get your hands lower."
+  },
+  {
+    "id": "4059fb17-1197-406c-aa1f-c65e20e70342",
+    "name": "Standing Hamstring Stretch",
+    "cue": "Put one heel out in front, hinge forward with a flat back, and feel the back of that leg.",
+    "description": "Start with the left leg. Keep your front knee almost straight. Lean from your hips and keep your chest up. Don't round your back or lock your knee hard."
+  },
+  {
+    "id": "6b2b921e-eb95-4d25-940c-c84672cbb76c",
+    "name": "Standing Hip Flexor Stretch",
+    "cue": "Step into a lunge, squeeze the glute of your back leg, and press your hips forward.",
+    "description": "Do the left leg back first. Tuck your pelvis under so your lower back stays flat. Stay tall. Don't arch your back or let your front knee cave in."
+  },
+  {
+    "id": "f5e02d57-67c8-4c6e-b742-b7f7a62b877e",
+    "name": "Standing Quad Stretch",
+    "cue": "Stand on one leg, grab the other foot behind you, and pull your heel toward your glute.",
+    "description": "Start with the left leg lifted. Keep your knees close together and your hips pushed slightly forward. Stand tall. Don't arch your lower back."
+  },
+  {
+    "id": "dcb26413-fa6d-4f15-9145-88612ecbbb13",
+    "name": "Standing Toe Touch with Reach-Through",
+    "cue": "Fold forward and reach your hands toward your toes, then thread one hand under between your legs.",
+    "description": "Bend your knees as much as you need. Alternate sides each rep. Move slowly and let your head hang. Don't bounce to get lower."
+  },
+  {
+    "id": "db2dd277-738f-4d7d-9a91-2fa131a4e6c6",
+    "name": "Stationary Bike",
+    "cue": "Pedal at an easy pace where you can still talk the whole time.",
+    "description": "Set the seat so your knee is slightly bent at the bottom of each pedal stroke. Keep your shoulders relaxed. Spin at a steady pace for twenty to thirty minutes. Don't grip the handlebars hard."
+  },
+  {
+    "id": "4b8bbf7a-7bb8-48a6-a595-2b7ab0408d22",
+    "name": "Suboccipital Release (massage ball)",
+    "cue": "Lie on your back with a massage ball under the base of your skull and let your head rest.",
+    "description": "Find the tight spots at the base of your skull. Rest there and gently nod your head yes or turn it no. Breathe slowly. Don't press hard or roll quickly."
+  },
+  {
+    "id": "86582b64-e862-4a3b-b426-fa359ba1b78d",
+    "name": "Tandem Stance Hold",
+    "cue": "Stand with one foot right in front of the other, heel to toe, and stay still.",
+    "description": "Start with the left foot in front, then switch. Look at a spot ahead of you. Keep your arms out if you need them. Don't let your hips sway."
+  },
+  {
+    "id": "1dd3b6ba-9e84-4c33-9657-9e555ac94b80",
+    "name": "Terminal Knee Extension",
+    "cue": "Loop a band behind your knee and straighten your leg fully, squeezing your thigh.",
+    "description": "Start with the left leg. Face the band's anchor. Start with a slight bend, then press back until your knee is straight. Squeeze the front of your thigh. Don't lean back."
+  },
+  {
+    "id": "235ff191-27b5-46da-b9cd-6c199cc755e2",
+    "name": "Thoracic extension on foam roller",
+    "cue": "Lie back on a foam roller under your upper back and let your chest open over it.",
+    "description": "Put your hands behind your head and keep your hips on the floor. Lean back over the roller, pause, and come up. Move the roller a bit up or down between reps. Don't let your lower back arch."
+  },
+  {
+    "id": "bb649b53-1259-4bae-a961-29498f9106bd",
+    "name": "Thoracic Rotation on Foam Roller",
+    "cue": "Lie on your side with your knees stacked and rotate your top arm open toward the floor behind you.",
+    "description": "Start with the left side on the floor. Keep your knees together and your hips still. Let your eyes follow your hand. Don't let your knees slide apart."
+  },
+  {
+    "id": "9a6bf93c-6509-46ec-9d83-d73dde403616",
+    "name": "Thread the Needle",
+    "cue": "From all fours, slide one arm under your body and rest your shoulder on the floor.",
+    "description": "Start with the left arm. Keep your hips over your knees. Slide through, pause, then reach the arm up to the ceiling. Don't sit your hips back."
+  },
+  {
+    "id": "8f936ba6-d46e-4685-9564-470c548e196d",
+    "name": "Toe Yoga",
+    "cue": "Lift your big toe off the floor while the other toes stay down, then switch.",
+    "description": "Sit or stand with your foot flat. Lift the big toe only, then press it down and lift the other four. Start with the left foot. Don't curl your toes or lift your heel."
+  },
+  {
+    "id": "c31f85a1-bfe4-41ba-9014-acf86f0b0fec",
+    "name": "Towel Behind-Back Shoulder Stretch",
+    "cue": "Hold a towel behind your back with one hand high and one low, and pull gently up on the towel.",
+    "description": "Start with the left arm on top. Pull up with the top hand to stretch the bottom shoulder. Stand tall and don't arch your back. Don't yank on the towel."
+  },
+  {
+    "id": "856d2627-e1aa-407c-82c7-85d59771fc13",
+    "name": "Upper Trap Stretch",
+    "cue": "Sit tall, tilt your ear toward your shoulder, and let your hand rest gently on your head.",
+    "description": "Start with the left ear down. Keep the opposite shoulder pressed down. Breathe for thirty to forty-five seconds, then switch. Don't pull hard on your head."
+  },
+  {
+    "id": "c745a26d-fce1-4766-9101-c85398d80f37",
+    "name": "Wall ankle test (knee-to-wall)",
+    "cue": "Put your toes a few inches from the wall and push your knee to touch it, heel down.",
+    "description": "Do the left foot first, then switch. Move your foot back to find the farthest distance you can touch. Measure it. Don't let your heel lift or your knee cave inward."
+  },
+  {
+    "id": "d1ff7cf6-2512-41a6-b1ff-46d6df29f7b5",
+    "name": "Wall Slide with External Rotation",
+    "cue": "Stand with your back against the wall, elbows bent, and slide your arms up and down.",
+    "description": "Keep your elbows, wrists, and back of your hands on the wall. Slide up as far as you can with control. Don't arch your lower back."
+  },
+  {
+    "id": "f20d884a-5733-4eb9-9b16-7d5ee3d15659",
+    "name": "Wall-Supported Chin Tuck",
+    "cue": "Stand with your back and head against a wall and pull your chin straight back.",
+    "description": "Keep your eyes level and your head touching the wall. Make a double chin without tilting your head down. Hold briefly, then relax. Don't look down."
+  },
+  {
+    "id": "06eb6973-7e2c-419e-a383-736d1076e5d6",
+    "name": "Weighted Ankle Dorsiflexion Mobilization",
+    "cue": "Put a plate on your knee and push your knee forward over your toes, keeping your heel down.",
+    "description": "Start with the left foot. Take your time and keep your heel flat on the floor. Go as far as you can. Don't let your arch collapse."
+  },
+  {
+    "id": "85672c89-db37-4d65-a18e-80f3e0c3437d",
+    "name": "World's Greatest Stretch",
+    "cue": "Step into a deep lunge, put your hand down inside your foot, and rotate your chest open toward the ceiling.",
+    "description": "Start with the left leg forward. Keep your back leg straight. Reach your top arm up and follow it with your eyes. Don't let your front heel lift."
+  },
+  {
+    "id": "3c48e29c-8ea5-4eca-9c13-37768df1a0c0",
+    "name": "Wrestler's Bridge Hold",
+    "cue": "Lie on your back, push up onto your head and feet, and hold with your hips high.",
+    "description": "Keep your hands on the floor if you need them. Move slowly and stay on the top of your head. Don't put weight on your neck or go further than feels safe."
+  },
+  {
+    "id": "59b48888-8541-42e8-a89b-81c425a00017",
+    "name": "Wrist Curl",
+    "cue": "Rest your forearm on your thigh, palm up, and curl the weight up by bending your wrist.",
+    "description": "Let the dumbbell roll down toward your fingers, then curl it back up. Keep your forearm still and use a light weight. Don't lift your arm off your leg."
+  },
+  {
+    "id": "b2e50b8e-d32a-46f4-81bf-919070850bf2",
+    "name": "Wrist Mobility Flow (flexion/extension/circles)",
+    "cue": "Bend your wrists up, down, and in big circles, slowly, one direction at a time.",
+    "description": "Hold your arms out or rest them on your knees. Do the left wrist first, then switch. Go as far as is comfortable. Don't force the end of the range or rush the circles."
+  },
+  {
+    "id": "2af1471a-9a08-4e19-99ef-3a67d678f1a1",
+    "name": "Y-Balance Reach",
+    "cue": "Stand on one foot and reach your other foot forward, then to the back-left, then to the back-right.",
+    "description": "Start on the left leg. Touch lightly, don't rest your weight on the reaching foot. Keep your hips square. Return to the start between reaches. Don't hop."
+  },
+  {
+    "id": "6896dbfe-ea81-4c7b-9638-2f4f196abc05",
+    "name": "Y-T-W Raises",
+    "cue": "Hinge forward with light dumbbells and raise your arms into a Y, then a T, then a W.",
+    "description": "Keep your back flat and your neck long. Squeeze your shoulder blades with each shape. Use light weights. Don't swing or shrug."
+  }
+]
