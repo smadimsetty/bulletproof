@@ -7,7 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as WebBrowser from 'expo-web-browser';
 import { COLORS, SPACING, TYPE } from '../lib/theme';
-import { youtubeEmbedUrl } from '../lib/youtube';
+import { YOUTUBE_EMBED_ORIGIN, youtubeEmbedHtml, youtubeEmbedUrl } from '../lib/youtube';
 import { Button } from './ui';
 
 export default function ExerciseVideo({ url }: { url: string | null }) {
@@ -23,14 +23,14 @@ export default function ExerciseVideo({ url }: { url: string | null }) {
     <View style={styles.wrap}>
       <View style={styles.frame}>
         <WebView
-          source={{ uri: embed }}
+          source={{ html: youtubeEmbedHtml(embed), baseUrl: YOUTUBE_EMBED_ORIGIN }}
           style={styles.web}
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction
           allowsFullscreenVideo
           javaScriptEnabled
           scrollEnabled={false}
-          originWhitelist={['https://*']}
+          originWhitelist={['https://*', 'about:*']}
           accessibilityLabel="Exercise demo video"
         />
       </View>

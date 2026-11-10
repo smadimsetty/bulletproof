@@ -24,7 +24,18 @@ export function youtubeVideoId(url: string | null): string | null {
   return id && ID.test(id) ? id : null;
 }
 
+/** The origin the WebView page claims. YouTube rejects embeds with no origin/referrer (Error 153). */
+export const YOUTUBE_EMBED_ORIGIN = 'https://www.youtube.com';
+
 export function youtubeEmbedUrl(url: string | null): string | null {
   const id = youtubeVideoId(url);
-  return id ? `https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0` : null;
+  return id
+    ? `https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0&origin=${encodeURIComponent(YOUTUBE_EMBED_ORIGIN)}`
+    : null;
+}
+
+/** An HTML page wrapping the embed in an iframe, loaded with baseUrl = YOUTUBE_EMBED_ORIGIN so the player gets a real referrer. */
+export function youtubeEmbedHtml(embedUrl: string): string {
+  const src = embedUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#000}iframe{border:0;width:100%;height:100%}</style></head><body><iframe src="${src}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></body></html>`;
 }
