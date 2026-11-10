@@ -4,6 +4,15 @@ Living backlog of known bugs and features, in priority order. Check items off as
 
 Last reordered: 2026-07-06.
 
+## Stored for later (from 2026-11-09 logger-polish round; Sohan expects ~Wed/Thu 2026-11-11/12)
+
+- [ ] Progressions: how to make each exercise harder.
+- [ ] Own / AI-generated demo videos (YouTube links are the stopgap).
+- [ ] Rethink the original 4 sprints's assessments to feel as easy as the new ones.
+- [ ] Beta testers (people Sohan knows) before public App Store launch; Sohan registers a website/domain.
+- [ ] Small logger leftovers: swipe-delete during a pending tick springs back silently; tier change doesn't re-filter an existing sprint; Start-new-sprint not atomic; partner_or_bench counted as Basic; late beep if app was suspended; same-day repeats fixed but cross-slot reuse remains in content.
+- [ ] Public launch blockers (SMTP, Apple key, Supabase Pro, legal pages hosting, listing) — deprioritized behind beta.
+
 ## Roadmap item 1 — Workout Logger fixes (in progress, started 2026-07-07)
 
 Full 6-item roadmap and design context: `docs/superpowers/specs/2026-07-07-logger-fixes-design.md`. Target: items 1-5 done within 3 days of 2026-07-07; item 6 (RAG-based recommendation engine) explicitly allowed to slip.
