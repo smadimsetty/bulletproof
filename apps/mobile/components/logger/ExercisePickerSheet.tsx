@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
+import { bodyPartLabel } from '../../lib/bodyParts';
 import { EMPTY_FILTER, facetValues, filterLibrary, type LibraryExercise, type LibraryFilter } from '../../lib/library';
 import { typeLabel } from '../library/ExerciseListRow';
 import { Button, FilterChip, FilterChipRow, PressableScale, Sheet, TextField } from '../ui';
@@ -58,7 +59,7 @@ export default function ExercisePickerSheet({ visible, catalog, onPick, onClose,
           {facets.bodyParts.map((b) => (
             <FilterChip
               key={`b-${b}`}
-              label={b}
+              label={bodyPartLabel(b)}
               selected={filter.bodyPart === b}
               onToggle={() => setFilter((f) => ({ ...f, bodyPart: f.bodyPart === b ? null : b }))}
             />
@@ -84,7 +85,7 @@ export default function ExercisePickerSheet({ visible, catalog, onPick, onClose,
             </View>
           }
           renderItem={({ item }) => {
-            const sub = [typeLabel(item.exerciseType), item.bodyParts.join(', ')].filter(Boolean).join(' · ');
+            const sub = [typeLabel(item.exerciseType), item.bodyParts.map(bodyPartLabel).join(', ')].filter(Boolean).join(' · ');
             return (
               <PressableScale style={styles.row} scaleTo={0.98} onPress={() => onPick(item)} accessibilityLabel={`Add ${item.name}`}>
                 <View style={styles.text}>

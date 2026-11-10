@@ -10,6 +10,7 @@ import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-nativ
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import * as haptics from '../../lib/haptics';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
+import { bodyPartLabel } from '../../lib/bodyParts';
 import { EMPTY_FILTER, facetValues, fetchLibrary, filterLibrary, type LibraryExercise, type LibraryFilter } from '../../lib/library';
 import ExerciseListRow, { typeLabel } from '../../components/library/ExerciseListRow';
 import { Button, EmptyState, ErrorState, FilterChip, FilterChipRow, IconButton, ListRow, Sheet, SkeletonRow, TextField } from '../../components/ui';
@@ -108,7 +109,7 @@ export default function LibraryScreen() {
           </FilterChipRow>
           <FilterChipRow>
             {facets.bodyParts.map((b) => (
-              <FilterChip key={`b-${b}`} label={b} selected={filter.bodyPart === b} onToggle={() => set({ bodyPart: filter.bodyPart === b ? null : b })} />
+              <FilterChip key={`b-${b}`} label={bodyPartLabel(b)} selected={filter.bodyPart === b} onToggle={() => set({ bodyPart: filter.bodyPart === b ? null : b })} />
             ))}
           </FilterChipRow>
         </>

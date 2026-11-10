@@ -3,6 +3,7 @@
 // Supabase data layer for the logger + history (spec sections 2, 4, 5, 6).
 // Decision logic lives in the pure modules it imports; this file only
 // reads/writes rows and emits active-workout change events.
+import { eyeCue } from './exerciseCue';
 import { supabase } from './supabase';
 import { completeExercise, completeDay, submitDayFeedback, type SprintDay } from './sprintLifecycle';
 import { defaultSetCount, fieldsForExercise, type RomUnit, type SetValues, type Side } from './setFields';
@@ -203,7 +204,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
        workout_media ( id, path, position ),
        sprint_days!workouts_sprint_day_id_fkey ( sprints ( pain_point_id ) ),
        workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id,
-         exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, evidence_rationale ),
+         exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, cue, description, owner_id ),
          workout_sets ( ${SET_COLUMNS} ) )`
     )
     .eq('id', workoutId)
@@ -234,7 +235,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
           exerciseName: e.exercises?.name ?? 'Unknown exercise',
           exerciseType: e.exercises?.exercise_type ?? null,
           unilateral: !!e.exercises?.unilateral,
-          description: e.exercises?.evidence_rationale ?? null,
+          description: eyeCue(e.exercises),
           position: e.position,
           targetText: e.target_text,
           measureRom: e.measure_rom,

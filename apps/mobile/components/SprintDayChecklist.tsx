@@ -12,7 +12,7 @@ import { DescriptionBody, DescriptionToggleButton, useToggle } from './Descripti
 import { COLORS, NUMERAL_MAX_FONT_SCALE, SPACING, TYPE } from '../lib/theme';
 import type { SprintDay, SprintDayExercise } from '../lib/sprintLifecycle';
 import { fetchSprintDayWorkoutId } from '../lib/workouts';
-import { ActionSheet, Button, Card, IconButton, ProgressRing, ScreenScroll, SectionHeader, StickyFooter } from './ui';
+import { ActionSheet, Button, Card, IconButton, PressableScale, ProgressRing, ScreenScroll, SectionHeader, StickyFooter } from './ui';
 
 export default function SprintDayChecklist({
   day,
@@ -152,6 +152,7 @@ function ExerciseRow({
   routineInProgress: boolean;
   onOpenSwap: (exercise: SprintDayExercise) => void;
 }) {
+  const router = useRouter();
   const [open, toggle] = useToggle();
   // Swapping an exercise that's already checked off would move its
   // completed_at onto a different exercise -- falsely crediting the
@@ -172,9 +173,16 @@ function ExerciseRow({
           )}
         </View>
         <View style={styles.flex}>
-          <Text style={[TYPE.bodyStrong, dayComplete ? { color: COLORS.textSecondary } : null]} numberOfLines={2}>
-            {exercise.exerciseName}
-          </Text>
+          <PressableScale
+            scaleTo={0.98}
+            onPress={() => router.push(`/exercise/${exercise.exerciseId}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`${exercise.exerciseName} details`}
+          >
+            <Text style={[TYPE.bodyStrong, dayComplete ? { color: COLORS.textSecondary } : null]} numberOfLines={2}>
+              {exercise.exerciseName}
+            </Text>
+          </PressableScale>
           {(exercise.prescribedSets || exercise.prescribedRepsOrDuration) && (
             <Text style={[TYPE.callout, styles.tabular]}>
               {exercise.prescribedSets ? `${exercise.prescribedSets} × ` : ''}

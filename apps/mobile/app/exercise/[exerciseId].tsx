@@ -11,10 +11,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import * as haptics from '../../lib/haptics';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
-import { DescriptionBody, DescriptionToggleButton, useToggle } from '../../components/DescriptionToggle';
+import ExerciseVideo from '../../components/ExerciseVideo';
+import { bodyPartLabel } from '../../lib/bodyParts';
 import { typeLabel } from '../../components/library/ExerciseListRow';
 import { fetchExerciseInfo, metricSeries, romSeries, type ExerciseInfo, type MetricPoint } from '../../lib/exerciseDetail';
 import { fetchStatsDataset, type StatsExercise, type StatsWorkout } from '../../lib/stats/dataset';
@@ -26,7 +26,7 @@ import { formatSetLines } from '../../lib/setFormatting';
 import { kgToDisplayUnit, type WeightUnit } from '../../lib/units';
 import { deleteCustomExercise } from '../../lib/library';
 import {
-  ActionSheet, Button, Card, Chip, ConfirmSheet, EmptyState, ErrorState, IconButton, LineChartCard, ScreenScroll, SectionHeader,
+  ActionSheet, Card, Chip, ConfirmSheet, EmptyState, ErrorState, IconButton, LineChartCard, ScreenScroll, SectionHeader,
   Skeleton, SkeletonCard, Stat, type ChartSeries,
 } from '../../components/ui';
 
@@ -91,7 +91,6 @@ export default function ExerciseDetailScreen() {
   const [info, setInfo] = useState<ExerciseInfo | null>(null);
   const [workouts, setWorkouts] = useState<StatsWorkout[]>([]);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(DEFAULT_SETTINGS.weightUnit);
-  const [descOpen, toggleDesc] = useToggle(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -236,22 +235,31 @@ export default function ExerciseDetailScreen() {
           {info.exerciseType ? <Chip label={typeLabel(info.exerciseType) || info.exerciseType.replace('_', ' ')} tone="accent" /> : null}
           {info.unilateral ? <Chip label="Unilateral" /> : null}
           {info.bodyParts.map((b) => (
-            <Chip key={b} label={b} />
+            <Chip key={b} label={bodyPartLabel(b)} />
           ))}
         </View>
 
-        {info.description ? (
-          <View>
-            <View style={styles.descHead}>
-              <Text style={TYPE.title3}>Description</Text>
-              <DescriptionToggleButton open={descOpen} onToggle={toggleDesc} />
-            </View>
-            <DescriptionBody open={descOpen} text={info.description} />
+        <ExerciseVideo url={info.demoVideoUrl} />
+
+        {info.howTo ? (
+          <View style={styles.textBlock}>
+            <Text style={TYPE.title3}>How to do it</Text>
+            <Text style={[TYPE.body, styles.copy]}>{info.howTo}</Text>
           </View>
         ) : null}
 
-        {info.demoVideoUrl ? (
-          <Button title="Watch demo" icon="play-circle" variant="secondary" onPress={() => WebBrowser.openBrowserAsync(info.demoVideoUrl!)} />
+        {info.whyItHelps ? (
+          <View style={styles.textBlock}>
+            <Text style={TYPE.title3}>Why it helps</Text>
+            <Text style={[TYPE.body, styles.copy]}>{info.whyItHelps}</Text>
+          </View>
+        ) : null}
+
+        {info.equipment.length > 0 ? (
+          <View style={styles.textBlock}>
+            <Text style={TYPE.title3}>Equipment</Text>
+            <Text style={[TYPE.body, styles.copy]}>{info.equipment.join(', ')}</Text>
+          </View>
         ) : null}
 
         {workouts.length === 0 ? (
@@ -347,7 +355,8 @@ function tileAccent(side: 'left' | 'right' | null) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.bg },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
-  descHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: SPACING.sm },
+  textBlock: { gap: SPACING.xs },
+  copy: { color: COLORS.textSecondary },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md },
   tile: { flexGrow: 1, flexBasis: '45%', minHeight: 96, justifyContent: 'center' },
   sets: { fontVariant: ['tabular-nums'] },

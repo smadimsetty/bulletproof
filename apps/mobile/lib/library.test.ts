@@ -1,6 +1,6 @@
 // apps/mobile/lib/library.test.ts
 import {
-  deleteCustomExercise, facetValues, filterLibrary, movementPatternFor, parseTagList, EMPTY_FILTER,
+  deleteCustomExercise, facetValues, toLibrary, filterLibrary, movementPatternFor, parseTagList, EMPTY_FILTER,
   type CustomExerciseInput, type LibraryExercise,
 } from './library';
 
@@ -9,7 +9,7 @@ import { supabase } from './supabase';
 
 const ex = (o: Partial<LibraryExercise> & { id: string; name: string }): LibraryExercise => ({
   exerciseType: 'mobility_stretch', unilateral: false, defaultSets: null, bodyParts: [], equipment: [],
-  isMine: false, description: null, demoVideoUrl: null, ...o,
+  isMine: false, cue: null, demoVideoUrl: null, ...o,
 });
 const list = [
   ex({ id: '1', name: 'Couch Stretch', bodyParts: ['hips', 'quads'] }),
@@ -77,4 +77,12 @@ test('deleteCustomExercise passes other errors through and resolves on success',
   await expect(deleteCustomExercise('e1')).rejects.toThrow('denied');
   (supabase.from as jest.Mock).mockReturnValueOnce(deleteChain({ error: null }));
   await expect(deleteCustomExercise('e1')).resolves.toBeUndefined();
+});
+
+
+test('toLibrary: the short text is the cue, never the long description or rationale', () => {
+  const r = { id: 'a', name: 'X', cue: 'Tuck your chin.', description: 'long how-to', evidence_rationale: 'why', owner_id: null };
+  expect(toLibrary(r, 'me').cue).toBe('Tuck your chin.');
+  expect(toLibrary({ ...r, cue: null }, 'me').cue).toBeNull();
+  expect(toLibrary({ ...r, cue: null, owner_id: 'me' }, 'me').cue).toBe('long how-to');
 });

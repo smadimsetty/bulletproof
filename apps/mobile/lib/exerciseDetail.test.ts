@@ -1,5 +1,5 @@
 // apps/mobile/lib/exerciseDetail.test.ts
-import { metricSeries, romSeries } from './exerciseDetail';
+import { metricSeries, romSeries, toExerciseInfo } from './exerciseDetail';
 import type { StatsSet, StatsWorkout } from './stats/dataset';
 
 jest.mock('./supabase', () => ({ supabase: {} }));
@@ -51,4 +51,18 @@ test('strength uses weightKg; romSeries keeps only the latest unit', () => {
   expect(metricSeries([w1, w2], 'e1').map((p) => p.value)).toEqual([50, 55]);
   expect(romSeries([w1, w2], 'e1')).toEqual([{ date: '2026-11-03T10:00:00Z', value: 90, unit: 'deg' }]);
   expect(romSeries([workout('c', '2026-11-01T10:00:00Z', [set({ durationS: 5 })])], 'e1')).toEqual([]);
+});
+
+
+test('toExerciseInfo maps cue, howTo and whyItHelps separately', () => {
+  const info = toExerciseInfo(
+    { id: 'e1', name: 'Chin tuck', cue: 'Tuck your chin.', description: 'Lie down and tuck.', evidence_rationale: 'Loosens the neck.', owner_id: null, body_parts: ['neck'] },
+    'me'
+  );
+  expect(info.cue).toBe('Tuck your chin.');
+  expect(info.howTo).toBe('Lie down and tuck.');
+  expect(info.whyItHelps).toBe('Loosens the neck.');
+  const bare = toExerciseInfo({ id: 'e2', name: 'Y', description: null, evidence_rationale: 'why', owner_id: null }, 'me');
+  expect(bare.howTo).toBeNull();
+  expect(bare.cue).toBeNull();
 });

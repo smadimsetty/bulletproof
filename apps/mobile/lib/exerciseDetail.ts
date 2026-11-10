@@ -2,6 +2,7 @@
 //
 // Data for the exercise detail screen: static info from `exercises`, and pure
 // per-workout "best working set" series over the stats dataset.
+import { eyeCue } from './exerciseCue';
 import { supabase } from './supabase';
 import { getMyId } from './session';
 import { fieldsForExercise } from './setFields';
@@ -12,7 +13,12 @@ export interface ExerciseInfo {
   name: string;
   exerciseType: string | null;
   unilateral: boolean;
-  description: string | null;
+  /** One-line "what to do"; null for exercises without one. */
+  cue: string | null;
+  /** Full how-to (exercises.description). */
+  howTo: string | null;
+  /** Why it helps (exercises.evidence_rationale). */
+  whyItHelps: string | null;
   demoVideoUrl: string | null;
   bodyParts: string[];
   equipment: string[];
@@ -23,20 +29,24 @@ export interface ExerciseInfo {
 export async function fetchExerciseInfo(id: string): Promise<ExerciseInfo> {
   const { data, error } = await supabase
     .from('exercises')
-    .select('id, name, exercise_type, unilateral, evidence_rationale, description, owner_id, demo_video_url, body_parts, equipment_needed')
+    .select('id, name, exercise_type, unilateral, evidence_rationale, description, cue, owner_id, demo_video_url, body_parts, equipment_needed')
     .eq('id', id)
     .single();
   if (error) throw new Error(error.message);
-  const r = data as any;
+  return toExerciseInfo(data as any, await getMyId().catch(() => null));
+}
+
+export function toExerciseInfo(r: any, me: string | null): ExerciseInfo {
   // Friends' custom exercises are readable too (social policies), so "mine"
   // must compare against the signed-in user, not just "has an owner".
-  const me = await getMyId().catch(() => null);
   return {
     id: r.id,
     name: r.name,
     exerciseType: r.exercise_type ?? null,
     unilateral: !!r.unilateral,
-    description: r.description ?? r.evidence_rationale ?? null,
+    cue: eyeCue(r),
+    howTo: r.description ?? null,
+    whyItHelps: r.evidence_rationale ?? null,
     demoVideoUrl: r.demo_video_url ?? null,
     bodyParts: r.body_parts ?? [],
     equipment: r.equipment_needed ?? [],

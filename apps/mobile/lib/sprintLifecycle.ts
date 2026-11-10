@@ -13,6 +13,7 @@
 // algorithmic core it depends on (pickExerciseForSlot) already has full
 // unit coverage in sprintExercisePicker.test.ts. This file's simpler,
 // single-purpose functions are unit tested below.
+import { eyeCue } from './exerciseCue';
 import { supabase } from './supabase';
 import { localDateString } from './localDate';
 import { fetchUserSettings } from './userSettings';
@@ -40,7 +41,7 @@ export interface SprintDayExercise {
   readonly tier: number;
   readonly exerciseId: string;
   readonly exerciseName: string;
-  /** exercises.evidence_rationale, shown behind the eye-icon toggle. */
+  /** exercises.cue (one line), shown behind the eye-icon toggle. */
   readonly description: string | null;
   readonly prescribedSets: number | null;
   readonly prescribedRepsOrDuration: string | null;
@@ -74,7 +75,7 @@ function toSprintDayExercise(row: any): SprintDayExercise {
     tier: row.tier,
     exerciseId: row.exercise_id,
     exerciseName: row.exercises?.name ?? 'Unknown exercise',
-    description: row.exercises?.evidence_rationale ?? null,
+    description: eyeCue(row.exercises),
     prescribedSets: row.prescribed_sets,
     prescribedRepsOrDuration: row.prescribed_reps_or_duration,
     order: row.exercise_order,
@@ -326,7 +327,7 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
 }
 
 const SPRINT_DAY_EXERCISE_SELECT =
-  'id, slot_key, tier, exercise_id, prescribed_sets, prescribed_reps_or_duration, exercise_order, completed_at, exercises!sprint_day_exercises_exercise_id_fkey ( name, evidence_rationale )';
+  'id, slot_key, tier, exercise_id, prescribed_sets, prescribed_reps_or_duration, exercise_order, completed_at, exercises!sprint_day_exercises_exercise_id_fkey ( name, cue, description, owner_id )';
 
 export async function fetchTodaySprintDay(sprintId: string): Promise<SprintDay | null> {
   const todayIso = localDateString(new Date());

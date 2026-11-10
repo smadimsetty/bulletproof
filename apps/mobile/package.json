@@ -10,6 +10,7 @@
     "@supabase/supabase-js": "^2.108.2",
     "expo": "~56.0.15",
     "expo-apple-authentication": "~56.0.4",
+    "expo-audio": "~56.0.13",
     "expo-build-properties": "~56.0.22",
     "expo-constants": "~56.0.18",
     "expo-dev-client": "~56.0.22",
@@ -36,6 +37,7 @@
     "react-native-svg": "15.15.4",
     "react-native-url-polyfill": "^3.0.0",
     "react-native-view-shot": "5.1.0",
+    "react-native-webview": "13.16.1",
     "react-native-worklets": "0.8.3"
   },
   "devDependencies": {

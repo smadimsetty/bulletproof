@@ -3,6 +3,7 @@
 // The mobility-first exercise library: global mobility content plus the
 // user's own custom exercises. Old gym rows stay readable (past workouts must
 // still render) but are deliberately never offered for browse/search/pick.
+import { eyeCue } from './exerciseCue';
 import { supabase } from './supabase';
 
 export interface LibraryExercise {
@@ -14,7 +15,8 @@ export interface LibraryExercise {
   bodyParts: string[];
   equipment: string[];
   isMine: boolean;
-  description: string | null;
+  /** One-line cue (custom exercises: their own description). */
+  cue: string | null;
   demoVideoUrl: string | null;
 }
 
@@ -44,13 +46,13 @@ export interface CustomExerciseInput {
 }
 
 const LIBRARY_COLUMNS =
-  'id, name, exercise_type, unilateral, default_sets, body_parts, equipment_needed, owner_id, description, evidence_rationale, demo_video_url';
+  'id, name, exercise_type, unilateral, default_sets, body_parts, equipment_needed, owner_id, description, cue, demo_video_url';
 
 function check(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 
-function toLibrary(r: any, myId: string | null): LibraryExercise {
+export function toLibrary(r: any, myId: string | null): LibraryExercise {
   return {
     id: r.id,
     name: r.name,
@@ -60,7 +62,7 @@ function toLibrary(r: any, myId: string | null): LibraryExercise {
     bodyParts: r.body_parts ?? [],
     equipment: r.equipment_needed ?? [],
     isMine: !!r.owner_id && r.owner_id === myId,
-    description: r.description ?? r.evidence_rationale ?? null,
+    cue: eyeCue(r),
     demoVideoUrl: r.demo_video_url ?? null,
   };
 }

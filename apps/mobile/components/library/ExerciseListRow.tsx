@@ -5,6 +5,7 @@
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../lib/theme';
+import { bodyPartLabel } from '../../lib/bodyParts';
 import type { LibraryExercise } from '../../lib/library';
 import { ListRow } from '../ui';
 
@@ -21,7 +22,7 @@ export function typeLabel(type: string | null): string {
 }
 
 export default function ExerciseListRow({ exercise, onPress }: { exercise: LibraryExercise; onPress: () => void }) {
-  const sub = [typeLabel(exercise.exerciseType), exercise.bodyParts.join(', ')].filter(Boolean).join(' · ');
+  const sub = [typeLabel(exercise.exerciseType), exercise.bodyParts.map(bodyPartLabel).join(', ')].filter(Boolean).join(' · ');
   return (
     <ListRow
       title={exercise.name}
