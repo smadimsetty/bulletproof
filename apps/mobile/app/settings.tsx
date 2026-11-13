@@ -21,6 +21,8 @@ import { fetchMyProfile, updateProfile, type Profile } from '../lib/social/profi
 import { requestHealthWriteAccess } from '../lib/healthkitWrite';
 import { accountLabel } from '../lib/settingsFormat';
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from '../lib/links';
+import { fetchPremiumStatus, manageSubscription, subscribePremiumChanges } from '../lib/premium';
+import { membershipLabel, type PremiumStatus } from '../lib/premiumRules';
 import { PUBLIC_DISABLED_HINT, VISIBILITY_OPTIONS, visibilityLabel } from '../lib/social/visibility';
 import type { WeightUnit } from '../lib/units';
 import Avatar from '../components/social/Avatar';
@@ -39,6 +41,12 @@ export default function SettingsScreen() {
   const toast = useToast();
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [premium, setPremium] = useState<PremiumStatus | null>(null);
+  useEffect(() => {
+    const load = () => fetchPremiumStatus().then(setPremium).catch(() => setPremium(null));
+    load();
+    return subscribePremiumChanges(load);
+  }, []);
   const [account, setAccount] = useState('Signed in');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -238,6 +246,25 @@ export default function SettingsScreen() {
             />
           </ListGroup>
         ) : null}
+
+        <SectionHeader title="Membership" inset={SPACING.xs} />
+        <ListGroup>
+          <ListRow
+            title={premium ? membershipLabel(premium) : 'Membership'}
+            leading={{ icon: 'star-outline' }}
+            trailing={premium?.status === 'founder' ? undefined : 'chevron'}
+            onPress={
+              premium?.status === 'trial' || premium?.status === 'subscribed'
+                ? () => manageSubscription().catch((e) => Alert.alert('Could not open subscriptions', e?.message ?? 'Try again.'))
+                : premium?.status === 'none'
+                  ? () => router.push('/premium')
+                  : undefined
+            }
+          />
+          {profile?.isModerator ? (
+            <ListRow title="Preview the paywall" subtitle="Moderators only: test purchases" leading={{ icon: 'card-outline' }} trailing="chevron" onPress={() => router.push('/premium')} />
+          ) : null}
+        </ListGroup>
 
         <SectionHeader title="Training" inset={SPACING.xs} />
         <ListGroup>

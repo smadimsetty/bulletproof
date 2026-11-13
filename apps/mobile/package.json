@@ -16,6 +16,7 @@
     "expo-dev-client": "~56.0.22",
     "expo-device": "~56.0.4",
     "expo-haptics": "~56.0.3",
+    "expo-iap": "6.4.0",
     "expo-image-manipulator": "~56.0.26",
     "expo-image-picker": "~56.0.25",
     "expo-keep-awake": "~56.0.3",

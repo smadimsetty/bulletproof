@@ -1,6 +1,7 @@
 // supabase/functions/sprint-coach/index.ts
 //
-// The only place MoveMaxx calls Claude (spec 2026-11-12 §5.4). POST
+// The only place MoveMaxx calls Claude (spec 2026-11-12 §5.4). Premium users only, at most
+// 4 Claude calls per user per rolling 24 hours (_shared/coachLimits.ts). POST
 // { trigger: 'start' | 'pain' | 'retest', sprintId } with the caller's JWT.
 // Every read and write goes through a client carrying the caller's
 // Authorization header, so RLS scopes it to their own sprint. Claude's JSON is
@@ -11,6 +12,7 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import { OUTPUT_SCHEMAS, painPointBlock, systemPrompt, userBlock } from "./prompt.ts";
 import { validatePain, validateRetest, validateStart, type CoachContext } from "./validate.ts";
+import { coachBlockReason } from "../_shared/coachLimits.ts";
 
 type Trigger = "start" | "pain" | "retest";
 const TRIGGERS: Trigger[] = ["start", "pain", "retest"];
@@ -199,7 +201,20 @@ Deno.serve(async (req: Request) => {
 
   try {
     const loaded = await load(db, trigger, sprintId);
-    if (!Deno.env.get("ANTHROPIC_API_KEY")) {
+    // Premium + the per-user daily cap, checked before any paid call. RLS scopes
+    // engine_calls to the caller; only rows with token counts reached Claude.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const [statusRes, callsRes] = await Promise.all([
+      db.rpc("my_premium_status"),
+      db.from("engine_calls").select("id", { count: "exact", head: true }).gte("created_at", since).not("input_tokens", "is", null),
+    ]);
+    const blocked = coachBlockReason({
+      aiCallsLast24h: callsRes.count ?? Number.MAX_SAFE_INTEGER, // fail closed if the count can't be read
+      premiumStatus: statusRes.error ? null : (statusRes.data as any)?.status ?? null,
+    });
+    if (blocked) {
+      detail = blocked;
+    } else if (!Deno.env.get("ANTHROPIC_API_KEY")) {
       detail = "no ANTHROPIC_API_KEY";
     } else {
       const anthropic = new Anthropic();

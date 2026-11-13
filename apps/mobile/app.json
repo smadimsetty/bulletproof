@@ -74,7 +74,15 @@
           "resizeMode": "contain"
         }
       ],
-      ["expo-audio", { "microphonePermission": false, "recordAudioAndroid": false, "enableBackgroundPlayback": false }]
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-iap"
     ],
     "extra": {
       "eas": {

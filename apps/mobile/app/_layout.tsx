@@ -21,6 +21,8 @@ import { fetchMyProfile, subscribeToProfileChanges } from '../lib/social/profile
 import { ensurePushRegistered } from '../lib/social/push';
 import { safePushRoute } from '../lib/social/notificationFormat';
 import { signOut } from '../lib/signOut';
+import { fetchPremiumStatus, subscribePremiumChanges, syncPurchases } from '../lib/premium';
+import { needsPaywall, type PremiumStatus } from '../lib/premiumRules';
 import { ToastProvider } from '../components/ui/Toast';
 import { COLORS, SPACING } from '../lib/theme';
 import { AnimatedBrandMark } from '../components/BrandMark';
@@ -146,7 +148,34 @@ export default function RootLayout() {
     };
   }, [session, loadRecommendations, refreshLiveActivity]);
 
-  const showApp = !!session && profileGate === 'ready';
+  // Premium gate: null = not known yet (or failed), which lets the user in (fail open).
+  const [premium, setPremium] = useState<PremiumStatus | null>(null);
+  const checkPremium = useCallback(async () => {
+    try {
+      let status = await fetchPremiumStatus();
+      // Not premium on the server yet: StoreKit may hold a renewal or a purchase made on another device.
+      if (needsPaywall(status)) status = (await syncPurchases().catch(() => null)) ?? status;
+      setPremium(status);
+    } catch (err) {
+      console.warn('Premium status check failed:', err);
+    }
+  }, []);
+  useEffect(() => {
+    setPremium(null);
+    if (userId && profileGate === 'ready') checkPremium();
+  }, [userId, profileGate, checkPremium]);
+  useEffect(() => subscribePremiumChanges(() => { checkPremium(); }), [checkPremium]);
+  useEffect(() => {
+    if (!userId) return;
+    // A trial or subscription can end while the app sits in the background.
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active' && profileGate === 'ready') checkPremium();
+    });
+    return () => sub.remove();
+  }, [userId, profileGate, checkPremium]);
+  const showPaywall = !!session && profileGate === 'ready' && needsPaywall(premium);
+
+  const showApp = !!session && profileGate === 'ready' && !showPaywall;
 
   // Push: refresh the token silently if permission was already granted, and
   // route taps (warm and cold start) to the in-app path in data.url. Only our
@@ -181,6 +210,7 @@ export default function RootLayout() {
           <Stack.Screen name="workout-summary/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
           <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
           <Stack.Screen name="hang" options={{ title: 'Dead hang', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="premium" options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
           <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
           <Stack.Screen name="routines/[routineId]" options={{ presentation: 'modal', title: 'Routine' }} />
@@ -194,6 +224,9 @@ export default function RootLayout() {
           <Stack.Screen name="settings" options={{ title: 'Settings', headerBackTitle: 'Back' }} />
           <Stack.Screen name="inbox" options={{ title: 'Inbox', headerBackTitle: 'Back' }} />
           <Stack.Screen name="blocked" options={{ title: 'Blocked users', headerBackTitle: 'Back' }} />
+        </Stack.Protected>
+        <Stack.Protected guard={showPaywall}>
+          <Stack.Screen name="paywall" options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
         </Stack.Protected>
         <Stack.Protected guard={!!session && profileGate === 'needs_onboarding'}>
           <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
