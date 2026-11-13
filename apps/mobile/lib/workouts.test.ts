@@ -33,10 +33,10 @@ test('isInProgressConflict only matches the in-progress index', () => {
 
 test('buildSprintWorkoutExercises keeps order and maps prescriptions', () => {
   const day: SprintDay = {
-    id: 'd1', sprintId: 's1', dayNumber: 3, date: '2026-11-07', completedAt: null,
+    id: 'd1', sprintId: 's1', dayNumber: 3, date: '2026-11-07', completedAt: null, whyToday: null,
     exercises: [
-      { id: 'x2', slotKey: 'b', tier: 2, exerciseId: 'e2', exerciseName: 'B', description: null, prescribedSets: null, prescribedRepsOrDuration: '30s each side', order: 2, completedAt: null },
-      { id: 'x1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '15 reps', order: 1, completedAt: null },
+      { id: 'x2', slotKey: 'b', tier: 2, exerciseId: 'e2', exerciseName: 'B', description: null, prescribedSets: null, prescribedRepsOrDuration: '30s each side', order: 2, completedAt: null, level: null, step: null, leadSide: null, extraSideSet: false },
+      { id: 'x1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '15 reps', order: 1, completedAt: null, level: null, step: null, leadSide: null, extraSideSet: false },
     ],
   };
   expect(buildSprintWorkoutExercises(day)).toEqual([
@@ -184,8 +184,8 @@ describe('finishWorkout', () => {
 
 describe('startSprintWorkout', () => {
   const day: SprintDay = {
-    id: 'd3', sprintId: 'sp1', dayNumber: 3, date: '2026-11-07', completedAt: null,
-    exercises: [{ id: 'sde1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '30s', order: 1, completedAt: null }],
+    id: 'd3', sprintId: 'sp1', dayNumber: 3, date: '2026-11-07', completedAt: null, whyToday: null,
+    exercises: [{ id: 'sde1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '30s', order: 1, completedAt: null, level: null, step: null, leadSide: null, extraSideSet: false }],
   };
 
   test('resumes the existing in-progress workout for that day instead of creating one', async () => {
