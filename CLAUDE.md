@@ -246,3 +246,14 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
 - Set through the Supabase Management API: `PATCH /v1/projects/<ref>/config/auth`.
 - Live-verified: a real code was delivered to the Gmail inbox within seconds, and `verify` returned a session. The test user was deleted afterwards.
 - Gmail caps sending at roughly 500 emails a day. When there's a domain, move to Resend with `noreply@<domain>`; no app change is needed.
+
+**2026-11-13 — external TestFlight beta set up through the App Store Connect API.**
+- **Group:** external group "Beta" (id `944164ba-d432-4a55-9ae7-a81d20f3afc5`), with a **public link https://testflight.apple.com/join/c5VvAccF** capped at 100 testers and feedback on.
+- **Build 25** (1.4.0) is in the group and was submitted for Beta App Review (`WAITING_FOR_REVIEW`).
+- **Beta info:** the description and "What to test" are filled in. The feedback email is smadimsetty@gmail.com, and the privacy URL is `https://smadimsetty.github.io/movemaxx/privacy` (no trailing slash; with one it 404s).
+- **Reviewer details:** Sohan's name, email and phone; no demo account. The notes point reviewers to Sign in with Apple.
+- **API:** an ES256 JWT signed with `apps/mobile/secrets/AuthKey_72FC5AHX2C.p8`, issuer `f69c055c-d862-48c8-8fa5-abf6d94743ee`, app id 6783128365. In Git Bash, `export MSYS_NO_PATHCONV=1` first, or `/v1/...` arguments get rewritten into Windows paths.
+- **Each new build needs:**
+  1. `POST /v1/betaGroups/<id>/relationships/builds`
+  2. a `betaBuildLocalizations` "whatsNew" for that build
+  3. `POST /v1/betaAppReviewSubmissions`, but only for the first build of a new version
