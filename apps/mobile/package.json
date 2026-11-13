@@ -66,5 +66,14 @@
       "/node_modules/"
     ]
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [
+          "expo-contacts"
+        ]
+      }
+    }
+  }
 }
