@@ -239,3 +239,10 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
   - a whole-branch review: 5 important issues found, all fixed
 - **TestFlight build 25 (1.4.0) submitted 2026-11-13** (EAS build `3b3c42c8`). `eas submit` must use `--profile preview`: that submit profile holds the `ascAppId` and API key, while `production` is empty and fails with `--non-interactive`.
 - **Still needs Sohan:** the on-device checklist in the handoff doc, a decision on the API key, and a review of the content numbers marked DEFAULT.
+
+**2026-11-13 — email sign-in works (closes that launch blocker for the beta).**
+- Custom SMTP is Gmail (`smtp.gmail.com:465`), sending from smadimsetty@gmail.com as "MoveMaxx" with a Google app password. The password is `GMAIL_APP_PASSWORD` in the repo-root `.env`, quoted because it contains spaces.
+- Both email templates (Magic Link and Confirm signup) show the 6-digit `{{ .Token }}`. The send limit was raised from 2 to 30 emails an hour.
+- Set through the Supabase Management API: `PATCH /v1/projects/<ref>/config/auth`.
+- Live-verified: a real code was delivered to the Gmail inbox within seconds, and `verify` returned a session. The test user was deleted afterwards.
+- Gmail caps sending at roughly 500 emails a day. When there's a domain, move to Resend with `noreply@<domain>`; no app change is needed.

@@ -56,6 +56,8 @@ All ladder, target and noise numbers are in `docs/superpowers/content/2026-11-12
 - **Review:** a whole-branch review found 5 important issues; all are fixed with tests, along with two smaller ones that affected you directly (pain without an effort answer, and a note typed on its own).
 
 ## Still open
+**Done since (2026-11-13):** email sign-in works. Codes are sent through Gmail SMTP as "MoveMaxx" with 6-digit code templates, and a live test confirmed delivery and verification. This also unblocks a demo account for TestFlight's Beta App Review.
+
 **Needs you:**
 - install build 25 and run the checklist above
 - decide on `ANTHROPIC_API_KEY`
