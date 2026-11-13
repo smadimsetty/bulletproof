@@ -1,13 +1,14 @@
 // apps/mobile/components/progress/AssessmentTrendsSection.tsx
 //
-// One card per pain point the user has assessed; per test a line chart across
-// every completed assessment (L/R lines for bilateral tests), or a row of
-// pass/fail dots (visual spec 4.9 section 3).
+// One collapsed card per pain point the user has assessed (tap to open, so the list
+// stays short as areas pile up); inside, per test a line chart across every completed
+// assessment (L/R lines for bilateral tests), or a row of pass/fail dots.
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import type { TestTrend, TrendPoint } from '../../lib/stats/assessmentTrends';
-import { Card, EmptyState, LineChartCard, PassFailDots, SectionHeader, type ChartSeries } from '../ui';
+import { Card, Disclosure, EmptyState, LineChartCard, PassFailDots, SectionHeader, type ChartSeries } from '../ui';
+import SprintIcon from '../SprintIcon';
 
 export interface PainPointTrends {
   painPointId: string;
@@ -106,13 +107,25 @@ export default function AssessmentTrendsSection({
           const count = Math.max(...g.trends.map((t) => t.points.length));
           return (
             <Card key={g.painPointId}>
-              <View>
-                <Text style={TYPE.title3}>{g.displayName}</Text>
-                <Text style={TYPE.footnote}>{`${count} ${count === 1 ? 'assessment' : 'assessments'}`}</Text>
-              </View>
-              {g.trends.map((t) => (
-                <TestRow key={t.testKey} t={t} />
-              ))}
+              <Disclosure
+                accessibilityLabel={`${g.displayName} assessments`}
+                bodyStyle={styles.body}
+                header={
+                  <View style={styles.areaHead}>
+                    <View style={styles.areaIcon}>
+                      <SprintIcon id={g.painPointId} size={26} color={COLORS.accent} background={COLORS.accentTint} />
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={TYPE.title3}>{g.displayName}</Text>
+                      <Text style={TYPE.footnote}>{`${count} ${count === 1 ? 'assessment' : 'assessments'}`}</Text>
+                    </View>
+                  </View>
+                }
+              >
+                {g.trends.map((t) => (
+                  <TestRow key={t.testKey} t={t} />
+                ))}
+              </Disclosure>
             </Card>
           );
         })
@@ -122,6 +135,10 @@ export default function AssessmentTrendsSection({
 }
 
 const styles = StyleSheet.create({
+  body: { gap: SPACING.lg, marginTop: SPACING.lg },
+  areaHead: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  areaIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.accentTint, alignItems: 'center', justifyContent: 'center' },
+  flex: { flex: 1 },
   section: { gap: SPACING.md },
   test: { gap: SPACING.sm, paddingTop: SPACING.sm },
   testHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.md },

@@ -29,3 +29,4 @@ export * from './FilterChip';
 export * from './ProgressRing';
 export * from './LineChartCard';
 export * from './TimerDisplay';
+export * from './Disclosure';

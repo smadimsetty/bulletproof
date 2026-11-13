@@ -1,10 +1,12 @@
 // apps/mobile/app/(tabs)/progress.tsx
 //
-// Progress tab (replaces Trends): consistency streak + calendar, assessment
-// trends, recent PRs, and monthly recap entry points. One parallel fetch feeds
+// Progress tab (replaces Trends; History merged in 2026-11-13): consistency streak +
+// calendar, assessments per area and past workouts (both as drop-downs), recent PRs,
+// and monthly recap entry points. One parallel fetch feeds
 // pure calculators in lib/stats/. Every section renders an empty state for a
 // brand-new user.
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BANNER_CLEARANCE, COLORS, TYPE } from '../../lib/theme';
@@ -22,15 +24,22 @@ import AssessmentTrendsSection, { type PainPointTrends } from '../../components/
 import RecentPrsCard from '../../components/progress/RecentPrsCard';
 import RecapEntryCard from '../../components/progress/RecapEntryCard';
 import WeeklyGoalSheet from '../../components/progress/WeeklyGoalSheet';
+import WorkoutHistorySection from '../../components/progress/WorkoutHistorySection';
+import { countFinishedWorkouts, fetchWorkoutHistory, subscribeToActiveWorkoutChanges, type WorkoutListItem } from '../../lib/workouts';
+import { getMyId } from '../../lib/session';
+
+const PAGE_SIZE = 30;
 
 interface Loaded {
+  history: WorkoutListItem[];
   workouts: StatsWorkout[];
   settings: UserSettings;
   trendGroups: PainPointTrends[];
 }
 
-async function loadAll(): Promise<Loaded> {
-  const [workouts, settings, assessments, painPoints] = await Promise.all([
+async function loadAll(historyLimit: number): Promise<Loaded> {
+  const [history, workouts, settings, assessments, painPoints] = await Promise.all([
+    fetchWorkoutHistory(null, historyLimit),
     fetchStatsDataset(),
     fetchUserSettings(),
     fetchAllAssessments(),
@@ -47,7 +56,7 @@ async function loadAll(): Promise<Loaded> {
       ),
     }))
   );
-  return { workouts, settings, trendGroups };
+  return { history, workouts, settings, trendGroups };
 }
 
 export default function ProgressScreen() {
@@ -59,6 +68,11 @@ export default function ProgressScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [data, setData] = useState<Loaded | null>(null);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  // How many past workouts are revealed, so a focus reload doesn't drop older pages.
+  const historyLimitRef = useRef(PAGE_SIZE);
   const loadedRef = useRef(false);
   const now = useMemo(() => new Date(), [data]);
 
@@ -67,7 +81,10 @@ export default function ProgressScreen() {
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
     try {
-      setData(await loadAll());
+      const loaded = await loadAll(historyLimitRef.current);
+      setData(loaded);
+      setHasMore(loaded.history.length === historyLimitRef.current);
+      getMyId().then(countFinishedWorkouts).then(setTotal).catch(() => undefined);
       setLoadError(null);
       loadedRef.current = true;
     } catch (err: any) {
@@ -83,6 +100,24 @@ export default function ProgressScreen() {
       load(loadedRef.current ? 'focus' : 'initial');
     }, [load])
   );
+  useEffect(() => subscribeToActiveWorkoutChanges(() => load('focus')), [load]);
+
+  async function loadMore() {
+    const items = data?.history ?? [];
+    const last = items[items.length - 1];
+    if (loadingMore || !last?.endedAt) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchWorkoutHistory({ endedAt: last.endedAt, id: last.id }, PAGE_SIZE);
+      historyLimitRef.current = Math.max(PAGE_SIZE, items.length + page.length);
+      setHasMore(page.length === PAGE_SIZE);
+      setData((d) => (d ? { ...d, history: [...d.history, ...page] } : d));
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Could not load more workouts.');
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   const computed = useMemo(() => {
     if (!data) return null;
@@ -148,6 +183,16 @@ export default function ProgressScreen() {
         <ConsistencyCard consistency={computed.consistency} onPress={() => setGoalOpen(true)} />
         <MonthCalendar workouts={data.workouts} now={now} />
         <AssessmentTrendsSection groups={data.trendGroups} onStartSprint={() => router.push('/sprint')} />
+        <WorkoutHistorySection
+          items={data.history}
+          total={total}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          now={now}
+          onLoadMore={loadMore}
+          onOpenWorkout={(id) => router.push(`/workout-summary/${id}`)}
+          onStartWorkout={() => router.navigate('/')}
+        />
         <RecentPrsCard
           events={computed.prEvents}
           weightUnit={settings.weightUnit}
