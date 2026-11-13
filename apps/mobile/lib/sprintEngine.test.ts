@@ -1,5 +1,5 @@
 // apps/mobile/lib/sprintEngine.test.ts
-import { claimRows, completedFraction, computeDayBuild, ensureDayBuilt, initialSlotStates, type BuildInputs } from './sprintEngine';
+import { _setWaitForTests, claimRows, completedFraction, computeDayBuild, ensureDayBuilt, initialSlotStates, type BuildInputs } from './sprintEngine';
 import type { LadderRow } from './engine/dayPlanner';
 
 jest.mock('./supabase', () => ({ supabase: { from: jest.fn(), rpc: jest.fn() } }));
@@ -166,6 +166,34 @@ describe('computeDayBuild', () => {
     expect(r.consumedAdjustmentIds).toEqual([]);
   });
 
+  test('a pain adjustment never raises a slot above where the rules just put it (review #1)', () => {
+    const r = computeDayBuild(baseInputs({
+      states: [{ slotKey: 'calf', level: 2, step: 1, rightStreak: 0, hardStreak: 0, lastDoneOn: null, gapBackApplied: 0 }],
+      pendingDays: [{ id: 'd1', date: '2026-11-19', feedback: { effort: 'right', pain: 7, painArea: null }, slots: [{ slotKey: 'calf', completedFraction: 1 }] }],
+      adjustments: [{ id: 'p1', slotKey: 'calf', kind: 'pain', levelOverride: 2, prefer: [], avoid: [], priorityDelta: 0, createdAt: '2026-11-19T20:00:00Z' }],
+    }));
+    expect(stateOf(r, 'calf')).toMatchObject({ level: 1, step: 2 });
+  });
+
+  test('a start level override is ignored once the sprint has a session (review #2)', () => {
+    const r = computeDayBuild(baseInputs({
+      sprintStartedOn: '2026-11-19',
+      states: [{ slotKey: 'calf', level: 2, step: 1, rightStreak: 0, hardStreak: 0, lastDoneOn: '2026-11-19', gapBackApplied: 0 }],
+      adjustments: [{ id: 's1', slotKey: 'calf', kind: 'start', levelOverride: 1, prefer: [], avoid: [], priorityDelta: 0, createdAt: '2026-11-19T20:00:00Z' }],
+    }));
+    expect(stateOf(r, 'calf')).toMatchObject({ level: 2, step: 1 });
+    expect(r.consumedAdjustmentIds).toEqual(['s1']);
+  });
+
+  test('a start level override applies while no session has happened (carried state from an older sprint)', () => {
+    const r = computeDayBuild(baseInputs({
+      sprintStartedOn: '2026-11-19',
+      states: [{ slotKey: 'calf', level: 1, step: 2, rightStreak: 0, hardStreak: 0, lastDoneOn: '2026-11-01', gapBackApplied: 0 }],
+      adjustments: [{ id: 's1', slotKey: 'calf', kind: 'start', levelOverride: 2, prefer: [], avoid: [], priorityDelta: 0, createdAt: '2026-11-19T20:00:00Z' }],
+    }));
+    expect(stateOf(r, 'calf')).toMatchObject({ level: 2, step: 1 });
+  });
+
   test('day rows carry the template tier, and order follows the plan', () => {
     const r = computeDayBuild(baseInputs());
     expect(r.rows.map((x) => [x.slot_key, x.tier, x.exercise_order])).toEqual([['calf', 1, 1], ['balance', 2, 2]]);
@@ -216,7 +244,10 @@ function fakeSupabase(handler: (op: Op) => { data: any; error: any }) {
 const DAY = { id: 'day-2', sprint_id: 's1', day_number: 2, date: '2026-11-20', built_at: null };
 
 describe('ensureDayBuilt', () => {
-  beforeEach(() => (supabase.from as jest.Mock).mockReset());
+  beforeEach(() => {
+    (supabase.from as jest.Mock).mockReset();
+    _setWaitForTests(() => Promise.resolve());
+  });
 
   test('returns without building when another caller already claimed the day (Review Focus 4)', async () => {
     const ops = fakeSupabase((op) => {
@@ -231,9 +262,51 @@ describe('ensureDayBuilt', () => {
   });
 
   test('returns immediately for a day that is already built', async () => {
-    const ops = fakeSupabase(() => ({ data: { ...DAY, built_at: '2026-11-20T08:00:00Z' }, error: null }));
+    const ops = fakeSupabase((op) =>
+      op.table === 'sprint_day_exercises'
+        ? { data: null, error: null, count: 5 }
+        : { data: { ...DAY, built_at: new Date().toISOString() }, error: null });
     await ensureDayBuilt('s1', '2026-11-20');
     expect(ops.filter((o) => o.op !== 'select')).toEqual([]);
+  });
+
+  test('a caller that loses the claim waits until the rows exist (review #4)', async () => {
+    let countCalls = 0;
+    const ops = fakeSupabase((op) => {
+      if (op.table === 'sprint_day_exercises') {
+        countCalls++;
+        return { data: null, error: null, count: countCalls >= 3 ? 4 : 0 };
+      }
+      return { data: { ...DAY, built_at: new Date().toISOString() }, error: null };
+    });
+    await ensureDayBuilt('s1', '2026-11-20');
+    expect(countCalls).toBe(3);
+    expect(ops.some((o) => o.op === 'insert' || o.op === 'update')).toBe(false);
+  });
+
+  test('a stale claim with no rows is reclaimed and built (review #3)', async () => {
+    const stale = new Date(Date.now() - 5 * 60_000).toISOString();
+    const ops = fakeSupabase((op) => {
+      if (op.table === 'sprint_days' && op.op === 'select') {
+        return op.filters.some((f) => f[0] === 'eq' && f[1] === 'date')
+          ? { data: { ...DAY, built_at: stale }, error: null }
+          : { data: [{ ...DAY, built_at: stale }], error: null };
+      }
+      if (op.table === 'sprint_days' && op.op === 'update' && op.payload?.built_at) return { data: [{ id: 'day-2' }], error: null };
+      if (op.table === 'sprint_day_exercises' && op.op === 'select') return { data: [], error: null, count: 0 };
+      if (op.table === 'sprints') return { data: { pain_point_id: 'ankle', started_on: '2026-11-19' }, error: null };
+      if (op.table === 'sprint_day_template') return { data: [{ day_number: 2, slot_key: 'calf', tier: 1, slot_order: 1 }], error: null };
+      if (op.table === 'sprint_slots') return { data: [{ slot_key: 'calf', area: 'ankle', is_stretch: false }], error: null };
+      if (op.table === 'slot_ladder') {
+        return { data: [{ slot_key: 'calf', level: 1, exercise_id: 'c1', alt_rank: 1, step: 1, sets: 2, reps_or_duration: '10 reps',
+          exercises: { equipment_needed: null, unilateral: false } }], error: null };
+      }
+      return { data: [], error: null };
+    });
+    await ensureDayBuilt('s1', '2026-11-20');
+    const reclaim = ops.find((o) => o.table === 'sprint_days' && o.op === 'update' && o.payload?.built_at && o.payload.built_at !== stale)!;
+    expect(reclaim.filters).toContainEqual(['eq', 'built_at', stale]);
+    expect(ops.some((o) => o.table === 'sprint_day_exercises' && o.op === 'insert')).toBe(true);
   });
 
   test('when the exercise insert fails, the claim is released and the error rethrown', async () => {

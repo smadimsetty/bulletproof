@@ -200,6 +200,19 @@ describe('finishWorkout', () => {
     expect(q.chains[4].upsert.mock.calls[0][0]).toMatchObject({ sprint_day_id: 'd14', effort: 'easy', pain: null, pain_area: null });
   });
 
+  test('a note alone is still saved (review #10)', async () => {
+    const q = queue(
+      { table: 'workout_sets', result: OK },
+      { table: 'workout_exercises', result: OK },
+      { table: 'sprint_days', result: DAY_14 },
+      { table: 'sprints', result: { data: { status: 'pending_reassessment' }, error: null } },
+      { table: 'sprint_day_feedback', result: OK },
+      { table: 'workouts', result: OK }
+    );
+    await expect(finishWorkout(sprintWorkout, { ...finishInput, effort: null as any, pain: null, reactionNote: 'calf felt tight' })).resolves.toEqual(SAVED);
+    expect(q.chains[4].upsert.mock.calls[0][0]).toMatchObject({ effort: null, pain: null, note: 'calf felt tight' });
+  });
+
   test('no effort and no pain writes no feedback row', async () => {
     const { q, run } = feedbackRun({ ...finishInput, effort: null as any, pain: null });
     await expect(run).resolves.toEqual(SAVED);

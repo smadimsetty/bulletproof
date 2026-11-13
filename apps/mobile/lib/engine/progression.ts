@@ -63,8 +63,9 @@ const resetStreaks = (s: SlotState): SlotState => ({ ...s, rightStreak: 0, hardS
 /**
  * At most one step per slot per day: if state.lastDoneOn === doneOn, hold unchanged ('already_today').
  * Rule precedence when signals overlap (first match wins):
- *  1. no_feedback (effort or pain missing -> hold, only lastDoneOn changes)
- *  2. pain_back   (pain > 5, or painArea matches slot area with pain >= 4)
+ *  1. pain_back   (pain > 5, or painArea matches slot area with pain >= 4; applies even
+ *                  when effort is missing)
+ *  2. no_feedback (effort or pain missing -> hold, only lastDoneOn changes)
  *  3. pain_trend  (pain trending up -> hold)
  *  4. pain_hold   (pain 3-5 -> hold)
  *  5. incomplete  (completedFraction < 0.8 -> hold)
@@ -86,14 +87,16 @@ export function progressSlot(
   if (state.lastDoneOn === doneOn) {
     return { state, reason: 'already_today', painFlag: false };
   }
-  if (fb.effort == null || fb.pain == null || !Number.isFinite(fb.pain)) {
-    return { state: done(state), reason: 'no_feedback', painFlag: false };
-  }
-  const pain = fb.pain;
-
-  if (pain > 5 || (fb.painArea != null && fb.painArea === outcome.area && pain >= 4)) {
+  // Answered high pain always backs off, even without an effort answer: the readiness
+  // guardrail must not wait on a second tap (review #9). Missing answers otherwise hold.
+  const painKnown = fb.pain != null && Number.isFinite(fb.pain);
+  if (painKnown && (fb.pain! > 5 || (fb.painArea != null && fb.painArea === outcome.area && fb.pain! >= 4))) {
     return { state: done(resetStreaks(stepBack(state, shape))), reason: 'pain_back', painFlag: true };
   }
+  if (fb.effort == null || !painKnown) {
+    return { state: done(state), reason: 'no_feedback', painFlag: false };
+  }
+  const pain = fb.pain!;
   if (painTrendUp) {
     return { state: done(resetStreaks(state)), reason: 'pain_trend', painFlag: false };
   }

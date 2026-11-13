@@ -61,6 +61,8 @@ export interface PendingDay {
 }
 export interface BuildInputs {
   today: string;
+  /** sprints.started_on; a 'start' level override only applies before the first session on or after it. */
+  sprintStartedOn?: string;
   dayNumber: number;
   template: readonly TemplateSlotRow[];
   slots: readonly SlotInfo[];
@@ -215,6 +217,11 @@ export function computeDayBuild(input: BuildInputs): BuildResult {
   const adjustments = [...input.adjustments]
     .filter((a) => !a.consumed || a.kind === 'start')
     .sort((a, b) => cmp(a.createdAt, b.createdAt));
+  // The coach's start levels arrive after day 1 is built; once a session of this sprint has
+  // moved the state, the rules' earned (or pain-reduced) level wins (review #2).
+  const hadSession = [...states.values()].some(
+    (s) => s.lastDoneOn != null && (input.sprintStartedOn == null || s.lastDoneOn >= input.sprintStartedOn),
+  );
   const priorityDelta = new Map<string, number>();
   const prefer = new Set<string>();
   const avoid = new Set<string>();
@@ -223,8 +230,11 @@ export function computeDayBuild(input: BuildInputs): BuildResult {
     const shape = shapes.get(a.slotKey);
     const state = states.get(a.slotKey);
     if (!shape || !state) continue;
-    if (!a.consumed && a.levelOverride != null && Number.isFinite(a.levelOverride)) {
-      const level = Math.min(shape.maxLevel, Math.max(1, Math.round(a.levelOverride)));
+    const levelAllowed = !a.consumed && !(a.kind === 'start' && hadSession);
+    if (levelAllowed && a.levelOverride != null && Number.isFinite(a.levelOverride)) {
+      let level = Math.min(shape.maxLevel, Math.max(1, Math.round(a.levelOverride)));
+      // A pain adjustment can only lower: never above where the rules just put the slot (review #1).
+      if (a.kind === 'pain') level = Math.min(level, state.level);
       if (level !== state.level) states.set(a.slotKey, { ...state, level, step: 1, rightStreak: 0, hardStreak: 0 });
       levelOverride.set(a.slotKey, level);
     }
@@ -442,35 +452,95 @@ export async function initSlotState(sprintId: string, painPointId: string): Prom
   check(error);
 }
 
+/** A claim older than this with no exercise rows is treated as abandoned (killed app, lost network). */
+const STALE_CLAIM_MS = 60_000;
+/** How long a caller that lost the claim waits for the builder's rows before showing the day anyway. */
+const WAIT_ATTEMPTS = 12;
+const WAIT_MS = 500;
+
+let wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** Test hook: replace the poll delay. */
+export function _setWaitForTests(fn: (ms: number) => Promise<void>): void {
+  wait = fn;
+}
+
+const inFlight = new Map<string, Promise<void>>();
+
 /**
  * Builds the sprint day on `date` if it has not been built yet. Safe to call on every
- * open, from several devices at once: only the caller that claims built_at builds it.
+ * open, from several screens or devices at once: only the caller that claims built_at
+ * builds it, concurrent calls in this app share one build, and a caller that loses the
+ * claim waits (briefly) for the builder's rows instead of reading an empty day. A claim
+ * left behind by a build that died is recovered after STALE_CLAIM_MS.
  */
-export async function ensureDayBuilt(sprintId: string, date: string): Promise<void> {
-  const { data: day, error: dayError } = await supabase
-    .from('sprint_days')
-    .select('id, sprint_id, day_number, date, built_at')
-    .eq('sprint_id', sprintId)
-    .eq('date', date)
-    .maybeSingle();
-  check(dayError);
-  if (!day || !claimRows((day as any).built_at ?? null)) return;
-  const dayId = (day as any).id as string;
+export function ensureDayBuilt(sprintId: string, date: string): Promise<void> {
+  const key = `${sprintId}|${date}`;
+  const running = inFlight.get(key);
+  if (running) return running;
+  const p = ensureDayBuiltOnce(sprintId, date).finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
 
-  const { data: claimed, error: claimError } = await supabase
-    .from('sprint_days')
-    .update({ built_at: new Date().toISOString() })
-    .eq('id', dayId)
-    .is('built_at', null)
-    .select('id');
+async function exerciseCount(dayId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('sprint_day_exercises')
+    .select('id', { count: 'exact', head: true })
+    .eq('sprint_day_id', dayId);
+  check(error);
+  return count ?? 0;
+}
+
+async function ensureDayBuiltOnce(sprintId: string, date: string): Promise<void> {
+  for (let attempt = 0; attempt <= WAIT_ATTEMPTS; attempt++) {
+    const { data: day, error: dayError } = await supabase
+      .from('sprint_days')
+      .select('id, sprint_id, day_number, date, built_at')
+      .eq('sprint_id', sprintId)
+      .eq('date', date)
+      .maybeSingle();
+    check(dayError);
+    if (!day) return;
+    const dayId = (day as any).id as string;
+    const builtAt = ((day as any).built_at ?? null) as string | null;
+
+    if (claimRows(builtAt)) {
+      if (await claimAndBuild(sprintId, dayId, (day as any).day_number, date, null)) return;
+    } else {
+      if ((await exerciseCount(dayId)) > 0) return;
+      const age = Date.now() - Date.parse(builtAt!);
+      if (Number.isFinite(age) && age > STALE_CLAIM_MS) {
+        if (await claimAndBuild(sprintId, dayId, (day as any).day_number, date, builtAt)) return;
+      }
+    }
+    if (attempt < WAIT_ATTEMPTS) await wait(WAIT_MS);
+  }
+}
+
+/**
+ * Conditionally claims the day (built_at is null, or still equals the stale value being
+ * taken over) and builds it. False when another caller holds the claim.
+ */
+async function claimAndBuild(
+  sprintId: string,
+  dayId: string,
+  dayNumber: number,
+  date: string,
+  staleBuiltAt: string | null,
+): Promise<boolean> {
+  let q = supabase.from('sprint_days').update({ built_at: new Date().toISOString() }).eq('id', dayId);
+  q = staleBuiltAt == null ? q.is('built_at', null) : q.eq('built_at', staleBuiltAt);
+  const { data: claimed, error: claimError } = await q.select('id');
   check(claimError);
-  if (!claimed || (claimed as any[]).length === 0) return; // someone else is building it
+  if (!claimed || (claimed as any[]).length === 0) return false;
 
   try {
-    await buildClaimedDay(sprintId, dayId, (day as any).day_number, date);
+    await buildClaimedDay(sprintId, dayId, dayNumber, date);
+    return true;
   } catch (e) {
     // Release the claim so a retry can rebuild. An unbuilt day never had exercise
-    // rows, so clearing any partial insert is safe.
+    // rows, so clearing any partial insert is safe. If this cleanup fails too, the
+    // stale-claim recovery above takes over on a later open.
     await supabase.from('sprint_day_exercises').delete().eq('sprint_day_id', dayId);
     await supabase.from('sprint_days').update({ built_at: null }).eq('id', dayId);
     throw e;
@@ -480,11 +550,12 @@ export async function ensureDayBuilt(sprintId: string, date: string): Promise<vo
 async function buildClaimedDay(sprintId: string, dayId: string, dayNumber: number, date: string): Promise<void> {
   const { data: sprint, error: sprintError } = await supabase
     .from('sprints')
-    .select('pain_point_id')
+    .select('pain_point_id, started_on')
     .eq('id', sprintId)
     .single();
   check(sprintError);
   const painPointId = (sprint as any).pain_point_id as string;
+  const sprintStartedOn = ((sprint as any).started_on ?? undefined) as string | undefined;
 
   const [content, baseline, settings, lastDone, statesRes, adjRes, daysRes] = await Promise.all([
     loadContent(painPointId),
@@ -563,6 +634,7 @@ async function buildClaimedDay(sprintId: string, dayId: string, dayNumber: numbe
 
   const result = computeDayBuild({
     today: date,
+    sprintStartedOn,
     dayNumber,
     ...content,
     baseline,

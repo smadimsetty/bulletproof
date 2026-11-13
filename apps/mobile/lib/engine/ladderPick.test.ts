@@ -58,6 +58,16 @@ describe('planStepDown', () => {
     const out = planStepDown({ ...state, step: 2 }, ladder, 'gym2', 'advanced', new Map())!;
     expect(out.choice).toMatchObject({ exerciseId: 'gym2', level: 2, step: 1 });
   });
+  test('steps back from the row actually shown when it sits below the slot state (review #5)', () => {
+    // State says L3 step 1, but the tier forced the day down to gym2 at L2 step 1: easier means L1.
+    const out = planStepDown({ ...state, level: 3, step: 1 }, ladder, 'gym2', 'advanced', new Map(), { level: 2, step: 1 })!;
+    expect(out.choice).toMatchObject({ level: 1, exerciseId: 'bw1' });
+    expect(out.state).toMatchObject({ level: 1 });
+  });
+  test('a state step above what is shown still steps down from what is shown', () => {
+    const out = planStepDown({ ...state, level: 2, step: 3 }, ladder, 'gym2', 'advanced', new Map(), { level: 2, step: 2 })!;
+    expect(out.choice).toMatchObject({ exerciseId: 'gym2', level: 2, step: 1 });
+  });
   test('already at the bottom -> null', () => {
     expect(planStepDown({ ...state, level: 1, step: 1 }, ladder, 'bw1', null, new Map())).toBeNull();
   });

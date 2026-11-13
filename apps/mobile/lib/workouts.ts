@@ -641,7 +641,8 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
       await completeDay((day as any).id, (day as any).day_number, (day as any).sprint_id);
     }
     // Feedback is saved when either answer was given; a missing answer means "hold" (spec §8a.3).
-    if ((input.effort != null || input.pain != null) && status !== 'abandoned') {
+    const hasNote = input.reactionNote.trim() !== '';
+    if ((input.effort != null || input.pain != null || hasNote) && status !== 'abandoned') {
       await submitDayFeedback((day as any).id, input.effort, input.pain, input.painArea, input.reactionNote);
       painFlag = isPainFlag(input.pain, input.painArea);
       // The coach adjusts the next day in the background; the rules apply if it doesn't land in time.

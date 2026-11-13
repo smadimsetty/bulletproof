@@ -103,9 +103,19 @@ export function planStepDown(
   currentExerciseId: string,
   tier: EquipmentTier | null,
   lastDone: ReadonlyMap<string, string>,
+  shown?: { level: number | null; step: number | null } | null,
 ): { state: SlotState; choice: LadderChoice } | null {
-  if (state.level <= 1 && state.step <= 1) return null;
-  const back = stepBack(state, shapeFor(ladder, state.slotKey));
+  // The row on screen can sit below the slot state (a tier fallback, or an exercise with
+  // fewer steps): "easier" must be easier than what the user sees (review #5).
+  let from = state;
+  if (shown?.level != null) {
+    const shownStep = shown.step ?? 1;
+    if (shown.level < state.level || (shown.level === state.level && shownStep < state.step)) {
+      from = { ...state, level: shown.level, step: shownStep };
+    }
+  }
+  if (from.level <= 1 && from.step <= 1) return null;
+  const back = stepBack(from, shapeFor(ladder, state.slotKey));
   const next: SlotState = { ...back, rightStreak: 0, hardStreak: 0 };
   const keep = prescriptionFor(ladder, state.slotKey, next.level, currentExerciseId, next.step);
   const choice =

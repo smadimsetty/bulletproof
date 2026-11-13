@@ -434,7 +434,10 @@ export async function stepDownExercise(sprintDayExerciseId: string, sprintId: st
     fetchUserSettings().catch(() => null),
     fetchLastCompletedByExerciseId(painPointId).catch(() => new Map<string, string>()),
   ]);
-  const plan = planStepDown(state, ladder, current, settings?.equipmentTier ?? null, lastDone);
+  const plan = planStepDown(state, ladder, current, settings?.equipmentTier ?? null, lastDone, {
+    level: (row as any).level ?? null,
+    step: (row as any).step ?? null,
+  });
   if (!plan) throw new Error('This is already the easiest version.');
 
   const { error: updateError } = await supabase

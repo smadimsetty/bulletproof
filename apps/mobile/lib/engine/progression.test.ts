@@ -110,6 +110,16 @@ describe('progressSlot', () => {
     expect(r.reason).toBe('already_today');
     expect(r.state).toEqual(s);
   });
+  it('high pain steps back even when effort was not answered (review #9)', () => {
+    const r = run(base, out(), fb(null, 8));
+    expect(r.reason).toBe('pain_back');
+    expect(pos(r.state)).toEqual([2, 1]);
+  });
+
+  it('low pain without effort still holds as no_feedback', () => {
+    expect(run(base, out(), fb(null, 2)).reason).toBe('no_feedback');
+  });
+
   it('non-finite pain is no_feedback', () => {
     expect(run(base, out(), fb('easy', NaN)).reason).toBe('no_feedback');
   });
