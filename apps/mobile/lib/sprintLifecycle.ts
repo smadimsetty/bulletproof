@@ -38,6 +38,8 @@ export interface Sprint {
   readonly cycleNumber: number;
   readonly startedOn: string;
   readonly status: SprintStatus;
+  /** The coach's plan summary (spec 2026-11-12 §5.5); absent until it arrives. */
+  readonly aiSummary?: string | null;
 }
 
 export interface SprintDayExercise {
@@ -79,6 +81,7 @@ function toSprint(row: any): Sprint {
     cycleNumber: row.cycle_number,
     startedOn: row.started_on,
     status: row.status,
+    ...(row.ai_summary != null ? { aiSummary: row.ai_summary as string } : {}),
   };
 }
 
@@ -136,7 +139,7 @@ export function isSprintPastFinalDay(startedOn: string, now: Date = new Date()):
 export async function fetchInFlightSprint(): Promise<Sprint | null> {
   const { data, error } = await supabase
     .from('sprints')
-    .select('id, pain_point_id, cycle_number, started_on, status')
+    .select('id, pain_point_id, cycle_number, started_on, status, ai_summary')
     .in('status', ['pending_baseline', 'active', 'pending_reassessment'])
     .maybeSingle();
 

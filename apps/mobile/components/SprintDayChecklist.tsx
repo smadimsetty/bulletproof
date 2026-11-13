@@ -4,6 +4,9 @@
 // progress ring, today's routine as numbered exercise cards (eye toggle +
 // swap), a sticky Start / Resume footer, and a header menu for "Last
 // assessment" and "Switch pain point". Logic is unchanged: every action is a prop.
+// Adaptive engine (spec 2026-11-12 §5.5): the plan summary under the pain point,
+// a "why today" line above the routine, each exercise's level and step, and the
+// weaker side's extra set.
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -26,9 +29,12 @@ export default function SprintDayChecklist({
   dayComplete = false,
   refreshing = false,
   onRefresh,
+  planSummary,
 }: {
   day: SprintDay;
   painPointName?: string | null;
+  /** The coach's summary, or the rules template while it hasn't arrived. */
+  planSummary?: string | null;
   onOpenSwap: (exercise: SprintDayExercise) => void;
   onOpenLastAssessment: () => void;
   onStartRoutine: () => void;
@@ -87,6 +93,7 @@ export default function SprintDayChecklist({
             </View>
             <ProgressRing progress={(dayComplete ? day.dayNumber : day.dayNumber - 1) / 14} size={72} stroke={8} label={<Text style={TYPE.stat}>{day.dayNumber}</Text>} />
           </View>
+          {planSummary ? <Text style={[TYPE.callout, styles.summary]}>{planSummary}</Text> : null}
         </Card>
         {dayComplete && (
           <Card variant="outline" style={styles.doneCard}>
@@ -101,6 +108,12 @@ export default function SprintDayChecklist({
           </Card>
         )}
         <SectionHeader title="Today's routine" inset={SPACING.xs} />
+        {day.whyToday ? (
+          <View style={styles.whyRow}>
+            <Ionicons name="sparkles-outline" size={16} color={COLORS.accent} />
+            <Text style={[TYPE.callout, styles.flex]}>{day.whyToday}</Text>
+          </View>
+        ) : null}
         {day.exercises.map((exercise, i) => (
           <ExerciseRow
             key={exercise.id}
@@ -189,6 +202,16 @@ function ExerciseRow({
               {exercise.prescribedRepsOrDuration ?? ''}
             </Text>
           )}
+          {exercise.level != null ? (
+            <Text style={[TYPE.caption, styles.tabular]}>
+              {`Level ${exercise.level}${exercise.step != null ? ` · step ${exercise.step}` : ''}`}
+            </Text>
+          ) : null}
+          {exercise.extraSideSet && exercise.leadSide ? (
+            <Text style={[TYPE.caption, styles.weaker]}>
+              {`Weaker side: ${exercise.leadSide === 'left' ? 'Left' : 'Right'} · +1 set`}
+            </Text>
+          ) : null}
         </View>
         {!!exercise.description && <DescriptionToggleButton open={open} onToggle={toggle} />}
         {canSwap ? (
@@ -213,4 +236,7 @@ const styles = StyleSheet.create({
   numberCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.elevated, alignItems: 'center', justifyContent: 'center' },
   numberText: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
   tabular: { fontVariant: ['tabular-nums'] },
+  summary: { marginTop: SPACING.md },
+  whyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, paddingHorizontal: SPACING.xs },
+  weaker: { color: COLORS.accent },
 });

@@ -51,6 +51,7 @@ import LastAssessmentSheet from '../components/LastAssessmentSheet';
 import SprintDayChecklist from '../components/SprintDayChecklist';
 import AssessmentSummary from '../components/AssessmentSummary';
 import { pickRecommendation, recommendStayOrSwitch, type Recommendation } from '../lib/engine/retestRecommendation';
+import { planSummaryFallback } from '../lib/engine/planSummary';
 import { fetchActiveWorkout, startSprintWorkout, type ActiveWorkoutSummary } from '../lib/workouts';
 import { handleStartResult } from '../lib/workoutStart';
 
@@ -112,6 +113,7 @@ export default function SprintScreen() {
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
   const [suggestedPainPointId, setSuggestedPainPointId] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
+  const [planSummary, setPlanSummary] = useState<string | null>(null);
   const retestSprintRef = useRef<string | null>(null);
   const startingRef = useRef(false);
   const loadedRef = useRef(false);
@@ -144,6 +146,19 @@ export default function SprintScreen() {
       }
       if (inFlight && inFlight.status === 'active') {
         setToday(await fetchTodaySprintDay(inFlight.id));
+        // The coach's summary when it has arrived, else the rules template. Best effort.
+        if (inFlight.aiSummary) {
+          setPlanSummary(inFlight.aiSummary);
+        } else {
+          Promise.all([fetchAssessmentDefinitions(inFlight.painPointId), fetchAssessmentResults(inFlight.id, 'baseline')])
+            .then(([defs, baseline]) => {
+              const engine = toEngineInputs(defs, baseline);
+              setPlanSummary(
+                planSummaryFallback(engine.tests, engine.results, Object.fromEntries(defs.map((d) => [d.testKey, d.name])))
+              );
+            })
+            .catch(() => setPlanSummary(null));
+        }
       }
       setLoadError(null);
       loadedRef.current = true;
@@ -446,6 +461,7 @@ export default function SprintScreen() {
         <SprintDayChecklist
           day={today}
           painPointName={painPointName}
+          planSummary={planSummary}
           onOpenSwap={handleOpenSwap}
           onOpenLastAssessment={() => setLastAssessmentOpen(true)}
           onStartRoutine={handleStartRoutine}

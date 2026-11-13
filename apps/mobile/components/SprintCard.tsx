@@ -110,6 +110,7 @@ export default function SprintCard({
         </View>
         <SegmentBar dayNumber={today.dayNumber} todayDone={false} />
         <Text style={TYPE.callout}>{`Today · ${today.exercises.length} exercises`}</Text>
+        {today.whyToday ? <Text style={TYPE.footnote} numberOfLines={2}>{today.whyToday}</Text> : null}
         <Button
           title={resume ? "Resume today's routine" : "Start today's routine"}
           icon="play"
