@@ -429,3 +429,8 @@ Two things explicitly ruled out during brainstorming, for future reference: pull
 - registering a domain
 - naming the App Store listing MoveMaxx
 - planned for later this week: progressions, own/AI demo videos, a rethink of the original 4 sprints' tests, beta testers, and the remaining launch blockers (SMTP and email templates, Apple key secrets, Supabase Pro)
+
+## 2026-11-13 -- Adaptive sprint engine (v1.4.0)
+- Lazy, assessment-driven daily build with progression, weaker-side bias, level-aware swaps, effort/pain feedback, noise-aware retest with stay/switch, and the `sprint-coach` Edge Function (Haiku 5.5; off until `ANTHROPIC_API_KEY` is set).
+- Tasks 1-5 and 10 were built subagent-driven; 6-9 and 11-13 inline after a usage cutoff. One whole-branch review: 5 important findings, all fixed with tests.
+- Details: `docs/superpowers/reports/2026-11-12-adaptive-engine-handoff.md`.

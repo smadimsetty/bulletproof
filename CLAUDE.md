@@ -212,3 +212,29 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
 - **TestFlight build 24 (1.3.0) submitted 2026-11-10** (EAS build `630bd44c`).
 - **Pick-up doc:** `docs/superpowers/reports/2026-11-10-movemaxx-handoff.md`.
 
+
+**2026-11-12/13 — adaptive sprint engine (v1.4.0).** Spec `docs/superpowers/specs/2026-11-12-adaptive-sprint-engine-design.md` (§8a.7 records where the code runs), plan `docs/superpowers/plans/2026-11-12-adaptive-sprint-engine.md`, pick-up doc `docs/superpowers/reports/2026-11-12-adaptive-engine-handoff.md`.
+- **Days are built lazily, not pre-generated.**
+  - `lib/sprintEngine.ts` `ensureDayBuilt` claims `sprint_days.built_at`. It then progresses earlier days, applies the missed-day rule and AI adjustments, and plans the day.
+  - The pure rules are in `lib/engine/`: `assessmentPriority`, `progression`, `dayPlanner`, `ladderPick`, `retestRecommendation`, `planSummary`.
+  - Activation lays out 14 empty days plus `sprint_slot_state`.
+  - A claim older than 60 s with no rows is reclaimed, and a caller that loses the claim waits for the rows.
+- **Content:**
+  - `slot_ladder`, `sprint_slots`, `assessment_slot_links`, plus `target_value` / `noise_threshold` / `raw_direction` on `assessment_definitions`
+  - all 7 pain points, sources in `docs/superpowers/content/2026-11-12-engine/`
+  - `supabase/tests/check_ladder_coverage.sql` must return 0 rows
+- **Logger and finish sheet:**
+  - The weaker side goes first, plus one extra set (`workout_exercises.lead_side`).
+  - The finish sheet asks effort (easy/right/hard), pain 0–10 and area. These replace `reaction`; `finishWorkout` returns `{ result, painFlag }`.
+- **Swaps:** swaps stay on the level; "Easier version" steps back one step; a tier refit drops to the nearest lower level.
+- **Retest:**
+  - A change within the noise threshold reads "No clear change".
+  - Stay/switch: Stay runs the `continue_sprint` RPC, so there's no new baseline and state carries over.
+- **`sprint-coach` Edge Function** is the only Claude call: Haiku 5.5 via `SPRINT_ENGINE_MODEL`, structured JSON validated by `validate.ts`, logged to `engine_calls`, never blocking. **`ANTHROPIC_API_KEY` is not set**, so every call falls back to the rules. Add a per-user rate limit before a public launch.
+- **Gotcha:** `supabase functions deploy <fn> --use-api` works without Docker.
+- **Verified:**
+  - 484/484 jest, clean tsc and `expo export`
+  - live: `lib/sprintEngine.live.test.ts` (run with `LIVE_ENGINE=1`, throwaway user) 6/6; workouts 82/82, social 73/73, embed 11/11
+  - both coverage checks 0 rows
+  - a whole-branch review: 5 important issues found, all fixed
+- **Still needs Sohan:** the on-device checklist in the handoff doc, a decision on the API key, and a review of the content numbers marked DEFAULT.

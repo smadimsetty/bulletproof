@@ -232,6 +232,11 @@ Where the evidence gives no number, use a sensible clinical default and label it
    - Each slot gets an `area` key from `lib/bodyParts.ts` (e.g. `ankle`, `hip`, `neck`).
    - The "where?" chips show the distinct areas of the current pain point's slots, plus "Other".
    - A slot matches when its `area` equals the chosen chip.
+7. **Where the code runs (builder's call, recorded 2026-11-13):**
+   - The rules run in the app, not in a `plan-sprint-day` Edge Function. They are pure, jest-tested TypeScript in `apps/mobile/lib/engine/`. `lib/sprintEngine.ts` builds each day lazily through RLS, claiming `sprint_days.built_at` so a day is built once even when it's opened on two devices.
+   - Why: Deno isn't installed on the build machine, and every existing sprint function and its tests are client-side jest. Keeping the rules in the app means one tested codebase.
+   - Claude is called from one place only, the `sprint-coach` Edge Function, so the key stays server-side. It uses the caller's JWT, validates every output (`supabase/functions/sprint-coach/validate.ts`) and logs each call to `engine_calls`.
+   - **`ANTHROPIC_API_KEY` is not set** as a Supabase secret yet. Until it is, every coach call is logged as `fallback`, and the rules template is used for the plan summary and the stay-or-switch recommendation. Nothing else changes.
 
 ## 9. Evidence behind the rules
 - **Impairment-based progressive rehab:** a 4-week trial in chronic ankle instability improved function, and its authors recommend the model ([J Athl Train](https://nata.kglmeridian.com/downloadpdf/view/journals/attr/51/3/article-p233.pdf)). Matching exercise type to the dominant deficit: [J Foot Ankle Res 2026](https://link.springer.com/article/10.1186/s13102-025-01404-y). Exact dosage has no consensus, so the numbers here are clinical defaults.
