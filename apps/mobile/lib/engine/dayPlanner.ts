@@ -247,9 +247,9 @@ export function planDay(input: PlanInput): DayPlan {
     const gap = input.gapTextBySlot.get(topSlot.slotKey);
     if (topLead && gap) {
       const side = input.weakerSideBySlot.get(topSlot.slotKey)!;
-      whyToday = `${cap(side)} side first, plus one extra set: your ${testName} gap is ${gap}.`;
+      whyToday = `${cap(side)} side first, plus one extra set to close a ${gap} gap on your ${/\btest\b/i.test(testName) ? testName : `${testName} test`}.`;
     } else {
-      whyToday = `Focus today: ${testName}, your biggest gap to target.`;
+      whyToday = `Today targets your weakest test: ${testName}.`;
     }
   }
   return { exercises, whyToday };

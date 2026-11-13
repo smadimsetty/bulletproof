@@ -43,7 +43,7 @@ export function EmptyState({ icon, title, body, action, secondaryAction, compact
         <Button title={action.label} icon={action.icon} loading={action.loading} onPress={action.onPress} style={styles.action} />
       ) : null}
       {secondaryAction && !compact ? (
-        <Button title={secondaryAction.label} icon={secondaryAction.icon} variant="ghost" onPress={secondaryAction.onPress} />
+        <Button title={secondaryAction.label} icon={secondaryAction.icon} variant="ghost" onPress={secondaryAction.onPress} style={styles.secondary} />
       ) : null}
     </View>
   );
@@ -54,5 +54,6 @@ const styles = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.sm },
   text: { alignItems: 'center', gap: SPACING.sm },
   center: { textAlign: 'center' },
-  action: { marginTop: SPACING.lg - SPACING.sm },
+  secondary: { alignSelf: 'center' },
+  action: { marginTop: SPACING.lg - SPACING.sm, alignSelf: 'center' },
 });

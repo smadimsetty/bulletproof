@@ -4,6 +4,11 @@ Living backlog of known bugs and features, in priority order. Check items off as
 
 Last reordered: 2026-07-06.
 
+## Next up (Sohan, 2026-11-13)
+- **Merge History and Progress into one tab.** Assessments collapse by area (tap "Ankles" to open that area's results) so the list stays short as areas pile up; past workouts live in the same tab behind their own collapsible section. Needs a short design first.
+- **Paid plan, decided 2026-11-13:** $2/month or $10/year, deliberately cheap to start (can rise later). It only has to cover AI, plus data cost later. iPhone subscriptions must use Apple in-app purchase (Apple keeps 15% under the Small Business Program). Not designed yet: what's free vs paid.
+- **AI cost cap:** at most 4 `sprint-coach` calls per user per day, enforced in the Edge Function (counted from `engine_calls`). Model stays Haiku 5.5 (cheapest). Estimated ~$0.001 per call, ~$0.15/month for a heavy user; the worst-case budget Sohan set is $0.20/day ($6/month). Refreshing the app never calls AI: days are built by rules on the phone.
+
 ## Stored for later (from 2026-11-09 logger-polish round; Sohan expects ~Wed/Thu 2026-11-11/12)
 
 - [ ] Progressions: how to make each exercise harder.

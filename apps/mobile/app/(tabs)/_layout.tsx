@@ -97,7 +97,7 @@ export default function TabsLayout() {
           sceneStyle: { backgroundColor: COLORS.bg },
         }}
       >
-        <Tabs.Screen name="index" options={{ title: 'Workout', tabBarIcon: icon('barbell', 'barbell-outline') }} />
+        <Tabs.Screen name="index" options={{ title: 'Training', tabBarIcon: icon('barbell', 'barbell-outline') }} />
         <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: icon('time', 'time-outline') }} />
         <Tabs.Screen name="progress" options={{ title: 'Progress', tabBarIcon: icon('stats-chart', 'stats-chart-outline') }} />
         <Tabs.Screen

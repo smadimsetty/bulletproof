@@ -99,7 +99,27 @@ export async function fetchLibrary(): Promise<LibraryExercise[]> {
   for (const r of [...((globalRes.data ?? []) as any[]), ...((mineRes.data ?? []) as any[])]) {
     byId.set(r.id, toLibrary(r, myId));
   }
-  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return dedupeGlobalByName(Array.from(byId.values()), new Set(poolIds)).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * A few global exercises exist twice (older rows plus the same move re-seeded as sprint
+ * content). Show one per name, preferring the row the sprints use. My own exercises are
+ * never dropped.
+ */
+export function dedupeGlobalByName(list: readonly LibraryExercise[], poolIds: ReadonlySet<string>): LibraryExercise[] {
+  const keep = new Map<string, LibraryExercise>();
+  const mine: LibraryExercise[] = [];
+  for (const e of list) {
+    if (e.isMine) {
+      mine.push(e);
+      continue;
+    }
+    const key = e.name.trim().toLowerCase();
+    const seen = keep.get(key);
+    if (!seen || (!poolIds.has(seen.id) && poolIds.has(e.id))) keep.set(key, e);
+  }
+  return [...keep.values(), ...mine];
 }
 
 export function filterLibrary(list: readonly LibraryExercise[], f: LibraryFilter): LibraryExercise[] {

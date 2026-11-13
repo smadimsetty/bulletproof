@@ -10,17 +10,7 @@ import * as haptics from '../lib/haptics';
 import type { PainPoint } from '../lib/sprintLifecycle';
 import { Button, PressableScale, StickyFooter } from './ui';
 import { DescriptionBody } from './DescriptionToggle';
-
-type IconName = keyof typeof Ionicons.glyphMap;
-
-function iconFor(pp: PainPoint): IconName {
-  const n = `${pp.displayName} ${pp.id}`.toLowerCase();
-  if (n.includes('ankle')) return 'footsteps-outline';
-  if (n.includes('shoulder')) return 'body-outline';
-  if (n.includes('neck')) return 'phone-portrait-outline';
-  if (n.includes('pelvic') || n.includes('pelvis')) return 'git-commit-outline';
-  return 'flash-outline';
-}
+import SprintIcon from './SprintIcon';
 
 export default function PainPointPicker({
   painPoints,
@@ -63,7 +53,7 @@ export default function PainPointPicker({
                   </View>
                 ) : null}
                 <View style={styles.iconCircle}>
-                  <Ionicons name={iconFor(pp)} size={32} color={COLORS.accent} />
+                  <SprintIcon id={pp.id} size={32} color={COLORS.accent} />
                 </View>
                 <Text style={TYPE.title3}>{pp.displayName}</Text>
                 {pp.id === suggestedId ? <Text style={styles.suggested}>Suggested next</Text> : null}

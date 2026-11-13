@@ -1,15 +1,15 @@
 // apps/mobile/app/(tabs)/index.tsx
 //
-// Workout tab (visual spec 4.3): in-progress card or "Start empty workout",
-// the sprint card, routines, and the 3 most recent saved workouts.
+// Training tab (visual spec 4.3): in-progress card or "Start empty workout",
+// the sprint card and routines. Past workouts live in History and Profile.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, TYPE } from '../../lib/theme';
 import {
-  fetchActiveWorkout, fetchWorkoutHistory, startSprintWorkout, startWorkout, subscribeToActiveWorkoutChanges,
-  type ActiveWorkoutSummary, type WorkoutListItem,
+  fetchActiveWorkout, startSprintWorkout, startWorkout, subscribeToActiveWorkoutChanges,
+  type ActiveWorkoutSummary,
 } from '../../lib/workouts';
 import { fetchRoutinesAndFolders, startRoutineWorkout, type Routine, type RoutineFolder } from '../../lib/routines';
 import {
@@ -26,11 +26,10 @@ import type { TimeRange } from '../../lib/engine/dayPlanner';
 import { fetchUserSettings, updateUserSettings } from '../../lib/userSettings';
 import { refitInFlightSprintToTier } from '../../lib/sprintTierRefit';
 import type { EquipmentTier } from '../../lib/equipmentTiers';
-import WorkoutListRow from '../../components/WorkoutListRow';
 import SprintCard from '../../components/SprintCard';
 import RoutinesSection from '../../components/routines/RoutinesSection';
 import {
-  Button, Card, CompactHeaderBar, EmptyState, ErrorState, IconButton, LargeHeader, ScreenScroll, SectionHeader,
+  Button, Card, CompactHeaderBar, ErrorState, IconButton, LargeHeader, ScreenScroll,
   SkeletonCard, SkeletonRow, Sheet, useScreenScroll,
 } from '../../components/ui';
 
@@ -45,7 +44,6 @@ export default function WorkoutTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [active, setActive] = useState<ActiveWorkoutSummary | null>(null);
-  const [recent, setRecent] = useState<WorkoutListItem[]>([]);
   const [sprint, setSprint] = useState<Sprint | null>(null);
   const [painPoints, setPainPoints] = useState<PainPoint[]>([]);
   const [today, setToday] = useState<SprintDay | null>(null);
@@ -72,9 +70,8 @@ export default function WorkoutTab() {
   const load = useCallback(async (mode: 'initial' | 'refresh' | 'focus') => {
     if (mode === 'refresh') setRefreshing(true);
     try {
-      const [a, r, s, pp, rf] = await Promise.all([
+      const [a, s, pp, rf] = await Promise.all([
         fetchActiveWorkout(),
-        fetchWorkoutHistory(null, 3),
         fetchInFlightSprint(),
         fetchPainPoints(),
         // Routines are secondary: a failure here must not blank the whole tab.
@@ -85,7 +82,6 @@ export default function WorkoutTab() {
         setRoutines(rf.routines);
       }
       setActive(a);
-      setRecent(r);
       setSprint(s);
       setPainPoints(pp);
       setToday(s && s.status === 'active' ? await fetchTodaySprintDay(s.id) : null);
@@ -234,7 +230,7 @@ export default function WorkoutTab() {
 
   const header = (
     <LargeHeader
-      title="Workout"
+      title="Training"
       actions={<IconButton icon="library-outline" accessibilityLabel="Exercise library" onPress={() => router.push('/library')} />}
     />
   );
@@ -315,18 +311,8 @@ export default function WorkoutTab() {
           <Button title="Start empty workout" icon="add" variant="secondary" size="lg" fullWidth loading={starting} onPress={handleStartEmpty} />
         )}
         <RoutinesSection folders={folders} routines={routines} starting={starting || !!active} onStart={handleStartSavedRoutine} onChanged={() => load('focus')} />
-        <SectionHeader
-          title="Recent"
-          inset={SPACING.xs}
-          action={recent.length > 0 ? { label: 'See all', onPress: () => router.navigate('/history') } : undefined}
-        />
-        {recent.length === 0 ? (
-          <EmptyState compact icon="barbell-outline" title="No workouts yet" body="Your finished workouts will show up here." />
-        ) : (
-          recent.map((item) => <WorkoutListRow key={item.id} item={item} onPress={() => router.push(`/workout-summary/${item.id}`)} />)
-        )}
       </ScreenScroll>
-      <CompactHeaderBar title="Workout" scrollY={scrollY} />
+      <CompactHeaderBar title="Training" scrollY={scrollY} />
       <ChangeFocusSheet
         visible={changeFocusOpen}
         onClose={() => setChangeFocusOpen(false)}

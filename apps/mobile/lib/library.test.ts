@@ -1,6 +1,6 @@
 // apps/mobile/lib/library.test.ts
 import {
-  deleteCustomExercise, facetValues, toLibrary, filterLibrary, movementPatternFor, parseTagList, EMPTY_FILTER,
+  dedupeGlobalByName, deleteCustomExercise, facetValues, toLibrary, filterLibrary, movementPatternFor, parseTagList, EMPTY_FILTER,
   type CustomExerciseInput, type LibraryExercise,
 } from './library';
 
@@ -85,4 +85,15 @@ test('toLibrary: the short text is the cue, never the long description or ration
   expect(toLibrary(r, 'me').cue).toBe('Tuck your chin.');
   expect(toLibrary({ ...r, cue: null }, 'me').cue).toBeNull();
   expect(toLibrary({ ...r, cue: null, owner_id: 'me' }, 'me').cue).toBe('long how-to');
+});
+
+test('dedupeGlobalByName keeps one global row per name, preferring sprint-pool rows, and never drops my own', () => {
+  const rows = [
+    ex({ id: 'old', name: 'Dead Bug' }),
+    ex({ id: 'new', name: 'Dead Bug' }),
+    ex({ id: 'b', name: 'Bird Dog' }),
+    ex({ id: 'mine', name: 'dead bug', isMine: true }),
+  ];
+  const out = dedupeGlobalByName(rows, new Set(['new']));
+  expect(out.map((e) => e.id).sort()).toEqual(['b', 'mine', 'new']);
 });

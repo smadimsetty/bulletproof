@@ -4,9 +4,10 @@
 // different pain point, then either do it just for today or start a new sprint.
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { SPACING, TYPE } from '../lib/theme';
+import { COLORS, SPACING, TYPE } from '../lib/theme';
 import type { PainPoint } from '../lib/sprintLifecycle';
 import { Button, ListRow, Sheet } from './ui';
+import SprintIcon from './SprintIcon';
 
 type Step = 'disclaimer' | 'pick' | 'choose' | 'confirmNew';
 
@@ -64,6 +65,11 @@ export default function ChangeFocusSheet({
             {painPoints.map((pp) => (
               <ListRow
                 key={pp.id}
+                leading={
+                  <View style={styles.iconCircle}>
+                    <SprintIcon id={pp.id} size={22} color={COLORS.accent} />
+                  </View>
+                }
                 title={pp.displayName}
                 subtitle={pp.tagline ?? undefined}
                 trailing="chevron"
@@ -112,4 +118,5 @@ export default function ChangeFocusSheet({
 
 const styles = StyleSheet.create({
   body: { gap: SPACING.md, paddingBottom: SPACING.md },
+  iconCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.accentTint, alignItems: 'center', justifyContent: 'center' },
 });

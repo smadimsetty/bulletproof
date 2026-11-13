@@ -268,3 +268,13 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
   - Day 6 was reset by hand (no workout was attached) so the new engine builds it.
   - Days 7-14 are built lazily. **Builds 24 and earlier show those days as empty**, so use build 25 or later.
 - **Moderator:** Sohan's `profiles.is_moderator` was already true.
+
+**2026-11-13 — six quick UI fixes.**
+- The first tab is now **Training** (it was Workout), and its "Recent" list is gone. Past workouts live in History and Profile.
+- **Exercise names lost their pain-point prefix** ("Ankle: Banded Eversion" is now "Banded Eversion"). Migration `20261113140000` (pushed). The band face pull is renamed "Band Face Pull" so it doesn't clash with the cable "Face Pull". Four older global rows are true duplicates of re-seeded sprint content (Band Pull-Apart, Dead Bug, Couch Stretch, Deep Squat Hold). The library shows one of each via `dedupeGlobalByName`, preferring the sprint-pool row.
+- **"Why today" wording:** it used to read "Focus today: <test>, your biggest gap", which sounded like an exercise. It now says "Today targets your weakest test: <test>." The same migration rewrote the days already built.
+- **Sprint icons:** `components/SprintIcon.tsx` (line drawings via react-native-svg), shown in the sprint picker and "Change today's focus".
+- **Empty-state buttons are centred**, which fixes "Create routine" and "Find people". The shared `Button` defaults to `alignSelf: 'flex-start'`.
+- **Verified:** 486/486 jest, clean tsc, expo export; live suites 82/73/11.
+- **Next:** see `docs/BACKLOG.md` "Next up" (History+Progress merge, $2/month or $10/year plan, 4 AI calls per user per day cap).
+

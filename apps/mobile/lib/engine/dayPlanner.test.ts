@@ -183,7 +183,7 @@ describe('planDay', () => {
     expect(p.exercises[0].leadSide).toBe('left');
     expect(p.exercises[0].extraSideSet).toBe(true);
     expect(p.exercises[0].estSeconds).toBe(estimateSeconds(2, '30s', true) + 30 + 30);
-    expect(p.whyToday).toBe('Left side first, plus one extra set: your ankle dorsiflexion gap is 3 cm.');
+    expect(p.whyToday).toBe('Left side first, plus one extra set to close a 3 cm gap on your ankle dorsiflexion test.');
   });
 
   it('weaker side on a bilateral exercise gives no lead side', () => {
@@ -196,7 +196,7 @@ describe('planDay', () => {
     const p = planDay(i);
     expect(p.exercises[0].leadSide).toBeNull();
     expect(p.exercises[0].extraSideSet).toBe(false);
-    expect(p.whyToday).toBe('Focus today: reach, your biggest gap to target.');
+    expect(p.whyToday).toBe('Today targets your weakest test: reach.');
   });
 
   it('adds off-rhythm slots not done yesterday, in rank order', () => {
@@ -280,13 +280,24 @@ describe('planDay', () => {
     expect((e.sets + 1) * 60).toBeLessThanOrEqual(240);
   });
 
+  it('does not say "test" twice when the test name already ends in Test', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]), states: new Map([['s1', st('s1')]]),
+      ladder: [row({ slotKey: 's1', exerciseId: 'a', unilateral: true })],
+      weakerSideBySlot: new Map<string, Side>([['s1', 'left']]),
+      testNameBySlot: new Map([['s1', 'Side Hop Test (10 round trips)']]),
+      gapTextBySlot: new Map([['s1', '2 s']]),
+    });
+    expect(planDay(i).whyToday).toBe('Left side first, plus one extra set to close a 2 s gap on your Side Hop Test (10 round trips).');
+  });
+
   it('falls back to the plain whyToday when the gap text is missing', () => {
     const i = input({
       candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]), states: new Map([['s1', st('s1')]]),
       ladder: [row({ slotKey: 's1', exerciseId: 'a', unilateral: true })],
       weakerSideBySlot: new Map<string, Side>([['s1', 'left']]), testNameBySlot: new Map([['s1', 'reach']]),
     });
-    expect(planDay(i).whyToday).toBe('Focus today: reach, your biggest gap to target.');
+    expect(planDay(i).whyToday).toBe('Today targets your weakest test: reach.');
   });
 
   it('keeps the top stretch slot at 1 set even if one hold exceeds the cap', () => {
@@ -316,7 +327,7 @@ describe('planDay', () => {
       ladder: [row({ slotKey: 's1', exerciseId: 'a' }), row({ slotKey: 's2', exerciseId: 'b' })],
       testNameBySlot: new Map([['s1', 'one'], ['s2', 'two']]),
     });
-    expect(planDay(i).whyToday).toBe('Focus today: two, your biggest gap to target.');
+    expect(planDay(i).whyToday).toBe('Today targets your weakest test: two.');
   });
 
   it('levelOverride beats the state level', () => {
