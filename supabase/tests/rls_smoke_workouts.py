@@ -109,6 +109,13 @@ try:
         s,r=req('DELETE',f"/rest/v1/sprints?id=eq.{nc['id']}",token=A); ok(s==200,f"cleanup continued sprint ({s})")
     s,r=req('DELETE',f"/rest/v1/sprints?id=eq.{spid}",token=A); ok(s==200,f"cleanup engine-check sprint ({s})")
     s,r=req('GET',f"/rest/v1/engine_calls?select=sprint_id&owner_id=eq.{a_id}",token=A); ok(s==200 and len(r)==1 and r[0]['sprint_id'] is None,f"engine_calls survive sprint delete, sprint_id nulled ({r})")
+    # Dead hang timer (2026-11-13): owner-only.
+    s,h=req('POST','/rest/v1/hangs?select=id,owner_id',{'started_at':'2026-11-13T12:00:00Z','duration_ms':42000,'mode':'free'},token=A); ok(s==201 and h[0]['owner_id']==a_id,f"A logs a hang, owner defaults to A ({s})")
+    s,r=req('GET','/rest/v1/hangs?select=id',token=B); ok(s==200 and r==[],f"B cannot read A's hangs ({r})")
+    s,r=req('POST','/rest/v1/hangs',{'owner_id':a_id,'started_at':'2026-11-13T12:00:00Z','duration_ms':1000,'mode':'free'},token=B); ok(s>=400,f"B cannot log a hang as A ({s})")
+    s,r=req('DELETE',f"/rest/v1/hangs?id=eq.{h[0]['id']}",token=B); ok(s==200 and r==[],f"B cannot delete A's hang ({r})")
+    s,r=req('POST','/rest/v1/hangs',{'started_at':'2026-11-13T12:00:00Z','duration_ms':0,'mode':'free'},token=A); ok(s>=400,f"zero-length hang rejected ({s})")
+    s,r=req('DELETE',f"/rest/v1/hangs?id=eq.{h[0]['id']}",token=A); ok(s==200 and len(r)==1,f"A deletes own hang ({s})")
 finally:
     for i in ids:
         # Mirror delete-account: remove rows whose owner_id FK has no cascade before the auth user.

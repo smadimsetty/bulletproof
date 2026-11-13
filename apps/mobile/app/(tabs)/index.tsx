@@ -28,6 +28,7 @@ import { refitInFlightSprintToTier } from '../../lib/sprintTierRefit';
 import type { EquipmentTier } from '../../lib/equipmentTiers';
 import SprintCard from '../../components/SprintCard';
 import RoutinesSection from '../../components/routines/RoutinesSection';
+import { fetchHangs, formatHangDuration, hangStats } from '../../lib/hangs';
 import {
   Button, Card, CompactHeaderBar, ErrorState, IconButton, LargeHeader, ScreenScroll,
   SkeletonCard, SkeletonRow, Sheet, useScreenScroll,
@@ -49,6 +50,7 @@ export default function WorkoutTab() {
   const [today, setToday] = useState<SprintDay | null>(null);
   const [folders, setFolders] = useState<RoutineFolder[]>([]);
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [hangTodayMs, setHangTodayMs] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
   const [changeFocusOpen, setChangeFocusOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
@@ -77,6 +79,10 @@ export default function WorkoutTab() {
         // Routines are secondary: a failure here must not blank the whole tab.
         fetchRoutinesAndFolders().catch(() => null),
       ]);
+      // Secondary, like routines: the hang card just hides its total on failure.
+      fetchHangs(100)
+        .then((h) => setHangTodayMs(hangStats(h, new Date()).todayMs))
+        .catch(() => setHangTodayMs(null));
       if (rf) {
         setFolders(rf.folders);
         setRoutines(rf.routines);
@@ -310,6 +316,20 @@ export default function WorkoutTab() {
         {active ? null : (
           <Button title="Start empty workout" icon="add" variant="secondary" size="lg" fullWidth loading={starting} onPress={handleStartEmpty} />
         )}
+        <Card onPress={() => router.push('/hang')} accessibilityLabel="Open the dead hang timer">
+          <View style={styles.activeRow}>
+            <View style={styles.hangIcon}>
+              <Ionicons name="timer-outline" size={20} color={COLORS.accent} />
+            </View>
+            <View style={styles.activeTitle}>
+              <Text style={TYPE.bodyStrong}>Dead hang timer</Text>
+              <Text style={TYPE.footnote}>
+                {hangTodayMs ? `Today ${formatHangDuration(hangTodayMs)}` : 'Hang any time. It all stacks up.'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
+          </View>
+        </Card>
         <RoutinesSection folders={folders} routines={routines} starting={starting || !!active} onStart={handleStartSavedRoutine} onChanged={() => load('focus')} />
       </ScreenScroll>
       <CompactHeaderBar title="Training" scrollY={scrollY} />
@@ -352,5 +372,6 @@ const styles = StyleSheet.create({
   withBanner: { paddingBottom: 76 },
   activeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   activeTitle: { flex: 1 },
+  hangIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.accentTint, alignItems: 'center', justifyContent: 'center' },
   resume: { ...TYPE.callout, color: COLORS.accent, fontWeight: '700' },
 });

@@ -180,6 +180,7 @@ export default function RootLayout() {
           <Stack.Screen name="workout/[workoutId]" options={{ presentation: 'fullScreenModal', gestureEnabled: false, headerShown: false }} />
           <Stack.Screen name="workout-summary/[workoutId]" options={{ title: 'Workout', headerBackTitle: 'Back' }} />
           <Stack.Screen name="sprint" options={{ title: 'Sprint', headerBackTitle: 'Back' }} />
+          <Stack.Screen name="hang" options={{ title: 'Dead hang', headerBackTitle: 'Back' }} />
           <Stack.Screen name="recap" options={{ title: 'Monthly recap', headerBackTitle: 'Back' }} />
           <Stack.Screen name="exercise/[exerciseId]" options={{ title: 'Exercise', headerBackTitle: 'Back' }} />
           <Stack.Screen name="routines/[routineId]" options={{ presentation: 'modal', title: 'Routine' }} />
