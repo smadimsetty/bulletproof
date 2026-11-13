@@ -257,3 +257,14 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
   1. `POST /v1/betaGroups/<id>/relationships/builds`
   2. a `betaBuildLocalizations` "whatsNew" for that build
   3. `POST /v1/betaAppReviewSubmissions`, but only for the first build of a new version
+
+**2026-11-13 — ops: weekly Supabase usage email, and Sohan's sprint moved to the new engine.**
+- **Weekly report:** `.github/workflows/usage-report.yml` runs Mondays at 13:00 UTC, or on demand with `gh workflow run usage-report.yml`.
+  - `scripts/usage_report/report.py` (stdlib only, pytest beside it) calls the `admin_usage_report()` function. The function is from migration `20261113130000` and only the service role can call it.
+  - It emails smadimsetty@gmail.com the database size, file storage and monthly active users against the Free plan limits, flagging "watch" at 50% and "upgrade soon" at 80%, plus the week's activity and the largest tables.
+  - It uses the repo secret `GMAIL_APP_PASSWORD`. The first run on 2026-11-13 was delivered. The weekly run also counts as project activity, so the Free project won't auto-pause.
+- **Old-engine days:** Sohan's in-flight Ankles sprint (cycle 2, started 2026-11-08) had days 1-6 pre-built by the old picker. That picker computed "least recently used" once for all 14 days, so every day repeated the same exercises.
+  - The T1 migration ran when it was already 2026-11-13 in UTC, so it kept day 6 (Nov 13).
+  - Day 6 was reset by hand (no workout was attached) so the new engine builds it.
+  - Days 7-14 are built lazily. **Builds 24 and earlier show those days as empty**, so use build 25 or later.
+- **Moderator:** Sohan's `profiles.is_moderator` was already true.
