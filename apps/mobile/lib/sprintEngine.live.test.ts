@@ -15,7 +15,7 @@ jest.mock('./supabase', () => ({
 
 import { ensureDayBuilt } from './sprintEngine';
 import {
-  activateSprintAfterBaseline, fetchSwapCandidates, fetchTodaySprintDay, stepDownExercise, type Sprint,
+  activateSprintAfterBaseline, fetchDayPainAreas, fetchSwapCandidates, fetchTodaySprintDay, stepDownExercise, type Sprint,
 } from './sprintLifecycle';
 import { localDateString } from './localDate';
 
@@ -131,5 +131,10 @@ const PAIN_POINT = 'ankle';
       .from('sprint_slot_state').select('level, step').eq('sprint_id', sprint.id).eq('slot_key', target.slotKey).single();
     expect(row!.level).toBe(1);
     expect(state).toEqual({ level: 1, step: row!.step });
+  });
+  test('the finish sheet gets the pain areas of the day', async () => {
+    const today = (await fetchTodaySprintDay(sprint.id))!;
+    const areas = await fetchDayPainAreas(today.id);
+    expect(areas.length).toBeGreaterThan(0);
   });
 });

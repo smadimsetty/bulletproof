@@ -462,16 +462,46 @@ export async function stepDownExercise(sprintDayExerciseId: string, sprintId: st
 
 export async function submitDayFeedback(
   sprintDayId: string,
-  reaction: 'good' | 'neutral' | 'hurt',
+  effort: 'easy' | 'right' | 'hard' | null,
+  pain: number | null,
+  painArea: string | null,
   note: string
 ): Promise<void> {
+  const clampedPain = pain == null || !Number.isFinite(pain) ? null : Math.min(10, Math.max(0, Math.round(pain)));
   const { error } = await supabase
     .from('sprint_day_feedback')
     .upsert(
-      { sprint_day_id: sprintDayId, reaction, note: note.trim() === '' ? null : note.trim() },
+      {
+        sprint_day_id: sprintDayId,
+        effort,
+        pain: clampedPain,
+        // An area only means something alongside pain.
+        pain_area: clampedPain != null && clampedPain > 0 ? painArea : null,
+        note: note.trim() === '' ? null : note.trim(),
+      },
       { onConflict: 'sprint_day_id' }
     );
   if (error) throw new Error(error.message);
+}
+
+/** Distinct pain areas of a sprint day's slots, for the finish sheet's "Where?" chips. */
+export async function fetchDayPainAreas(sprintDayId: string): Promise<string[]> {
+  const { data: day, error: dayError } = await supabase
+    .from('sprint_days')
+    .select('sprints ( pain_point_id ), sprint_day_exercises ( slot_key )')
+    .eq('id', sprintDayId)
+    .single();
+  if (dayError) throw new Error(dayError.message);
+  const painPointId = (day as any)?.sprints?.pain_point_id as string | undefined;
+  const slotKeys = [...new Set((((day as any)?.sprint_day_exercises ?? []) as any[]).map((e) => e.slot_key as string))];
+  if (!painPointId || slotKeys.length === 0) return [];
+  const { data, error } = await supabase
+    .from('sprint_slots')
+    .select('area')
+    .eq('pain_point_id', painPointId)
+    .in('slot_key', slotKeys);
+  if (error) throw new Error(error.message);
+  return [...new Set(((data ?? []) as any[]).map((r) => r.area as string))].sort();
 }
 
 /**

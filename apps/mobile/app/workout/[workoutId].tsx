@@ -67,6 +67,7 @@ import {
 import { dominantKind } from '../../lib/workoutKind';
 import { Button, ConfirmSheet, EmptyState, ErrorState, IconButton, SkeletonCard } from '../../components/ui';
 import { formatClock } from '../../components/ui/TimerDisplay';
+import { fetchDayPainAreas } from '../../lib/sprintLifecycle';
 
 function LoggerHeader({
   title,
@@ -120,6 +121,7 @@ function Logger() {
   const [catalog, setCatalog] = useState<LibraryExercise[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [painAreas, setPainAreas] = useState<string[]>([]);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -514,6 +516,19 @@ function Logger() {
   const liveTitle = workout?.title ?? '';
   const liveStartedAt = workout?.startedAt ?? '';
   const liveSprintDayId = workout?.sprintDayId ?? null;
+  // "Where?" chips on the finish sheet: the areas of this sprint day's slots.
+  useEffect(() => {
+    if (!liveSprintDayId) return;
+    let cancelled = false;
+    fetchDayPainAreas(liveSprintDayId)
+      .then((areas) => {
+        if (!cancelled) setPainAreas(areas);
+      })
+      .catch(() => {}); // the chips fall back to "Other" alone
+    return () => {
+      cancelled = true;
+    };
+  }, [liveSprintDayId]);
   const liveExercise =
     workout?.exercises.find((e) => e.sets.some((s) => !s.completedAt))?.exerciseName ?? '';
   const liveTimer =
@@ -692,7 +707,7 @@ function Logger() {
         for (const d of dirty) await updateSet(d.id, d.values);
         fresh = await reload();
       }
-      const result = await finishWorkout(fresh, input);
+      const { result } = await finishWorkout(fresh, input);
       if (result === 'no_completed_sets') {
         setDiscardNoSets(true);
         handleDiscard();
@@ -928,6 +943,7 @@ function Logger() {
         onDiscard={handleDiscard}
         onClose={() => setFinishOpen(false)}
         stats={{ time: formatClock(Math.max(0, Date.now() - startedMs)), exercises: workout.exercises.length, sets: doneSets }}
+        painAreas={painAreas}
       />
       <ConfirmSheet
         visible={discardOpen}

@@ -114,9 +114,25 @@ export interface SetPatch {
 export interface FinishInput {
   readonly title: string;
   readonly notes: string;
-  readonly reaction: 'good' | 'neutral' | 'hurt' | null;
+  /** Sprint feedback (spec 2026-11-12 §4): effort and pain 0-10 (no default), plus where it hurt. */
+  readonly effort: 'easy' | 'right' | 'hard' | null;
+  readonly pain: number | null;
+  /** A sprint slot area key (lib/bodyParts.ts), 'other', or null. */
+  readonly painArea: string | null;
   readonly reactionNote: string;
   readonly visibility: Visibility;
+}
+
+export interface FinishResult {
+  readonly result: 'saved' | 'no_completed_sets';
+  /** True when the feedback should trigger the coach's pain adjustment (sprint-coach 'pain'). */
+  readonly painFlag: boolean;
+}
+
+/** Pain above 5, or pain 4+ in a named area (spec §5.2's step-back thresholds). */
+export function isPainFlag(pain: number | null, painArea: string | null): boolean {
+  if (pain == null || !Number.isFinite(pain)) return false;
+  return pain > 5 || (painArea != null && pain >= 4);
 }
 
 // ---- change events -------------------------------------------------------
@@ -580,9 +596,10 @@ export async function setRomUnitForExercise(workoutExerciseId: string, unit: Rom
   check(error);
 }
 
-export async function finishWorkout(workout: Workout, input: FinishInput): Promise<'saved' | 'no_completed_sets'> {
+export async function finishWorkout(workout: Workout, input: FinishInput): Promise<FinishResult> {
   const plan = planFinish(workout.exercises);
-  if (!plan.ok) return 'no_completed_sets';
+  if (!plan.ok) return { result: 'no_completed_sets', painFlag: false };
+  let painFlag = false;
 
   // Fail early (before any sprint-day side effects) if the word filter would
   // reject the public text; private workouts are never filtered.
@@ -622,8 +639,10 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
       }
       await completeDay((day as any).id, (day as any).day_number, (day as any).sprint_id);
     }
-    if (input.reaction && status !== 'abandoned') {
-      await submitDayFeedback((day as any).id, input.reaction, input.reactionNote);
+    // Feedback is saved when either answer was given; a missing answer means "hold" (spec §8a.3).
+    if ((input.effort != null || input.pain != null) && status !== 'abandoned') {
+      await submitDayFeedback((day as any).id, input.effort, input.pain, input.painArea, input.reactionNote);
+      painFlag = isPainFlag(input.pain, input.painArea);
     }
   }
 
@@ -638,7 +657,7 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
     .eq('id', workout.id);
   check(endError);
   notifyActiveWorkoutChanged();
-  return 'saved';
+  return { result: 'saved', painFlag };
 }
 
 export async function discardWorkout(workoutId: string): Promise<void> {

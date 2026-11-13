@@ -1,7 +1,8 @@
 // apps/mobile/components/logger/FinishSheet.tsx
 //
 // Finish sheet (visual spec 4.6): stat tiles, title, notes, visibility,
-// photos, and (sprint workouts) how it felt. Same props and the same onSave /
+// photos, and (sprint workouts) effort, pain 0-10 and where it hurt (spec
+// 2026-11-12 §4). Same props and the same onSave /
 // onDiscard / onClose contract as before; presentation only.
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -12,6 +13,8 @@ import VisibilityPicker from '../social/VisibilityPicker';
 import PhotoStrip from '../social/PhotoStrip';
 import { MAX_PHOTOS } from '../../lib/social/media';
 import { Button, Card, FilterChip, Sheet, Stat, TextField } from '../ui';
+import { bodyPartLabel } from '../../lib/bodyParts';
+import PainScale from './PainScale';
 
 export interface FinishSheetStats {
   /** Elapsed time, e.g. "42:10". */
@@ -33,20 +36,24 @@ export interface FinishSheetProps {
   onDiscard: () => void;
   onClose: () => void;
   stats?: FinishSheetStats;
+  /** Distinct areas of the sprint day's slots, offered as "Where?" chips when pain is 3+. */
+  painAreas?: readonly string[];
 }
 
-type Reaction = FinishInput['reaction'];
+type Effort = FinishInput['effort'];
 
-const REACTIONS: { value: Exclude<Reaction, null>; label: string }[] = [
-  { value: 'good', label: 'Felt good' },
-  { value: 'neutral', label: 'Neutral' },
-  { value: 'hurt', label: 'That hurt' },
+const EFFORTS: { value: Exclude<Effort, null>; label: string }[] = [
+  { value: 'easy', label: 'Easy' },
+  { value: 'right', label: 'About right' },
+  { value: 'hard', label: 'Too hard' },
 ];
 
-export default function FinishSheet({ visible, initialTitle, isSprint, defaultVisibility, canPublic, saving, onSave, onDiscard, onClose, stats }: FinishSheetProps) {
+export default function FinishSheet({ visible, initialTitle, isSprint, defaultVisibility, canPublic, saving, onSave, onDiscard, onClose, stats, painAreas = [] }: FinishSheetProps) {
   const [title, setTitle] = useState(initialTitle);
   const [notes, setNotes] = useState('');
-  const [reaction, setReaction] = useState<Reaction>(null);
+  const [effort, setEffort] = useState<Effort>(null);
+  const [pain, setPain] = useState<number | null>(null);
+  const [painArea, setPainArea] = useState<string | null>(null);
   const [reactionNote, setReactionNote] = useState('');
   const [visibility, setVisibility] = useState<Visibility>(defaultVisibility);
   const [photoUris, setPhotoUris] = useState<string[]>([]);
@@ -55,7 +62,9 @@ export default function FinishSheet({ visible, initialTitle, isSprint, defaultVi
     if (visible) {
       setTitle(initialTitle);
       setNotes('');
-      setReaction(null);
+      setEffort(null);
+      setPain(null);
+      setPainArea(null);
       setReactionNote('');
       setVisibility(defaultVisibility);
       setPhotoUris([]);
@@ -78,7 +87,12 @@ export default function FinishSheet({ visible, initialTitle, isSprint, defaultVi
             size="lg"
             fullWidth
             loading={saving}
-            onPress={() => onSave({ title, notes, reaction, reactionNote, visibility }, photoUris)}
+            onPress={() =>
+              onSave(
+                { title, notes, effort, pain, painArea: pain != null && pain >= 3 ? painArea : null, reactionNote, visibility },
+                photoUris
+              )
+            }
           />
           <View style={styles.footerRow}>
             <Button title="Discard workout" variant="destructive" size="sm" disabled={saving} onPress={onDiscard} />
@@ -114,17 +128,34 @@ export default function FinishSheet({ visible, initialTitle, isSprint, defaultVi
       </View>
       {isSprint && (
         <View style={styles.block}>
-          <Text style={TYPE.overline}>How did that feel?</Text>
+          <Text style={TYPE.overline}>How hard was that?</Text>
           <View style={styles.chipRow}>
-            {REACTIONS.map((r) => (
+            {EFFORTS.map((e) => (
               <FilterChip
-                key={r.value}
-                label={r.label}
-                selected={reaction === r.value}
-                onToggle={() => setReaction(reaction === r.value ? null : r.value)}
+                key={e.value}
+                label={e.label}
+                selected={effort === e.value}
+                onToggle={() => setEffort(effort === e.value ? null : e.value)}
               />
             ))}
           </View>
+          <Text style={TYPE.overline}>Any pain?</Text>
+          <PainScale value={pain} onChange={setPain} />
+          {pain != null && pain >= 3 ? (
+            <>
+              <Text style={TYPE.overline}>Where?</Text>
+              <View style={styles.chipRow}>
+                {[...painAreas, 'other'].map((area) => (
+                  <FilterChip
+                    key={area}
+                    label={area === 'other' ? 'Other' : bodyPartLabel(area)}
+                    selected={painArea === area}
+                    onToggle={() => setPainArea(painArea === area ? null : area)}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
           <TextField value={reactionNote} onChangeText={setReactionNote} placeholder="Anything to note? (optional)" />
         </View>
       )}

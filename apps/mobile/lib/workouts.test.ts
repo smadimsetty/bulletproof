@@ -1,6 +1,6 @@
 // apps/mobile/lib/workouts.test.ts
 import {
-  sortSets,
+  sortSets, isPainFlag,
   isInProgressConflict, buildSprintWorkoutExercises, finishWorkout, startSprintWorkout, startWorkout,
   subscribeToActiveWorkoutChanges, discardWorkout, fetchWorkoutHistory, historyCursorFilter, type Workout,
 } from './workouts';
@@ -112,7 +112,11 @@ const sprintWorkout: Workout = {
     },
   ],
 };
-const finishInput = { title: '  ', notes: ' felt fine ', reaction: 'good' as const, reactionNote: '', visibility: 'private' as const };
+const finishInput = {
+  title: '  ', notes: ' felt fine ', effort: 'easy' as const, pain: 0 as number | null, painArea: null as string | null,
+  reactionNote: '', visibility: 'private' as const,
+};
+const SAVED = { result: 'saved', painFlag: false };
 const DAY_14 = { data: { id: 'd14', day_number: 14, sprint_id: 'sp1' }, error: null };
 
 describe('finishWorkout', () => {
@@ -128,7 +132,7 @@ describe('finishWorkout', () => {
       { table: 'sprint_day_feedback', result: OK },
       { table: 'workouts', result: OK }
     );
-    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toBe('saved');
+    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toEqual(SAVED);
     expect(tables).toHaveLength(9);
     expect(chains[0].in).toHaveBeenCalledWith('id', ['s2', 's3']);
     expect(chains[1].in).toHaveBeenCalledWith('id', ['we2']);
@@ -159,7 +163,7 @@ describe('finishWorkout', () => {
       { table: 'sprint_day_feedback', result: OK },
       { table: 'workouts', result: OK }
     );
-    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toBe('saved');
+    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toEqual(SAVED);
     expect(tables[tables.length - 1]).toBe('workouts');
     expect(chains[5].update.mock.calls[0][0].ended_at).toEqual(expect.any(String));
   });
@@ -172,13 +176,47 @@ describe('finishWorkout', () => {
       { table: 'sprints', result: { data: { status: 'abandoned' }, error: null } },
       { table: 'workouts', result: OK }
     );
-    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toBe('saved');
+    await expect(finishWorkout(sprintWorkout, finishInput)).resolves.toEqual(SAVED);
     expect(tables).toEqual(['workout_sets', 'workout_exercises', 'sprint_days', 'sprints', 'workouts']);
+  });
+
+  const feedbackRun = (input: typeof finishInput) => {
+    const q = queue(
+      { table: 'workout_sets', result: OK },
+      { table: 'workout_exercises', result: OK },
+      { table: 'sprint_days', result: DAY_14 },
+      { table: 'sprints', result: { data: { status: 'pending_reassessment' }, error: null } },
+      ...(input.effort != null || input.pain != null ? [{ table: 'sprint_day_feedback', result: OK }] : []),
+      { table: 'workouts', result: OK }
+    );
+    return { q, run: finishWorkout(sprintWorkout, input) };
+  };
+
+  test('effort without pain saves feedback with pain null', async () => {
+    const { q, run } = feedbackRun({ ...finishInput, effort: 'easy', pain: null });
+    await expect(run).resolves.toEqual(SAVED);
+    expect(q.chains[4].upsert.mock.calls[0][0]).toMatchObject({ sprint_day_id: 'd14', effort: 'easy', pain: null, pain_area: null });
+  });
+
+  test('no effort and no pain writes no feedback row', async () => {
+    const { q, run } = feedbackRun({ ...finishInput, effort: null as any, pain: null });
+    await expect(run).resolves.toEqual(SAVED);
+    expect(q.tables).not.toContain('sprint_day_feedback');
+  });
+
+  test('pain above 5 raises the pain flag', async () => {
+    const { run } = feedbackRun({ ...finishInput, effort: 'right' as any, pain: 6 });
+    await expect(run).resolves.toEqual({ result: 'saved', painFlag: true });
+  });
+
+  test('pain 4 in a named area raises the pain flag', async () => {
+    const { run } = feedbackRun({ ...finishInput, effort: 'right' as any, pain: 4, painArea: 'ankle' });
+    await expect(run).resolves.toEqual({ result: 'saved', painFlag: true });
   });
 
   test('no completed sets: refuses and writes nothing', async () => {
     const none: Workout = { ...sprintWorkout, exercises: [sprintWorkout.exercises[1]] };
-    await expect(finishWorkout(none, finishInput)).resolves.toBe('no_completed_sets');
+    await expect(finishWorkout(none, finishInput)).resolves.toEqual({ result: 'no_completed_sets', painFlag: false });
     expect(supabase.from).not.toHaveBeenCalled();
   });
 });
@@ -310,4 +348,10 @@ test('buildSprintWorkoutExercises carries the lead side and extra set', () => {
     exercises: [{ id: 'x1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '15 reps', order: 1, completedAt: null, level: 1, step: 1, leadSide: 'right', extraSideSet: true }],
   };
   expect(buildSprintWorkoutExercises(day)[0]).toMatchObject({ leadSide: 'right', extraSideSet: true });
+});
+
+describe('isPainFlag', () => {
+  test.each([
+    [6, null, true], [5, null, false], [4, 'ankle', true], [3, 'ankle', false], [null, 'ankle', false], [10, 'other', true],
+  ])('pain %s area %s -> %s', (pain, area, flag) => expect(isPainFlag(pain as any, area as any)).toBe(flag));
 });
