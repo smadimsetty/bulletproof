@@ -94,7 +94,7 @@ try:
     s,r=req('POST','/rest/v1/engine_calls',{'owner_id':a_id,'model':'forged'},token=B); ok(s>=400,f"B cannot insert engine_calls as A ({s})")
     s,r=req('POST','/rest/v1/engine_calls',{'sprint_id':spid,'model':'forged'},token=B); ok(s>=400,f"B cannot attach engine_calls to A's sprint ({s})")
     # continue_sprint needs a completed sprint with a reassessment + slot state.
-    s,_=req('POST','/rest/v1/sprint_assessments',[{'sprint_id':spid,'phase':'baseline'},{'sprint_id':spid,'phase':'reassessment'}],token=A); ok(s==201,f"A adds assessments ({s})")
+    s,_=req('POST','/rest/v1/sprint_assessments',[{'sprint_id':spid,'phase':'baseline'},{'sprint_id':spid,'phase':'reassessment','completed_at':'2026-11-12T12:00:00Z'}],token=A); ok(s==201,f"A adds assessments ({s})")
     s,ra=req('GET',f"/rest/v1/sprint_assessments?select=id&sprint_id=eq.{spid}&phase=eq.reassessment",token=A)
     s,_=req('POST','/rest/v1/sprint_assessment_results',{'sprint_assessment_id':ra[0]['id'],'test_key':'smoke_test','value_single':4.5},token=A); ok(s==201,f"A adds reassessment result ({s})")
     s,r=req('POST','/rest/v1/rpc/continue_sprint',{'p_old_sprint_id':spid,'p_started_on':'2026-12-01'},token=A); ok(s>=400,f"continue_sprint on a non-completed sprint fails ({s})")

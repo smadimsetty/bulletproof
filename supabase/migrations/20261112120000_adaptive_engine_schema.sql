@@ -105,7 +105,7 @@ create policy owner_read_write_sprint_ai_adjustments on sprint_ai_adjustments
 
 create table if not exists engine_calls (
   id uuid primary key default gen_random_uuid(),
-  owner_id uuid not null default auth.uid() references auth.users(id),
+  owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   sprint_id uuid references sprints(id) on delete set null,
   trigger text check (trigger in ('start', 'pain', 'retest')),
   model text not null,
@@ -185,7 +185,7 @@ begin
 
   select id into v_old_reassess
     from sprint_assessments
-   where sprint_id = v_old.id and phase = 'reassessment';
+   where sprint_id = v_old.id and phase = 'reassessment' and completed_at is not null;
 
   insert into sprint_assessments (sprint_id, phase, completed_at)
   values (v_new.id, 'baseline', now())
