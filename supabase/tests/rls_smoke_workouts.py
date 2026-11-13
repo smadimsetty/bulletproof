@@ -94,9 +94,10 @@ try:
     s,r=req('POST','/rest/v1/engine_calls',{'owner_id':a_id,'model':'forged'},token=B); ok(s>=400,f"B cannot insert engine_calls as A ({s})")
     s,r=req('POST','/rest/v1/engine_calls',{'sprint_id':spid,'model':'forged'},token=B); ok(s>=400,f"B cannot attach engine_calls to A's sprint ({s})")
     # continue_sprint needs a completed sprint with a reassessment + slot state.
-    s,_=req('POST','/rest/v1/sprint_assessments',[{'sprint_id':spid,'phase':'baseline'},{'sprint_id':spid,'phase':'reassessment','completed_at':'2026-11-12T12:00:00Z'}],token=A); ok(s==201,f"A adds assessments ({s})")
+    s,_=req('POST','/rest/v1/sprint_assessments',[{'sprint_id':spid,'phase':'baseline','completed_at':None},{'sprint_id':spid,'phase':'reassessment','completed_at':'2026-11-12T12:00:00Z'}],token=A); ok(s==201,f"A adds assessments ({s})")
     s,ra=req('GET',f"/rest/v1/sprint_assessments?select=id&sprint_id=eq.{spid}&phase=eq.reassessment",token=A)
-    s,_=req('POST','/rest/v1/sprint_assessment_results',{'sprint_assessment_id':ra[0]['id'],'test_key':'smoke_test','value_single':4.5},token=A); ok(s==201,f"A adds reassessment result ({s})")
+    ok(s==200 and len(ra)==1,f"reassessment row found ({s} {ra})")
+    if s==200 and len(ra)==1: s,_=req('POST','/rest/v1/sprint_assessment_results',{'sprint_assessment_id':ra[0]['id'],'test_key':'smoke_test','value_single':4.5},token=A); ok(s==201,f"A adds reassessment result ({s})")
     s,r=req('POST','/rest/v1/rpc/continue_sprint',{'p_old_sprint_id':spid,'p_started_on':'2026-12-01'},token=A); ok(s>=400,f"continue_sprint on a non-completed sprint fails ({s})")
     s,_=req('PATCH',f"/rest/v1/sprints?id=eq.{spid}",{'status':'completed'},token=A); ok(s==200,f"A completes sprint ({s})")
     s,r=req('POST','/rest/v1/rpc/continue_sprint',{'p_old_sprint_id':spid,'p_started_on':'2026-12-01'},token=B); ok(s>=400,f"B cannot continue A's sprint ({s})")
@@ -110,4 +111,8 @@ try:
     s,r=req('GET',f"/rest/v1/engine_calls?select=sprint_id&owner_id=eq.{a_id}",token=A); ok(s==200 and len(r)==1 and r[0]['sprint_id'] is None,f"engine_calls survive sprint delete, sprint_id nulled ({r})")
 finally:
     for i in ids:
+        # Mirror delete-account: remove rows whose owner_id FK has no cascade before the auth user.
+        for tbl in ('workouts','sprints','routine_exercises','routines','routine_folders','exercises'):
+            try: s,_=req('DELETE',f"/rest/v1/{tbl}?owner_id=eq.{i}",token=SR,key=SR); print(f"cleanup {tbl} {s}")
+            except Exception as e: print(f"cleanup {tbl} error {e}")
         s,_=req('DELETE',f"/auth/v1/admin/users/{i}",token=SR,key=SR); print(f"cleanup user {s}")
