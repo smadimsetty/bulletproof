@@ -1,5 +1,7 @@
 # 2026-11-13 features handoff
 
+**Status: confirmed working on Sohan's phone in build 30 (2026-11-13). Build 29 crashed at launch because of Expo's prebuilt expo-contacts; build 30 fixes it.**
+
 Four features shipped in order: the dead hang timer, the paid plan (with the AI coach cap), the History + Progress merge, and finding friends from contacts. All of them are on master, pushed, with migrations live.
 
 ## What only Sohan can do

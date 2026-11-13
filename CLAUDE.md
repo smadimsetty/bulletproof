@@ -294,3 +294,5 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
 - **Live suites:** workouts 88 (6 new hang checks), social 73, embed 11, `premium_smoke.py` 15, `contacts_smoke.py` 9. Jest 526/526.
 - **Build 29 crashed at launch, fixed in build 30.** The cause was Expo's prebuilt `expo-contacts` binary, which links `@rpath/Testing.framework` (expo/expo#50101), so dyld aborts before any JS runs. Fixed with `"expo": {"autolinking": {"ios": {"buildFromSource": ["expo-contacts"]}}}` in `apps/mobile/package.json`. Build 30's `.ipa` was scanned and is clean. **When adding a native module, scan the `.ipa` for `Testing.framework/Testing` before `eas submit`.**
 
+**2026-11-13 — session wrap-up: START HERE next time.** Build 30 is confirmed working on Sohan's phone. **Pick-up doc: `docs/superpowers/reports/2026-11-13-session-wrapup.md`.** It covers today's decisions, what's waiting on Sohan (the Paid Applications agreement, a Twilio account, `ANTHROPIC_API_KEY`, Beta App Review), the pre-launch list, and key IDs.
+
