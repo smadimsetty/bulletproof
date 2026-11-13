@@ -58,7 +58,7 @@ describe('planDay', () => {
 
   it('5-10 with a 12 minute top slot yields exactly that slot', () => {
     const i = input({ ...two(), timeRange: '5-10' });
-    // 3 x 120s + 2 x 30s rest = 420s... make it 12 min
+    // 3 x 210s + 2 x 30s rest = 690s (11.5 min), over the 10 min max
     i.ladder[0] = row({ slotKey: 's1', exerciseId: 'e1', sets: 3, repsOrDuration: '210s' });
     const p = planDay(i);
     expect(p.exercises.map((e) => e.slotKey)).toEqual(['s1']);
@@ -182,7 +182,7 @@ describe('planDay', () => {
     const p = planDay(i);
     expect(p.exercises[0].leadSide).toBe('left');
     expect(p.exercises[0].extraSideSet).toBe(true);
-    expect(p.exercises[0].estSeconds).toBe(estimateSeconds(3, '30s', true));
+    expect(p.exercises[0].estSeconds).toBe(estimateSeconds(2, '30s', true) + 30 + 30);
     expect(p.whyToday).toBe('Left side first, plus one extra set: your ankle dorsiflexion gap is 3 cm.');
   });
 
@@ -208,5 +208,135 @@ describe('planDay', () => {
       ladder: [row({ slotKey: 's1', exerciseId: 'a' }), row({ slotKey: 'o1', exerciseId: 'b' }), row({ slotKey: 'o2', exerciseId: 'c' })],
     });
     expect(planDay(i).exercises.map((e) => e.slotKey)).toEqual(['s1', 'o2']);
+  });
+
+  it('off-rhythm slots skip an overflowing one and still add a smaller one', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], offRhythm: [slot('o1', 2), slot('o2', 3)],
+      priorities: new Map([['s1', 3], ['o1', 2], ['o2', 1]]),
+      states: new Map([['s1', st('s1')], ['o1', st('o1')], ['o2', st('o2')]]),
+      timeRange: '5-10',
+      ladder: [
+        row({ slotKey: 's1', exerciseId: 'a', sets: 2, repsOrDuration: '200s' }),
+        row({ slotKey: 'o1', exerciseId: 'b', sets: 2, repsOrDuration: '200s' }),
+        row({ slotKey: 'o2', exerciseId: 'c', sets: 1, repsOrDuration: '30s' }),
+      ],
+    });
+    expect(planDay(i).exercises.map((e) => e.slotKey)).toEqual(['s1', 'o2']);
+  });
+
+  it('never goes up a level; ignores the tier at the nearest level below', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]),
+      states: new Map([['s1', st('s1', 2)]]), tier: 'basic',
+      ladder: [
+        row({ slotKey: 's1', exerciseId: 'low', level: 1, equipment: ['kettlebell'] }),
+        row({ slotKey: 's1', exerciseId: 'mid', level: 2, equipment: ['kettlebell'] }),
+        row({ slotKey: 's1', exerciseId: 'high', level: 3 }),
+      ],
+    });
+    const e = planDay(i).exercises[0];
+    expect(e.exerciseId).toBe('mid');
+    expect(e.level).toBe(2);
+  });
+
+  it('goes upward only when no row exists at or below the wanted level', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]),
+      states: new Map([['s1', st('s1', 1)]]), tier: 'basic',
+      ladder: [
+        row({ slotKey: 's1', exerciseId: 'l2kb', level: 2, equipment: ['kettlebell'] }),
+        row({ slotKey: 's1', exerciseId: 'l3', level: 3 }),
+      ],
+    });
+    expect(planDay(i).exercises[0].exerciseId).toBe('l3');
+  });
+
+  it('ranked candidates are a priority prefix: no smaller lower-priority slot after an overflow', () => {
+    const i = input({
+      candidates: [slot('s1', 1), slot('s2', 2), slot('s3', 3)],
+      priorities: new Map([['s1', 3], ['s2', 2], ['s3', 1]]),
+      states: new Map([['s1', st('s1')], ['s2', st('s2')], ['s3', st('s3')]]),
+      timeRange: '5-10',
+      ladder: [
+        row({ slotKey: 's1', exerciseId: 'e1', sets: 2, repsOrDuration: '200s' }),
+        row({ slotKey: 's2', exerciseId: 'e2', sets: 2, repsOrDuration: '200s' }),
+        row({ slotKey: 's3', exerciseId: 'e3', sets: 1, repsOrDuration: '30s' }),
+      ],
+    });
+    expect(planDay(i).exercises.map((e) => e.slotKey)).toEqual(['s1']);
+  });
+
+  it('counts the extra weaker-side set against the 240s stretch cap', () => {
+    const i = input({
+      candidates: [slot('s1', 1, 'hip', true)], priorities: new Map([['s1', 1]]),
+      states: new Map([['s1', st('s1')]]), timeRange: '20-30',
+      ladder: [row({ slotKey: 's1', exerciseId: 'a', sets: 4, repsOrDuration: '60s', unilateral: true, isStretch: true })],
+      weakerSideBySlot: new Map<string, Side>([['s1', 'left']]),
+      testNameBySlot: new Map([['s1', 't']]), gapTextBySlot: new Map([['s1', 'g']]),
+    });
+    const e = planDay(i).exercises[0];
+    expect(e.sets).toBe(3);
+    expect((e.sets + 1) * 60).toBeLessThanOrEqual(240);
+  });
+
+  it('falls back to the plain whyToday when the gap text is missing', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]), states: new Map([['s1', st('s1')]]),
+      ladder: [row({ slotKey: 's1', exerciseId: 'a', unilateral: true })],
+      weakerSideBySlot: new Map<string, Side>([['s1', 'left']]), testNameBySlot: new Map([['s1', 'reach']]),
+    });
+    expect(planDay(i).whyToday).toBe('Focus today: reach, your biggest gap to target.');
+  });
+
+  it('keeps the top stretch slot at 1 set even if one hold exceeds the cap', () => {
+    const i = input({
+      candidates: [slot('s1', 1, 'hip', true)], priorities: new Map([['s1', 1]]),
+      states: new Map([['s1', st('s1')]]),
+      ladder: [row({ slotKey: 's1', exerciseId: 'a', sets: 3, repsOrDuration: '300s', isStretch: true })],
+    });
+    expect(planDay(i).exercises[0].sets).toBe(1);
+  });
+
+  it('prefer wins over rotation and altRank', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]), states: new Map([['s1', st('s1')]]),
+      ladder: [row({ slotKey: 's1', exerciseId: 'a' }), row({ slotKey: 's1', exerciseId: 'b', altRank: 5 })],
+      prefer: new Set(['b']), lastDoneByExercise: new Map([['b', '2026-11-11']]),
+    });
+    expect(planDay(i).exercises[0].exerciseId).toBe('b');
+  });
+
+  it('priorityDelta (x0.5) reorders the ranking', () => {
+    const i = input({
+      candidates: [slot('s1', 1), slot('s2', 2)],
+      priorities: new Map([['s1', 5], ['s2', 4]]),
+      priorityDelta: new Map([['s2', 4]]),
+      states: new Map([['s1', st('s1')], ['s2', st('s2')]]),
+      ladder: [row({ slotKey: 's1', exerciseId: 'a' }), row({ slotKey: 's2', exerciseId: 'b' })],
+      testNameBySlot: new Map([['s1', 'one'], ['s2', 'two']]),
+    });
+    expect(planDay(i).whyToday).toBe('Focus today: two, your biggest gap to target.');
+  });
+
+  it('levelOverride beats the state level', () => {
+    const i = input({
+      candidates: [slot('s1', 1)], priorities: new Map([['s1', 1]]), states: new Map([['s1', st('s1', 3)]]),
+      levelOverride: new Map([['s1', 1]]),
+      ladder: [row({ slotKey: 's1', exerciseId: 'l1', level: 1 }), row({ slotKey: 's1', exerciseId: 'l3', level: 3 })],
+    });
+    expect(planDay(i).exercises[0].exerciseId).toBe('l1');
+  });
+
+  it('null timeRange behaves as 10-20', () => {
+    const base = {
+      candidates: [slot('s1', 1), slot('s2', 2), slot('s3', 3)],
+      priorities: new Map([['s1', 3], ['s2', 2], ['s3', 1]]),
+      states: new Map([['s1', st('s1')], ['s2', st('s2')], ['s3', st('s3')]]),
+      ladder: ['s1', 's2', 's3'].map((k) => row({ slotKey: k, exerciseId: 'e' + k, sets: 4, repsOrDuration: '90s' })),
+    };
+    const n = planDay(input({ ...base, timeRange: null })).exercises.length;
+    expect(n).toBe(planDay(input({ ...base, timeRange: '10-20' })).exercises.length);
+    expect(n).toBeLessThan(planDay(input({ ...base, timeRange: '20-30' })).exercises.length);
   });
 });

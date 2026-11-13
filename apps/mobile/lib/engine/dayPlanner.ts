@@ -19,6 +19,7 @@ export interface LadderRow {
   repsOrDuration: string;
   equipment: readonly string[] | null;
   unilateral: boolean;
+  /** Informational only: the planner uses CandidateSlot.isStretch as the single source of truth. */
   isStretch: boolean;
 }
 export interface CandidateSlot {
@@ -104,8 +105,8 @@ interface Choice {
 }
 
 /**
- * Pick the exercise for a slot. Level starts at override/state level and falls back downward
- * (then upward, then ignoring tier) so a slot is never empty while the ladder has any row.
+ * Pick the exercise for a slot. Level starts at override/state level and falls back downward only,
+ * so the user is never silently given a harder level than earned.
  */
 function chooseExercise(slotKey: string, input: PlanInput, pickedToday: ReadonlySet<string>): Choice | null {
   const rows = input.ladder.filter((r) => r.slotKey === slotKey);
@@ -116,20 +117,22 @@ function chooseExercise(slotKey: string, input: PlanInput, pickedToday: Readonly
   const levels = [...new Set(rows.map((r) => r.level))].sort((a, b) => a - b);
   const below = levels.filter((l) => l <= wantLevel).reverse();
   const above = levels.filter((l) => l > wantLevel);
-  const order = [...below, ...above];
 
   const allowed = (r: LadderRow) => tierAllows(input.tier, requiredTier(r.equipment));
-  let level: number | null = null;
-  let pool: LadderRow[] = [];
-  for (const l of order) {
-    const p = rows.filter((r) => r.level === l && allowed(r));
-    if (p.length) { level = l; pool = p; break; }
-  }
-  if (level == null) {
-    // Nothing fits the tier anywhere: ignore the tier rather than return an empty slot.
-    level = order[0];
-    pool = rows.filter((r) => r.level === level);
-  }
+  const firstAllowed = (ls: number[]): { level: number; pool: LadderRow[] } | null => {
+    for (const l of ls) {
+      const p = rows.filter((r) => r.level === l && allowed(r));
+      if (p.length) return { level: l, pool: p };
+    }
+    return null;
+  };
+  // Tier-respecting at or below; else ignore tier at the nearest level at or below (right difficulty,
+  // equipment mismatch); only when no row exists at or below at all go upward (tier-respecting first).
+  let found = firstAllowed(below);
+  if (!found && below.length) found = { level: below[0], pool: rows.filter((r) => r.level === below[0]) };
+  if (!found) found = firstAllowed(above);
+  if (!found) found = { level: above[0], pool: rows.filter((r) => r.level === above[0]) };
+  const { level, pool } = found;
   const ids = [...new Set(pool.map((r) => r.exerciseId))];
   let cands = ids;
   const noAvoid = cands.filter((id) => !input.avoid.has(id));
@@ -177,28 +180,44 @@ export function planDay(input: PlanInput): DayPlan {
   let topSlot: CandidateSlot | null = null;
   let topLead = false;
 
-  for (const slot of [...ranked, ...off]) {
+  let rankedOverflowed = false;
+  const queue = [
+    ...ranked.map((slot) => ({ slot, isOff: false })),
+    ...off.map((slot) => ({ slot, isOff: true })),
+  ];
+  for (const { slot, isOff } of queue) {
+    // Ranked candidates form a priority prefix: after one overflows the budget, no lower-priority
+    // ranked slot is added. Off-rhythm slots are only added if time remains (skip and continue).
+    if (!isOff && rankedOverflowed) continue;
     const choice = chooseExercise(slot.slotKey, input, picked);
     if (!choice) continue;
     const { row, exerciseId, level } = choice;
     const isFirst = exercises.length === 0;
 
+    const weaker = input.weakerSideBySlot.get(slot.slotKey);
+    const lead = weaker != null && row.unilateral;
+    const extra = lead ? 1 : 0;
+    const hold = secondsPerSet(row.repsOrDuration);
+
     let sets = row.sets;
     if (slot.isStretch) {
-      const hold = secondsPerSet(row.repsOrDuration);
+      // The cap counts one side only; the weaker side gets one extra set, so it counts there.
       const used = stretchByArea.get(slot.area) ?? 0;
-      if (used + sets * hold > STRETCH_AREA_CAP_SECONDS) {
-        const fit = Math.floor((STRETCH_AREA_CAP_SECONDS - used) / hold);
+      if (used + (sets + extra) * hold > STRETCH_AREA_CAP_SECONDS) {
+        const fit = Math.floor((STRETCH_AREA_CAP_SECONDS - used) / hold) - extra;
         if (fit >= 1) sets = Math.min(sets, fit);
+        // The top-priority slot is always kept, even if a single hold exceeds the remaining cap.
         else if (isFirst) sets = 1;
         else continue;
       }
     }
 
-    const weaker = input.weakerSideBySlot.get(slot.slotKey);
-    const lead = weaker != null && row.unilateral;
-    const est = estimateSeconds(lead ? sets + 1 : sets, row.repsOrDuration, row.unilateral);
-    if (!isFirst && total + est > budget) continue;
+    // The extra set is on the weaker side only: add one set's time and one rest, not doubled.
+    const est = estimateSeconds(sets, row.repsOrDuration, row.unilateral) + (lead ? hold + REST_SECONDS : 0);
+    if (!isFirst && total + est > budget) {
+      if (!isOff) rankedOverflowed = true;
+      continue;
+    }
 
     exercises.push({
       slotKey: slot.slotKey, exerciseId, level, step: row.step, sets,
@@ -209,7 +228,7 @@ export function planDay(input: PlanInput): DayPlan {
     picked.add(exerciseId);
     total += est;
     if (slot.isStretch) {
-      stretchByArea.set(slot.area, (stretchByArea.get(slot.area) ?? 0) + sets * secondsPerSet(row.repsOrDuration));
+      stretchByArea.set(slot.area, (stretchByArea.get(slot.area) ?? 0) + (sets + extra) * hold);
     }
     if (isFirst) { topSlot = slot; topLead = lead; }
   }
@@ -219,9 +238,9 @@ export function planDay(input: PlanInput): DayPlan {
   let whyToday = '';
   if (topSlot) {
     const testName = input.testNameBySlot.get(topSlot.slotKey) ?? topSlot.slotKey;
-    if (topLead) {
+    const gap = input.gapTextBySlot.get(topSlot.slotKey);
+    if (topLead && gap) {
       const side = input.weakerSideBySlot.get(topSlot.slotKey)!;
-      const gap = input.gapTextBySlot.get(topSlot.slotKey) ?? '';
       whyToday = `${cap(side)} side first, plus one extra set: your ${testName} gap is ${gap}.`;
     } else {
       whyToday = `Focus today: ${testName}, your biggest gap to target.`;
