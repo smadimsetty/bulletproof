@@ -10,7 +10,6 @@
 import {
   deepLinkToSubscriptions, endConnection, fetchProducts, finishTransaction, getAvailablePurchases, initConnection,
   isUserCancelledError, purchaseErrorListener, purchaseUpdatedListener, requestPurchase, restorePurchases,
-  type Purchase,
 } from 'expo-iap';
 import { supabase } from './supabase';
 import { PRODUCT_IDS, type PremiumStatus } from './premiumRules';
@@ -51,17 +50,19 @@ async function verify(tokens: string[]): Promise<{ status: PremiumStatus; result
   return data;
 }
 
-function ourTokens(purchases: Purchase[]): string[] {
-  const ids = new Set<string>(Object.values(PRODUCT_IDS));
-  return purchases.filter((p) => ids.has(p.productId) && p.purchaseToken).map((p) => p.purchaseToken as string);
-}
-
 /** Re-sends what StoreKit holds. Returns the fresh status, or null when there was nothing to send. */
 export async function syncPurchases(): Promise<PremiumStatus | null> {
   await connect();
-  const tokens = ourTokens(await getAvailablePurchases({ onlyIncludeActiveItemsIOS: true }));
-  if (tokens.length === 0) return null;
-  const { status } = await verify(tokens);
+  const ids = new Set<string>(Object.values(PRODUCT_IDS));
+  const ours = (await getAvailablePurchases({ onlyIncludeActiveItemsIOS: true })).filter(
+    (p) => ids.has(p.productId) && p.purchaseToken,
+  );
+  if (ours.length === 0) return null;
+  const { status, results } = await verify(ours.map((p) => p.purchaseToken as string));
+  // Finish what the server recorded, or StoreKit redelivers it on every launch.
+  await Promise.all(
+    ours.map((p, i) => (results[i]?.ok ? finishTransaction({ purchase: p, isConsumable: false }).catch(() => undefined) : undefined)),
+  );
   notify();
   return status;
 }
@@ -106,7 +107,14 @@ export async function buy(productId: string): Promise<PremiumStatus | null> {
       fn();
     };
     const okSub = purchaseUpdatedListener(async (purchase) => {
-      if (purchase.productId !== productId || !purchase.purchaseToken) return;
+      if (purchase.productId !== productId) return;
+      // Ask to Buy: a parent has to approve. Nothing is charged yet; the approved purchase
+      // arrives later and is picked up by syncPurchases() on the next launch.
+      if (purchase.purchaseState === 'pending') {
+        finish(() => reject(new Error('Waiting for approval. Once it is approved, reopen MoveMaxx.')));
+        return;
+      }
+      if (!purchase.purchaseToken) return;
       try {
         const { status, results } = await verify([purchase.purchaseToken]);
         if (!results[0]?.ok) throw new Error(results[0]?.reason ?? 'Apple confirmed the purchase but we could not verify it.');

@@ -4,10 +4,14 @@ Living backlog of known bugs and features, in priority order. Check items off as
 
 Last reordered: 2026-07-06.
 
-## Next up (Sohan, 2026-11-13)
-- **Merge History and Progress into one tab.** Assessments collapse by area (tap "Ankles" to open that area's results) so the list stays short as areas pile up; past workouts live in the same tab behind their own collapsible section. Needs a short design first.
-- **Paid plan, decided 2026-11-13:** $2/month or $10/year, deliberately cheap to start (can rise later). It only has to cover AI, plus data cost later. iPhone subscriptions must use Apple in-app purchase (Apple keeps 15% under the Small Business Program). Not designed yet: what's free vs paid.
-- **AI cost cap:** at most 4 `sprint-coach` calls per user per day, enforced in the Edge Function (counted from `engine_calls`). Model stays Haiku 5.5 (cheapest). Estimated ~$0.001 per call, ~$0.15/month for a heavy user; the worst-case budget Sohan set is $0.20/day ($6/month). Refreshing the app never calls AI: days are built by rules on the phone.
+## Done 2026-11-13: dead hang timer, paid plan (+ AI cap), History/Progress merge, contact sync
+See CLAUDE.md and docs/superpowers/reports/2026-11-13-features-handoff.md.
+
+## Deferred (from the 2026-11-13 build)
+- find_contacts has no per-user rate limit; a determined user could probe numbers 2000 at a time. Add a daily cap if abuse shows up.
+- No App Store Server Notifications yet: renewals/refunds reach the server only when the app next opens and re-syncs (premium_status uses the last known expiry). Add the notifications endpoint before public launch.
+- Subscriptions are US-only; add territories (and prices) before launching elsewhere.
+- Replace the mock paywall review screenshot in App Store Connect with a real device screenshot before App Store review.
 
 ## Stored for later (from 2026-11-09 logger-polish round; Sohan expects ~Wed/Thu 2026-11-11/12)
 
