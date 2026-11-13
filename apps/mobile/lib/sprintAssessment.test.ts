@@ -1,3 +1,5 @@
+jest.mock('./sprintCoach', () => ({ requestCoach: jest.fn() }));
+import { requestCoach } from './sprintCoach';
 import {
   isAssessmentComplete,
   buildBeforeAfterComparison,
@@ -197,6 +199,7 @@ describe('submitAssessment', () => {
 
     expect(supabase.from).toHaveBeenCalledWith('sprints');
     expect(updateSpy).toHaveBeenCalledWith({ status: 'completed' });
+    expect(requestCoach).toHaveBeenCalledWith('retest', 'sprint-1');
   });
 });
 

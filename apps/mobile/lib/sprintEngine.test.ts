@@ -152,6 +152,20 @@ describe('computeDayBuild', () => {
     expect(r.consumedAdjustmentIds).toEqual(['a1']);
   });
 
+  test('a consumed start adjustment keeps its prefer list but does not re-apply its level', () => {
+    const r = computeDayBuild(baseInputs({
+      ladder: [...baseInputs().ladder, { ...baseInputs().ladder[0], exerciseId: 'c1b', altRank: 2 }],
+      states: [{ slotKey: 'calf', level: 1, step: 1, rightStreak: 0, hardStreak: 0, lastDoneOn: null, gapBackApplied: 0 }],
+      adjustments: [{
+        id: 'a1', slotKey: 'calf', kind: 'start', levelOverride: 2, prefer: ['c1b'], avoid: [], priorityDelta: 0,
+        createdAt: '2026-11-19T00:00:00Z', consumed: true,
+      }],
+    }));
+    expect(stateOf(r, 'calf')).toMatchObject({ level: 1 });
+    expect(r.plan.exercises.find((e) => e.slotKey === 'calf')!.exerciseId).toBe('c1b');
+    expect(r.consumedAdjustmentIds).toEqual([]);
+  });
+
   test('day rows carry the template tier, and order follows the plan', () => {
     const r = computeDayBuild(baseInputs());
     expect(r.rows.map((x) => [x.slot_key, x.tier, x.exercise_order])).toEqual([['calf', 1, 1], ['balance', 2, 2]]);
@@ -184,7 +198,7 @@ function fakeSupabase(handler: (op: Op) => { data: any; error: any }) {
   (supabase.from as jest.Mock).mockImplementation((table: string) => {
     const op: Op = { table, op: 'select', filters: [] };
     const chain: any = {};
-    for (const m of ['select', 'eq', 'neq', 'in', 'is', 'not', 'lt', 'lte', 'gt', 'order', 'limit']) {
+    for (const m of ['select', 'eq', 'neq', 'in', 'is', 'not', 'or', 'lt', 'lte', 'gt', 'order', 'limit']) {
       chain[m] = jest.fn((...args: any[]) => { if (m !== 'select') op.filters.push([m, ...args]); return chain; });
     }
     for (const m of ['insert', 'update', 'upsert', 'delete']) {

@@ -3,6 +3,7 @@
 // summary screen renders. See design spec section 2.1/2.2 for the
 // assessment_definitions/sprint_assessments/sprint_assessment_results
 // schema this implements.
+import { requestCoach } from './sprintCoach';
 import { supabase } from './supabase';
 
 export type BetterDirection = 'lower' | 'higher' | 'symmetry';
@@ -105,6 +106,8 @@ export async function submitAssessment(
   if (phase === 'reassessment') {
     const { error: completeError } = await supabase.from('sprints').update({ status: 'completed' }).eq('id', sprintId);
     if (completeError) throw new Error(completeError.message);
+    // The coach's stay-or-switch call runs in the background (spec §5.4).
+    requestCoach('retest', sprintId);
   }
 }
 

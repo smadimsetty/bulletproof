@@ -5,8 +5,10 @@ import {
   subscribeToActiveWorkoutChanges, discardWorkout, fetchWorkoutHistory, historyCursorFilter, type Workout,
 } from './workouts';
 import type { SprintDay } from './sprintLifecycle';
+import { requestCoach } from './sprintCoach';
 
 jest.mock('./supabase', () => ({ supabase: { from: jest.fn() } }));
+jest.mock('./sprintCoach', () => ({ requestCoach: jest.fn() }));
 jest.mock('./session', () => ({ getMyId: jest.fn(() => Promise.resolve('me')) }));
 import { supabase } from './supabase';
 
@@ -204,9 +206,18 @@ describe('finishWorkout', () => {
     expect(q.tables).not.toContain('sprint_day_feedback');
   });
 
-  test('pain above 5 raises the pain flag', async () => {
+  test('pain above 5 raises the pain flag and asks the coach for a pain adjustment', async () => {
+    (requestCoach as jest.Mock).mockClear();
     const { run } = feedbackRun({ ...finishInput, effort: 'right' as any, pain: 6 });
     await expect(run).resolves.toEqual({ result: 'saved', painFlag: true });
+    expect(requestCoach).toHaveBeenCalledWith('pain', 'sp1');
+  });
+
+  test('no pain flag, no coach call', async () => {
+    (requestCoach as jest.Mock).mockClear();
+    const { run } = feedbackRun({ ...finishInput, effort: 'easy', pain: 1 });
+    await run;
+    expect(requestCoach).not.toHaveBeenCalled();
   });
 
   test('pain 4 in a named area raises the pain flag', async () => {

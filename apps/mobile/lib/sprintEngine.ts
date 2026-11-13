@@ -47,6 +47,9 @@ export interface AiAdjustment {
   avoid: readonly string[];
   priorityDelta: number;
   createdAt: string;
+  /** Already applied to an earlier day. A consumed 'start' adjustment keeps shaping
+   *  priority and exercise choice for the whole sprint; its level is not re-applied. */
+  consumed?: boolean;
 }
 export interface PendingDay {
   id: string;
@@ -207,8 +210,11 @@ export function computeDayBuild(input: BuildInputs): BuildResult {
     .pop() ?? null;
   for (const [key, s] of states) states.set(key, applyGap(s, shapes.get(key)!, lastActiveOn, input.today).state);
 
-  // 4. AI adjustments: the latest level override per slot moves the slot state itself.
-  const adjustments = [...input.adjustments].sort((a, b) => cmp(a.createdAt, b.createdAt));
+  // 4. AI adjustments: the latest unconsumed level override per slot moves the slot state
+  // itself. Consumed 'start' adjustments still count for priority and prefer/avoid.
+  const adjustments = [...input.adjustments]
+    .filter((a) => !a.consumed || a.kind === 'start')
+    .sort((a, b) => cmp(a.createdAt, b.createdAt));
   const priorityDelta = new Map<string, number>();
   const prefer = new Set<string>();
   const avoid = new Set<string>();
@@ -217,7 +223,7 @@ export function computeDayBuild(input: BuildInputs): BuildResult {
     const shape = shapes.get(a.slotKey);
     const state = states.get(a.slotKey);
     if (!shape || !state) continue;
-    if (a.levelOverride != null && Number.isFinite(a.levelOverride)) {
+    if (!a.consumed && a.levelOverride != null && Number.isFinite(a.levelOverride)) {
       const level = Math.min(shape.maxLevel, Math.max(1, Math.round(a.levelOverride)));
       if (level !== state.level) states.set(a.slotKey, { ...state, level, step: 1, rightStreak: 0, hardStreak: 0 });
       levelOverride.set(a.slotKey, level);
@@ -304,7 +310,7 @@ export function computeDayBuild(input: BuildInputs): BuildResult {
     states: [...states.values()],
     plan,
     rows,
-    consumedAdjustmentIds: adjustments.map((a) => a.id),
+    consumedAdjustmentIds: adjustments.filter((a) => !a.consumed).map((a) => a.id),
     progressedDayIds: pending.map((d) => d.id),
   };
 }
@@ -488,9 +494,9 @@ async function buildClaimedDay(sprintId: string, dayId: string, dayNumber: numbe
     supabase.from('sprint_slot_state').select('*').eq('sprint_id', sprintId),
     supabase
       .from('sprint_ai_adjustments')
-      .select('id, slot_key, kind, level_override, prefer_exercise_ids, avoid_exercise_ids, priority_delta, created_at')
+      .select('id, slot_key, kind, level_override, prefer_exercise_ids, avoid_exercise_ids, priority_delta, created_at, consumed_at')
       .eq('sprint_id', sprintId)
-      .is('consumed_at', null),
+      .or('consumed_at.is.null,kind.eq.start'),
     supabase.from('sprint_days').select('id, day_number, date, built_at, progressed_at').eq('sprint_id', sprintId),
   ]);
   for (const r of [statesRes, adjRes, daysRes]) check(r.error);
@@ -572,6 +578,7 @@ async function buildClaimedDay(sprintId: string, dayId: string, dayNumber: numbe
       avoid: a.avoid_exercise_ids ?? [],
       priorityDelta: a.priority_delta ?? 0,
       createdAt: a.created_at ?? '',
+      consumed: a.consumed_at != null,
     })),
     pendingDays,
     painHistory,

@@ -20,6 +20,7 @@ import { filterCandidatesByTier } from './sprintExercisePicker';
 import { ensureDayBuilt, initSlotState } from './sprintEngine';
 import { planStepDown, swapOptionsAtLevel } from './engine/ladderPick';
 import { fetchLadder } from './ladderData';
+import { requestCoach } from './sprintCoach';
 import type { Side } from './engine/types';
 
 export type SprintStatus = 'pending_baseline' | 'active' | 'pending_reassessment' | 'completed' | 'abandoned';
@@ -250,6 +251,8 @@ export async function activateSprintAfterBaseline(sprint: Sprint): Promise<void>
   // dead end as a sprint stuck past day 14.
   const { error: activateError } = await supabase.from('sprints').update({ status: 'active' }).eq('id', sprint.id);
   if (activateError) throw new Error(activateError.message);
+  // Plan summary and start adjustments arrive in the background (spec §8a.4).
+  requestCoach('start', sprint.id);
 }
 
 const SPRINT_DAY_EXERCISE_SELECT =

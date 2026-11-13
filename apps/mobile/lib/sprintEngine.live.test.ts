@@ -70,6 +70,7 @@ const PAIN_POINT = 'ankle';
 
   afterAll(async () => {
     if (!userId) return;
+    await admin().from('engine_calls').delete().eq('owner_id', userId);
     await admin().from('sprints').delete().eq('owner_id', userId);
     await admin().auth.admin.deleteUser(userId);
   });
@@ -136,5 +137,16 @@ const PAIN_POINT = 'ankle';
     const today = (await fetchTodaySprintDay(sprint.id))!;
     const areas = await fetchDayPainAreas(today.id);
     expect(areas.length).toBeGreaterThan(0);
+  });
+  test('sprint-coach loads its context for every trigger and logs the call', async () => {
+    for (const trigger of ['start', 'pain', 'retest']) {
+      const { data, error } = await mockClient.functions.invoke('sprint-coach', { body: { trigger, sprintId: sprint.id } });
+      expect(error).toBeNull();
+      // 'fallback' while no ANTHROPIC_API_KEY is set; 'ok' once it is. Never 'error'.
+      expect(['ok', 'fallback']).toContain((data as any).outcome);
+    }
+    const { data: calls } = await mockClient.from('engine_calls').select('trigger, outcome').eq('sprint_id', sprint.id);
+    expect((calls ?? []).every((c: any) => c.outcome !== 'error')).toBe(true);
+    expect(new Set((calls ?? []).map((c: any) => c.trigger))).toEqual(new Set(['start', 'pain', 'retest']));
   });
 });

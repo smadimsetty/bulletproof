@@ -3,6 +3,7 @@
 // Supabase data layer for the logger + history (spec sections 2, 4, 5, 6).
 // Decision logic lives in the pure modules it imports; this file only
 // reads/writes rows and emits active-workout change events.
+import { requestCoach } from './sprintCoach';
 import { eyeCue } from './exerciseCue';
 import { supabase } from './supabase';
 import { completeExercise, completeDay, submitDayFeedback, type SprintDay } from './sprintLifecycle';
@@ -643,6 +644,8 @@ export async function finishWorkout(workout: Workout, input: FinishInput): Promi
     if ((input.effort != null || input.pain != null) && status !== 'abandoned') {
       await submitDayFeedback((day as any).id, input.effort, input.pain, input.painArea, input.reactionNote);
       painFlag = isPainFlag(input.pain, input.painArea);
+      // The coach adjusts the next day in the background; the rules apply if it doesn't land in time.
+      if (painFlag) requestCoach('pain', (day as any).sprint_id);
     }
   }
 
