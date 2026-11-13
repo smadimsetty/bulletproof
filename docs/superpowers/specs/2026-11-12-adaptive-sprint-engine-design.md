@@ -1,6 +1,6 @@
 # Adaptive sprint engine — design
 
-*2026-11-12. Replaces the static sprint exercise picker. Status: draft for Sohan's review.*
+*2026-11-12. Replaces the static sprint exercise picker. Status: approved by Sohan 2026-11-12.*
 
 ## 1. Intent
 
@@ -64,7 +64,7 @@ It has to stand on sports-physical-therapy practice, not vibes (research summary
 | Which slots train which test | **new** `assessment_slot_links (pain_point_id, test_key, slot_key, weight)` | to author |
 | Difficulty ladder per slot | **new**, see §5.2 | to author |
 | Exercise time estimate | **new** column or derived: seconds per set from reps (~3 s/rep) or hold, plus rest; ×2 for one-sided | rule |
-| Daily time budget | **add** `user_settings.daily_minutes` (choices 10/15/20/30, default 15) | new |
+| Daily time budget | **add** `user_settings.daily_time_range`: one of `5-10`, `10-20` or `20-30` minutes. Null means not asked yet and is treated as `10-20`. | new |
 | Equipment tier | `user_settings.equipment_tier` | exists; keep `filterCandidatesByTier` semantics |
 | Effort + pain feedback | **replace** `sprint_day_feedback.reaction` (good/neutral/hurt) with `effort` (`easy`/`right`/`hard`), `pain` (0–10) and an optional `pain_area` (one of the pain point's areas, or "other"). Keep `note`. | change |
 | What was actually done | `workout_sets` linked via `workout_exercises.sprint_day_exercise_id` | exists |
@@ -108,7 +108,7 @@ When the user opens a sprint day that hasn't been built yet:
    - The template keeps its role as rhythm: core slots run daily and strength slots alternate.
    - The template's day-N slot list becomes the *candidate* set for the day.
    - Rank the candidates by priority.
-   - Fit them into `daily_minutes`, dropping the lowest priority first.
+   - Fit them into the user's range: fill up to the upper bound, then drop the lowest priority first. A day may fall below the lower bound only when the day's candidate slots run out.
    - The top-priority slot is never dropped.
    - If time remains, add the next-highest-priority off-rhythm slot, but not the same strength slot on consecutive days.
 3. **Pick the exercise:**
@@ -142,7 +142,10 @@ There are three trigger points. Each call gets a compact, cache-friendly prompt:
 - **Haiku refusals:** Haiku 5.5 has no server-side refusal fallback, so treat a refusal like any other failure and use the rules fallback.
 
 ### 5.5 What the user sees
-- **Time budget:** "How much time a day?" (10/15/20/30 min). Asked when starting a sprint, defaulting to the last choice, and editable in Settings.
+- **Time budget:** "How much time a day?" with three choices: 5–10, 10–20 and 20–30 min (**Sohan's call**).
+  - Asked once during onboarding, and changeable later in Settings.
+  - Existing users who finished onboarding before this ships get the question once, the same way the one-time equipment sheet works.
+  - A change applies from the next day that hasn't been built yet.
 - **Finish sheet:** the 3-way reaction becomes:
   - effort: Easy / About right / Too hard
   - pain: a 0–10 quick picker defaulting to 0
@@ -187,8 +190,7 @@ Where the evidence gives no number, use a sensible clinical default and label it
 - Rules own safety and daily progression; AI only at the 3 trigger points.
 - The engine runs in an Edge Function.
 - The specific progression thresholds in §5.2.
-- Time choices 10/15/20/30, default 15.
-- Weaker side first plus one extra set.
+- Weaker side first plus one extra set (approved by Sohan 2026-11-12).
 - Missed-day handling.
 - The migration approach.
 
