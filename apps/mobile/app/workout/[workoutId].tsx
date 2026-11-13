@@ -32,7 +32,7 @@ import {
 } from '../../lib/workouts';
 import { defaultRestSeconds, fieldsForExercise, missingRequiredField, type RomUnit, type SetValues } from '../../lib/setFields';
 import { dirtyCompletedSets } from '../../lib/finishPlan';
-import { previousHint, type PreviousSet } from '../../lib/previousValues';
+import { otherSidePartner, previousHint, type PreviousSet } from '../../lib/previousValues';
 import {
   IDLE, adjustRest, holdRemainingS, holdTargetRowId, restRemainingS, startHold, startRest, startSwitch, stopHold,
   tickHold, type HoldTimer, type RestTimer,
@@ -265,10 +265,9 @@ function Logger() {
   function kindOf(e: WorkoutExerciseRow) {
     return fieldsForExercise({ exerciseType: e.exerciseType, unilateral: e.unilateral }).kind;
   }
-  /** The Right row with the same set number, if setId is an incomplete-partner Left row. */
-  function rightPartner(e: WorkoutExerciseRow, s: WorkoutSetRow): WorkoutSetRow | null {
-    if (s.side !== 'left') return null;
-    return e.sets.find((x) => x.setNumber === s.setNumber && x.side === 'right' && !x.completedAt) ?? null;
+  /** The other side's row of the same set number, if this is the side logged first (the lead side, default Left). */
+  function sidePartner(e: WorkoutExerciseRow, s: WorkoutSetRow): WorkoutSetRow | null {
+    return otherSidePartner(e.sets, s, e.leadSide);
   }
   /** Stop (without completing) any hold aimed at one of these rows. */
   function clearHoldFor(rowIds: readonly string[]) {
@@ -376,7 +375,7 @@ function Logger() {
         // Rest / switch start from the local state, not from a refetch.
         if (userHoldGenRef.current === gen && holdRef.current.phase === 'idle') {
           const local = workoutRef.current ? findSet(workoutRef.current, setId) : null;
-          const partner = local ? rightPartner(local.exercise, local.set) : null;
+          const partner = local ? sidePartner(local.exercise, local.set) : null;
           if (partner && viaTimer && kind === 'hold') {
             applyRest(null);
             applyHold(startSwitch(partner.id, (draftsRef.current[partner.id] ?? valuesOf(partner)).durationS ?? 30, Date.now()));

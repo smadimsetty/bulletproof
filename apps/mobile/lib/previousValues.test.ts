@@ -1,4 +1,4 @@
-import { plannedRows, parseTargetSeconds, previousMatch, prefillValues, previousHint, type PreviousSet } from './previousValues';
+import { firstSide, otherSidePartner, plannedRows, parseTargetSeconds, previousMatch, prefillValues, previousHint, type PreviousSet } from './previousValues';
 import { EMPTY_SET_VALUES } from './setFields';
 
 const prev = (setNumber: number, side: 'left' | 'right' | null, v: Partial<PreviousSet>): PreviousSet => ({
@@ -16,6 +16,27 @@ describe('plannedRows', () => {
     ]);
   });
   test('zero sets -> empty', () => expect(plannedRows(0, true)).toEqual([]));
+  test('weaker right side leads each set and gets one extra set', () => {
+    expect(plannedRows(2, true, 'right', true)).toEqual([
+      { setNumber: 1, side: 'right' }, { setNumber: 1, side: 'left' },
+      { setNumber: 2, side: 'right' }, { setNumber: 2, side: 'left' },
+      { setNumber: 3, side: 'right' },
+    ]);
+  });
+  test('a lead side without the extra set only reorders', () => {
+    expect(plannedRows(1, true, 'right', false)).toEqual([{ setNumber: 1, side: 'right' }, { setNumber: 1, side: 'left' }]);
+  });
+  test('the extra set never applies to a two-sided (non-sided) exercise', () => {
+    expect(plannedRows(2, false, 'left', true)).toEqual([{ setNumber: 1, side: null }, { setNumber: 2, side: null }]);
+  });
+});
+
+describe('firstSide', () => {
+  test('defaults to left, follows the lead side', () => {
+    expect(firstSide(null)).toBe('left');
+    expect(firstSide(undefined)).toBe('left');
+    expect(firstSide('right')).toBe('right');
+  });
 });
 
 describe('parseTargetSeconds', () => {
@@ -69,5 +90,25 @@ describe('previousHint', () => {
   });
   test('null without history', () => {
     expect(previousHint({ setNumber: 1, side: null }, [], 'reps', 'lbs')).toBeNull();
+  });
+});
+
+describe('otherSidePartner', () => {
+  const sets = [
+    { id: 'r1', setNumber: 1, side: 'right' as const, completedAt: null },
+    { id: 'l1', setNumber: 1, side: 'left' as const, completedAt: null },
+    { id: 'r2', setNumber: 2, side: 'right' as const, completedAt: null },
+  ];
+  test('after the lead side, the incomplete other side of the same set', () => {
+    expect(otherSidePartner(sets, sets[0], 'right')?.id).toBe('l1');
+  });
+  test('the second side has no partner', () => {
+    expect(otherSidePartner(sets, sets[1], 'right')).toBeNull();
+  });
+  test('default lead is left', () => {
+    expect(otherSidePartner(sets, sets[1], null)?.id).toBe('r1');
+  });
+  test('the extra lead-side set has no partner', () => {
+    expect(otherSidePartner(sets, sets[2], 'right')).toBeNull();
   });
 });

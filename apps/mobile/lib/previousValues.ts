@@ -16,15 +16,40 @@ export interface PreviousSet extends SetValues {
   readonly side: Side;
 }
 
-export function plannedRows(setCount: number, sided: boolean): PlannedRow[] {
+/** The side logged first: the weaker (lead) side when the sprint flagged one, else left. */
+export function firstSide(leadSide: Side | undefined): 'left' | 'right' {
+  return leadSide === 'right' ? 'right' : 'left';
+}
+
+/** The incomplete other-side row of the same set number, when `set` is on the side logged first. */
+export function otherSidePartner<T extends { setNumber: number; side: Side; completedAt: string | null }>(
+  sets: readonly T[],
+  set: T,
+  leadSide: Side | undefined,
+): T | null {
+  const first = firstSide(leadSide);
+  if (set.side !== first) return null;
+  const second = first === 'left' ? 'right' : 'left';
+  return sets.find((x) => x.setNumber === set.setNumber && x.side === second && !x.completedAt) ?? null;
+}
+
+/**
+ * Planned rows: per set number, both sides (lead side first) for a one-sided
+ * exercise, or a single row. `extraSideSet` adds one more set on the lead side
+ * only (the weaker-side volume bias, spec 2026-11-12 §5.3 step 4).
+ */
+export function plannedRows(setCount: number, sided: boolean, leadSide?: Side, extraSideSet?: boolean): PlannedRow[] {
   const rows: PlannedRow[] = [];
+  const first = firstSide(leadSide);
+  const second = first === 'left' ? 'right' : 'left';
   for (let n = 1; n <= setCount; n++) {
     if (sided) {
-      rows.push({ setNumber: n, side: 'left' }, { setNumber: n, side: 'right' });
+      rows.push({ setNumber: n, side: first }, { setNumber: n, side: second });
     } else {
       rows.push({ setNumber: n, side: null });
     }
   }
+  if (sided && extraSideSet && leadSide && setCount > 0) rows.push({ setNumber: setCount + 1, side: first });
   return rows;
 }
 

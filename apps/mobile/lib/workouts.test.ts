@@ -1,5 +1,6 @@
 // apps/mobile/lib/workouts.test.ts
 import {
+  sortSets,
   isInProgressConflict, buildSprintWorkoutExercises, finishWorkout, startSprintWorkout, startWorkout,
   subscribeToActiveWorkoutChanges, discardWorkout, fetchWorkoutHistory, historyCursorFilter, type Workout,
 } from './workouts';
@@ -40,8 +41,8 @@ test('buildSprintWorkoutExercises keeps order and maps prescriptions', () => {
     ],
   };
   expect(buildSprintWorkoutExercises(day)).toEqual([
-    { exerciseId: 'e1', sprintDayExerciseId: 'x1', targetText: '2 × 15 reps', prescribedSets: 2 },
-    { exerciseId: 'e2', sprintDayExerciseId: 'x2', targetText: '30s each side', prescribedSets: null },
+    { exerciseId: 'e1', sprintDayExerciseId: 'x1', targetText: '2 × 15 reps', prescribedSets: 2, leadSide: null, extraSideSet: false },
+    { exerciseId: 'e2', sprintDayExerciseId: 'x2', targetText: '30s each side', prescribedSets: null, leadSide: null, extraSideSet: false },
   ]);
 });
 
@@ -287,4 +288,26 @@ describe('fetchWorkoutHistory', () => {
     expect(chains[0].or).toHaveBeenCalledWith(expected);
     expect(historyCursorFilter({ endedAt: '2026-11-07T10:00:00Z', id: 'w5' })).toBe(expected);
   });
+});
+
+describe('sortSets', () => {
+  const row = (setNumber: number, side: 'left' | 'right' | null) => ({
+    id: `${setNumber}${side}`, setNumber, side, setType: 'working' as const, reps: null, weightKg: null,
+    durationS: null, romValue: null, romUnit: null, completedAt: null,
+  });
+  test('left before right by default', () => {
+    expect(sortSets([row(1, 'right'), row(1, 'left')]).map((s: any) => s.side)).toEqual(['left', 'right']);
+  });
+  test('the lead side goes first within each set number', () => {
+    expect(sortSets([row(2, 'left'), row(1, 'left'), row(2, 'right'), row(1, 'right'), row(3, 'right')], 'right').map((s: any) => s.id))
+      .toEqual(['1right', '1left', '2right', '2left', '3right']);
+  });
+});
+
+test('buildSprintWorkoutExercises carries the lead side and extra set', () => {
+  const day: SprintDay = {
+    id: 'd1', sprintId: 's1', dayNumber: 3, date: '2026-11-07', completedAt: null, whyToday: null,
+    exercises: [{ id: 'x1', slotKey: 'a', tier: 1, exerciseId: 'e1', exerciseName: 'A', description: null, prescribedSets: 2, prescribedRepsOrDuration: '15 reps', order: 1, completedAt: null, level: 1, step: 1, leadSide: 'right', extraSideSet: true }],
+  };
+  expect(buildSprintWorkoutExercises(day)[0]).toMatchObject({ leadSide: 'right', extraSideSet: true });
 });

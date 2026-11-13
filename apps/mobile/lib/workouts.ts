@@ -7,7 +7,7 @@ import { eyeCue } from './exerciseCue';
 import { supabase } from './supabase';
 import { completeExercise, completeDay, submitDayFeedback, type SprintDay } from './sprintLifecycle';
 import { defaultSetCount, fieldsForExercise, type RomUnit, type SetValues, type Side } from './setFields';
-import { plannedRows, prefillValues, previousMatch, type PreviousSet } from './previousValues';
+import { firstSide, plannedRows, prefillValues, previousMatch, type PreviousSet } from './previousValues';
 import { planFinish } from './finishPlan';
 import { sprintTargetText, sprintWorkoutTitle } from './workoutTitles';
 import { fetchLibrary, type LibraryExercise } from './library';
@@ -36,6 +36,8 @@ export interface WorkoutExerciseRow {
   readonly targetText: string | null;
   readonly measureRom: boolean;
   readonly sprintDayExerciseId: string | null;
+  /** Side logged first (the sprint's weaker side); null means left first. */
+  readonly leadSide?: Side;
   readonly sets: readonly WorkoutSetRow[];
 }
 
@@ -87,6 +89,10 @@ export interface NewWorkoutExercise {
   readonly sprintDayExerciseId: string | null;
   readonly targetText: string | null;
   readonly prescribedSets: number | null;
+  /** Sprint side bias: the weaker side is logged first ... */
+  readonly leadSide?: Side;
+  /** ... and gets one extra set. */
+  readonly extraSideSet?: boolean;
   /** Routine targets; used only where there is no previous-workout value to prefill from. */
   readonly targetValues?: { reps: number | null; weightKg: number | null; durationS: number | null };
 }
@@ -154,6 +160,8 @@ export function buildSprintWorkoutExercises(day: SprintDay): NewWorkoutExercise[
       sprintDayExerciseId: x.id,
       targetText: sprintTargetText(x.prescribedSets, x.prescribedRepsOrDuration),
       prescribedSets: x.prescribedSets,
+      leadSide: x.leadSide,
+      extraSideSet: x.extraSideSet,
     }));
 }
 
@@ -175,8 +183,10 @@ function toSetRow(r: any): WorkoutSetRow {
   };
 }
 
-function sortSets(sets: WorkoutSetRow[]): WorkoutSetRow[] {
-  const sideRank = (s: Side) => (s === 'right' ? 1 : 0);
+/** By set number, then the lead side (default left) before the other. */
+export function sortSets(sets: WorkoutSetRow[], leadSide: Side = null): WorkoutSetRow[] {
+  const first = firstSide(leadSide);
+  const sideRank = (s: Side) => (s === first ? 0 : 1);
   return sets.sort((a, b) => a.setNumber - b.setNumber || sideRank(a.side) - sideRank(b.side));
 }
 
@@ -203,7 +213,7 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
       `id, owner_id, title, notes, source, sprint_day_id, routine_id, started_at, ended_at, visibility, copied_from_workout_id,
        workout_media ( id, path, position ),
        sprint_days!workouts_sprint_day_id_fkey ( sprints ( pain_point_id ) ),
-       workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id,
+       workout_exercises ( id, exercise_id, position, target_text, measure_rom, sprint_day_exercise_id, lead_side,
          exercises!workout_exercises_exercise_id_fkey ( name, exercise_type, unilateral, cue, description, owner_id ),
          workout_sets ( ${SET_COLUMNS} ) )`
     )
@@ -240,7 +250,8 @@ export async function fetchWorkout(workoutId: string): Promise<Workout> {
           targetText: e.target_text,
           measureRom: e.measure_rom,
           sprintDayExerciseId: e.sprint_day_exercise_id,
-          sets: sortSets(((e.workout_sets ?? []) as any[]).map(toSetRow)),
+          leadSide: e.lead_side ?? null,
+          sets: sortSets(((e.workout_sets ?? []) as any[]).map(toSetRow), e.lead_side ?? null),
         })
       )
       .sort((a, b) => a.position - b.position),
@@ -420,6 +431,7 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
     sprint_day_exercise_id: spec.sprintDayExerciseId,
     position: position + i,
     target_text: spec.targetText,
+    lead_side: spec.leadSide ?? null,
   }));
   const { data: inserted, error: weError } = await supabase
     .from('workout_exercises')
@@ -435,7 +447,7 @@ export async function addExercisesToWorkout(workoutId: string, specs: readonly N
     const workoutExerciseId = idByPosition.get(position + i);
     if (!workoutExerciseId) throw new Error('Could not add that exercise.');
     const count = defaultSetCount(fields.kind, spec.prescribedSets, m?.default_sets ?? null);
-    return plannedRows(count, fields.sided).map((row) => {
+    return plannedRows(count, fields.sided, spec.leadSide, spec.extraSideSet).map((row) => {
       const fromHistory = prefillValues(row, previous, fields.kind, spec.targetText);
       const t = spec.targetValues;
       // History wins; routine targets fill in only where there is none.
