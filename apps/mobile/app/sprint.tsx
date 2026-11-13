@@ -23,6 +23,7 @@ import {
   fetchTodaySprintDay,
   fetchSwapCandidates,
   swapExercise,
+  stepDownExercise,
   abandonSprint,
   type PainPoint,
   type Sprint,
@@ -211,7 +212,13 @@ export default function SprintScreen() {
     // is the matching guard on the handler itself.
     if (exercise.completedAt) return;
     try {
-      const candidates = await fetchSwapCandidates(sprint.painPointId, exercise.slotKey, exercise.exerciseId);
+      const candidates = await fetchSwapCandidates(
+        sprint.painPointId,
+        exercise.slotKey,
+        exercise.level,
+        exercise.exerciseId,
+        exercise.step ?? 1
+      );
       setSwapCandidates(candidates);
       setSwapExerciseTarget(exercise);
     } catch (err: any) {
@@ -227,12 +234,25 @@ export default function SprintScreen() {
         swapExerciseTarget.exerciseId,
         candidate.exerciseId,
         candidate.prescribedSets,
-        candidate.prescribedRepsOrDuration
+        candidate.prescribedRepsOrDuration,
+        candidate.level,
+        candidate.step
       );
       setSwapExerciseTarget(null);
       setToday(await fetchTodaySprintDay(sprint.id));
     } catch (err: any) {
       reportError(err, 'Could not swap that exercise.');
+    }
+  }
+
+  async function handleStepDown() {
+    if (!swapExerciseTarget || !sprint) return;
+    try {
+      await stepDownExercise(swapExerciseTarget.id, sprint.id, swapExerciseTarget.slotKey);
+      setSwapExerciseTarget(null);
+      setToday(await fetchTodaySprintDay(sprint.id));
+    } catch (err: any) {
+      reportError(err, 'Could not switch to an easier version.');
     }
   }
 
@@ -393,7 +413,15 @@ export default function SprintScreen() {
           title="Swap exercise"
           subtitle={swapExerciseTarget?.exerciseName}
         >
-          {swapCandidates.length === 0 && <EmptyState compact icon="swap-horizontal-outline" title="No alternatives for this slot yet." />}
+          {swapExerciseTarget?.level != null && !(swapExerciseTarget.level === 1 && (swapExerciseTarget.step ?? 1) === 1) && (
+            <ListRow
+              title="Easier version"
+              subtitle="One step back on this exercise's progression"
+              leading={{ icon: 'arrow-down-circle-outline' }}
+              onPress={handleStepDown}
+            />
+          )}
+          {swapCandidates.length === 0 && <EmptyState compact icon="swap-horizontal-outline" title="No alternatives at this level." />}
           {swapCandidates.map((c) => (
             <ListRow
               key={c.exerciseId}

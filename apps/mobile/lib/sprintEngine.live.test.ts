@@ -14,7 +14,9 @@ jest.mock('./supabase', () => ({
 }));
 
 import { ensureDayBuilt } from './sprintEngine';
-import { activateSprintAfterBaseline, fetchTodaySprintDay, type Sprint } from './sprintLifecycle';
+import {
+  activateSprintAfterBaseline, fetchSwapCandidates, fetchTodaySprintDay, stepDownExercise, type Sprint,
+} from './sprintLifecycle';
 import { localDateString } from './localDate';
 
 const LIVE = process.env.LIVE_ENGINE === '1';
@@ -110,5 +112,24 @@ const PAIN_POINT = 'ankle';
     expect(n).toBeGreaterThan(0);
     const { data: rows } = await mockClient.from('sprint_day_exercises').select('slot_key').eq('sprint_day_id', day2!.id);
     expect(new Set(rows!.map((r: any) => r.slot_key)).size).toBe(rows!.length);
+  });
+  test('swap candidates stay on the level; easier version steps the slot back', async () => {
+    const today = (await fetchTodaySprintDay(sprint.id))!;
+    const { data: ladder } = await mockClient.from('slot_ladder').select('slot_key, level').eq('pain_point_id', PAIN_POINT);
+    const target = today.exercises.find((e) => (ladder ?? []).some((r: any) => r.slot_key === e.slotKey && r.level === 2))!;
+    expect(target).toBeDefined();
+
+    const options = await fetchSwapCandidates(PAIN_POINT, target.slotKey, 1, target.exerciseId, 1);
+    expect(options.every((o) => o.level === 1 && o.name !== 'Unknown exercise')).toBe(true);
+
+    // Put the slot at level 2 step 1, then step down: level 1 at its last step.
+    await mockClient.from('sprint_slot_state').update({ level: 2, step: 1 }).eq('sprint_id', sprint.id).eq('slot_key', target.slotKey);
+    await mockClient.from('sprint_day_exercises').update({ level: 2, step: 1 }).eq('id', target.id);
+    await stepDownExercise(target.id, sprint.id, target.slotKey);
+    const { data: row } = await mockClient.from('sprint_day_exercises').select('level, step').eq('id', target.id).single();
+    const { data: state } = await mockClient
+      .from('sprint_slot_state').select('level, step').eq('sprint_id', sprint.id).eq('slot_key', target.slotKey).single();
+    expect(row!.level).toBe(1);
+    expect(state).toEqual({ level: 1, step: row!.step });
   });
 });

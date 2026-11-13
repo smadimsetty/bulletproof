@@ -18,6 +18,8 @@ import { localDateString } from './localDate';
 import { fetchUserSettings } from './userSettings';
 import { filterCandidatesByTier } from './sprintExercisePicker';
 import { ensureDayBuilt, initSlotState } from './sprintEngine';
+import { planStepDown, swapOptionsAtLevel } from './engine/ladderPick';
+import { fetchLadder } from './ladderData';
 import type { Side } from './engine/types';
 
 export type SprintStatus = 'pending_baseline' | 'active' | 'pending_reassessment' | 'completed' | 'abandoned';
@@ -312,13 +314,39 @@ export interface SwapCandidate {
   readonly name: string;
   readonly prescribedSets: number | null;
   readonly prescribedRepsOrDuration: string | null;
+  /** Ladder position of the candidate (absent on pre-engine days). */
+  readonly level?: number;
+  readonly step?: number;
 }
 
+/**
+ * Swap options for a slot. On an engine-built day (`level` set) these are the
+ * tier-allowed alternates at the SAME ladder level, prescribed for the current
+ * step (spec 2026-11-12 §8a.5). A pre-engine day (level null) keeps the old
+ * whole-pool behaviour.
+ */
 export async function fetchSwapCandidates(
   painPointId: string,
   slotKey: string,
-  excludingExerciseId: string
+  level: number | null,
+  excludingExerciseId: string,
+  step: number = 1
 ): Promise<ReadonlyArray<SwapCandidate>> {
+  const equipmentTierOf = async () => (await fetchUserSettings().catch(() => null))?.equipmentTier ?? null;
+
+  if (level != null) {
+    const ladder = await fetchLadder(painPointId, slotKey);
+    const names = new Map(ladder.map((r) => [r.exerciseId, r.name]));
+    return swapOptionsAtLevel(ladder, slotKey, level, step, await equipmentTierOf(), excludingExerciseId).map((c) => ({
+      exerciseId: c.exerciseId,
+      name: names.get(c.exerciseId) ?? 'Unknown exercise',
+      prescribedSets: c.sets,
+      prescribedRepsOrDuration: c.repsOrDuration,
+      level: c.level,
+      step: c.step,
+    }));
+  }
+
   const { data, error } = await supabase
     .from('sprint_exercise_pool')
     .select('exercise_id, prescribed_sets, prescribed_reps_or_duration, exercises!sprint_exercise_pool_exercise_id_fkey ( name, equipment_needed )')
@@ -327,7 +355,7 @@ export async function fetchSwapCandidates(
     .neq('exercise_id', excludingExerciseId);
 
   if (error) throw new Error(error.message);
-  const equipmentTier = (await fetchUserSettings().catch(() => null))?.equipmentTier ?? null;
+  const equipmentTier = await equipmentTierOf();
   const mapped = ((data ?? []) as any[]).map((row) => ({
     exerciseId: row.exercise_id,
     name: row.exercises?.name ?? 'Unknown exercise',
@@ -342,13 +370,16 @@ export async function fetchSwapCandidates(
  * Same-slot candidates genuinely differ in dosage (heel raises 2x15 reps vs.
  * toe/heel walks 1x20m), so the new exercise's own prescription has to move
  * with it -- otherwise the row shows the new name under the old sets/reps.
+ * A swap stays within the slot's level, so the slot state is untouched.
  */
 export async function swapExercise(
   sprintDayExerciseId: string,
   currentExerciseId: string,
   newExerciseId: string,
   prescribedSets: number | null,
-  prescribedRepsOrDuration: string | null
+  prescribedRepsOrDuration: string | null,
+  level?: number,
+  step?: number
 ): Promise<void> {
   const { error } = await supabase
     .from('sprint_day_exercises')
@@ -357,9 +388,76 @@ export async function swapExercise(
       swapped_from_exercise_id: currentExerciseId,
       prescribed_sets: prescribedSets,
       prescribed_reps_or_duration: prescribedRepsOrDuration,
+      ...(level != null ? { level } : {}),
+      ...(step != null ? { step } : {}),
     })
     .eq('id', sprintDayExerciseId);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * "Easier version": steps the slot back one step (spec §8a.5, counted as a
+ * step back in its state) and rewrites today's row to that step's exercise and
+ * prescription. Throws when the slot is already at its easiest.
+ */
+export async function stepDownExercise(sprintDayExerciseId: string, sprintId: string, slotKey: string): Promise<void> {
+  const [{ data: sprint, error: sprintError }, { data: row, error: rowError }, { data: stateRow, error: stateError }] =
+    await Promise.all([
+      supabase.from('sprints').select('pain_point_id').eq('id', sprintId).single(),
+      supabase.from('sprint_day_exercises').select('exercise_id, level, step').eq('id', sprintDayExerciseId).single(),
+      supabase.from('sprint_slot_state').select('*').eq('sprint_id', sprintId).eq('slot_key', slotKey).maybeSingle(),
+    ]);
+  if (sprintError) throw new Error(sprintError.message);
+  if (rowError) throw new Error(rowError.message);
+  if (stateError) throw new Error(stateError.message);
+
+  const painPointId = (sprint as any).pain_point_id as string;
+  const current = (row as any).exercise_id as string;
+  const s: any = stateRow;
+  const state = {
+    slotKey,
+    level: s?.level ?? (row as any).level ?? 1,
+    step: s?.step ?? (row as any).step ?? 1,
+    rightStreak: s?.right_streak ?? 0,
+    hardStreak: s?.hard_streak ?? 0,
+    lastDoneOn: s?.last_done_on ?? null,
+    gapBackApplied: s?.gap_back_applied ?? 0,
+  };
+  const [ladder, settings, lastDone] = await Promise.all([
+    fetchLadder(painPointId, slotKey),
+    fetchUserSettings().catch(() => null),
+    fetchLastCompletedByExerciseId(painPointId).catch(() => new Map<string, string>()),
+  ]);
+  const plan = planStepDown(state, ladder, current, settings?.equipmentTier ?? null, lastDone);
+  if (!plan) throw new Error('This is already the easiest version.');
+
+  const { error: updateError } = await supabase
+    .from('sprint_day_exercises')
+    .update({
+      exercise_id: plan.choice.exerciseId,
+      ...(plan.choice.exerciseId !== current ? { swapped_from_exercise_id: current } : {}),
+      prescribed_sets: plan.choice.sets,
+      prescribed_reps_or_duration: plan.choice.repsOrDuration,
+      level: plan.choice.level,
+      step: plan.choice.step,
+    })
+    .eq('id', sprintDayExerciseId);
+  if (updateError) throw new Error(updateError.message);
+
+  const { error: upsertError } = await supabase.from('sprint_slot_state').upsert(
+    {
+      sprint_id: sprintId,
+      slot_key: slotKey,
+      level: plan.state.level,
+      step: plan.state.step,
+      right_streak: plan.state.rightStreak,
+      hard_streak: plan.state.hardStreak,
+      last_done_on: plan.state.lastDoneOn,
+      gap_back_applied: plan.state.gapBackApplied,
+    },
+    { onConflict: 'sprint_id,slot_key' }
+  );
+  if (upsertError) throw new Error(upsertError.message);
 }
 
 export async function submitDayFeedback(

@@ -145,12 +145,46 @@ describe('fetchSwapCandidates', () => {
       })
     );
 
-    const result = await fetchSwapCandidates('ankle', 'ankle-balance', 'ex-a');
+    const result = await fetchSwapCandidates('ankle', 'ankle-balance', null, 'ex-a');
 
     expect(result).toEqual([
       { exerciseId: 'ex-b', name: 'Alt Exercise', prescribedSets: 2, prescribedRepsOrDuration: '15 reps' },
       { exerciseId: 'ex-c', name: 'Other Alt', prescribedSets: null, prescribedRepsOrDuration: null },
     ]);
+  });
+
+  test('with a level, offers only same-level ladder alternates, prescribed for the current step', async () => {
+    const ladderRows = [
+      { slot_key: 'calf', level: 2, exercise_id: 'ex-a', alt_rank: 1, step: 1, sets: 2, reps_or_duration: '10 reps', exercises: { name: 'Current', equipment_needed: null } },
+      { slot_key: 'calf', level: 2, exercise_id: 'ex-b', alt_rank: 2, step: 1, sets: 2, reps_or_duration: '12 reps', exercises: { name: 'Same level', equipment_needed: null } },
+      { slot_key: 'calf', level: 2, exercise_id: 'ex-b', alt_rank: 2, step: 2, sets: 3, reps_or_duration: '12 reps', exercises: { name: 'Same level', equipment_needed: null } },
+      { slot_key: 'calf', level: 3, exercise_id: 'ex-c', alt_rank: 1, step: 1, sets: 2, reps_or_duration: '8 reps', exercises: { name: 'Harder', equipment_needed: null } },
+    ];
+    const thenable = (data: any) => {
+      const c: any = {};
+      for (const m of ['select', 'eq', 'neq', 'in', 'is', 'order', 'maybeSingle', 'single']) c[m] = jest.fn(() => c);
+      c.then = (res: any, rej: any) => Promise.resolve({ data, error: null }).then(res, rej);
+      return c;
+    };
+    (supabase.from as jest.Mock).mockImplementation((table: string) => thenable(table === 'slot_ladder' ? ladderRows : null));
+
+    const result = await fetchSwapCandidates('ankle', 'calf', 2, 'ex-a', 2);
+
+    expect(result).toEqual([
+      { exerciseId: 'ex-b', name: 'Same level', prescribedSets: 3, prescribedRepsOrDuration: '12 reps', level: 2, step: 2 },
+    ]);
+  });
+});
+
+describe('swapExercise with a ladder position', () => {
+  test('writes the level and step of the swapped-in exercise', async () => {
+    const eqSpy = jest.fn(() => Promise.resolve({ error: null }));
+    const updateSpy = jest.fn(() => mockChain({ eq: eqSpy }));
+    (supabase.from as jest.Mock).mockReturnValue(mockChain({ update: updateSpy }));
+
+    await swapExercise('row-1', 'old-ex', 'new-ex', 3, '12 reps', 2, 2);
+
+    expect(updateSpy).toHaveBeenCalledWith(expect.objectContaining({ exercise_id: 'new-ex', level: 2, step: 2 }));
   });
 });
 
