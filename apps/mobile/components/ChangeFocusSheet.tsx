@@ -67,7 +67,7 @@ export default function ChangeFocusSheet({
                 key={pp.id}
                 leading={
                   <View style={styles.iconCircle}>
-                    <SprintIcon id={pp.id} size={22} color={COLORS.accent} />
+                    <SprintIcon id={pp.id} size={28} color={COLORS.accent} background={COLORS.accentTint} />
                   </View>
                 }
                 title={pp.displayName}

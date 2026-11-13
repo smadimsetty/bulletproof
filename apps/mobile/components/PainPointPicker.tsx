@@ -53,7 +53,7 @@ export default function PainPointPicker({
                   </View>
                 ) : null}
                 <View style={styles.iconCircle}>
-                  <SprintIcon id={pp.id} size={32} color={COLORS.accent} />
+                  <SprintIcon id={pp.id} size={40} color={COLORS.accent} background={COLORS.accentTint} />
                 </View>
                 <Text style={TYPE.title3}>{pp.displayName}</Text>
                 {pp.id === suggestedId ? <Text style={styles.suggested}>Suggested next</Text> : null}
