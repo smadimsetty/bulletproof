@@ -23,6 +23,8 @@ import { accountLabel } from '../lib/settingsFormat';
 import { PRIVACY_URL, SUPPORT_URL, TERMS_URL } from '../lib/links';
 import { fetchPremiumStatus, manageSubscription, subscribePremiumChanges } from '../lib/premium';
 import { membershipLabel, type PremiumStatus } from '../lib/premiumRules';
+import { fetchMyPhone, type MyPhone } from '../lib/social/contactSync';
+import PhoneVerifySheet from '../components/social/PhoneVerifySheet';
 import { PUBLIC_DISABLED_HINT, VISIBILITY_OPTIONS, visibilityLabel } from '../lib/social/visibility';
 import type { WeightUnit } from '../lib/units';
 import Avatar from '../components/social/Avatar';
@@ -42,6 +44,11 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [premium, setPremium] = useState<PremiumStatus | null>(null);
+  const [myPhone, setMyPhone] = useState<MyPhone | null>(null);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  useEffect(() => {
+    fetchMyPhone().then(setMyPhone).catch(() => setMyPhone(null));
+  }, []);
   useEffect(() => {
     const load = () => fetchPremiumStatus().then(setPremium).catch(() => setPremium(null));
     load();
@@ -308,6 +315,22 @@ export default function SettingsScreen() {
             trailing="chevron"
             onPress={() => setVisibilityOpen(true)}
           />
+          <ListRow
+            title="Phone number"
+            subtitle={myPhone?.confirmed ? 'Friends with your number can find you' : 'Add it so friends can find you'}
+            leading={{ icon: 'call-outline' }}
+            value={myPhone?.confirmed ? myPhone.phone ?? undefined : 'Add'}
+            trailing="chevron"
+            onPress={() => setPhoneOpen(true)}
+          />
+          {myPhone?.confirmed ? (
+            <SwitchRow
+              title="Friends can find me by phone"
+              leading={{ icon: 'people-outline' }}
+              value={settings.discoverableByPhone}
+              onValueChange={(next) => saveSettings({ discoverableByPhone: next })}
+            />
+          ) : null}
           <ListRow title="Blocked users" leading={{ icon: 'ban-outline' }} trailing="chevron" onPress={() => router.push('/blocked')} />
         </ListGroup>
 
@@ -348,6 +371,7 @@ export default function SettingsScreen() {
         <Text style={[TYPE.footnote, styles.version]}>{version}</Text>
       </ScreenScroll>
 
+      <PhoneVerifySheet visible={phoneOpen} onClose={() => setPhoneOpen(false)} onVerified={(e164) => setMyPhone({ phone: e164, confirmed: true })} />
       <Sheet visible={unitsOpen} onClose={() => setUnitsOpen(false)} title="Units" subtitle="Weight shown in the logger and stats">
         <View style={styles.sheetBody}>
           <SegmentedControl

@@ -82,7 +82,13 @@
           "enableBackgroundPlayback": false
         }
       ],
-      "expo-iap"
+      "expo-iap",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "MoveMaxx checks your contacts' phone numbers to show which friends are already on MoveMaxx. Your contacts are not stored."
+        }
+      ]
     ],
     "extra": {
       "eas": {
