@@ -78,6 +78,36 @@ try:
     s,r=req('DELETE',f"/rest/v1/exercises?id=eq.{cx}",token=A); ok(s==409 and r.get('code')=='23503',f"custom exercise in a routine cannot be deleted ({s})")
     s,r=req('DELETE',f"/rest/v1/routines?id=eq.{ro[0]['id']}",token=A); ok(s==200,f"delete routine ({s})")
     s,r=req('DELETE',f"/rest/v1/exercises?id=eq.{cx}",token=A); ok(s==200,f"delete unused custom exercise ({s})")
+    # Adaptive engine schema (2026-11-12): slot state / AI adjustments / engine_calls are owner-only; continue_sprint.
+    s,spA=req('POST','/rest/v1/sprints?select=id',{'pain_point_id':pp[0]['id'],'cycle_number':1,'started_on':'2026-11-12','status':'active'},token=A); ok(s==201,f"A creates sprint for engine checks ({s} {spA})"); spid=spA[0]['id']
+    s,r=req('POST','/rest/v1/sprint_slot_state?select=sprint_id',{'sprint_id':spid,'slot_key':'smoke_slot','level':2,'last_done_on':'2026-11-11'},token=A); ok(s==201,f"A inserts own sprint_slot_state ({s} {r})")
+    s,r=req('POST','/rest/v1/sprint_ai_adjustments?select=id',{'sprint_id':spid,'slot_key':'smoke_slot','kind':'start'},token=A); ok(s==201,f"A inserts own sprint_ai_adjustments ({s} {r})")
+    s,r=req('POST','/rest/v1/engine_calls?select=id,owner_id',{'sprint_id':spid,'trigger':'start','model':'smoke','outcome':'ok'},token=A); ok(s==201 and r[0]['owner_id']==a_id,f"A inserts own engine_calls ({s} {r})")
+    s,r=req('GET','/rest/v1/sprint_slot_state?select=slot_key',token=B); ok(s==200 and r==[],f"B cannot select A's sprint_slot_state ({r})")
+    s,r=req('GET','/rest/v1/sprint_ai_adjustments?select=id',token=B); ok(s==200 and r==[],f"B cannot select A's sprint_ai_adjustments ({r})")
+    s,r=req('GET','/rest/v1/engine_calls?select=id',token=B); ok(s==200 and r==[],f"B cannot select A's engine_calls ({r})")
+    s,r=req('PATCH',f"/rest/v1/sprint_slot_state?sprint_id=eq.{spid}",{'level':9},token=B); ok(s==200 and r==[],f"B cannot update A's sprint_slot_state ({r})")
+    s,r=req('PATCH',f"/rest/v1/sprint_ai_adjustments?sprint_id=eq.{spid}",{'note':'hijack'},token=B); ok(s==200 and r==[],f"B cannot update A's sprint_ai_adjustments ({r})")
+    s,r=req('PATCH',f"/rest/v1/engine_calls?sprint_id=eq.{spid}",{'model':'hijack'},token=B); ok(s>=400 or r==[],f"B cannot update A's engine_calls ({s} {r})")
+    s,r=req('POST','/rest/v1/sprint_slot_state',{'sprint_id':spid,'slot_key':'forged'},token=B); ok(s>=400,f"B cannot insert sprint_slot_state into A's sprint ({s})")
+    s,r=req('POST','/rest/v1/sprint_ai_adjustments',{'sprint_id':spid,'slot_key':'forged','kind':'pain'},token=B); ok(s>=400,f"B cannot insert sprint_ai_adjustments into A's sprint ({s})")
+    s,r=req('POST','/rest/v1/engine_calls',{'owner_id':a_id,'model':'forged'},token=B); ok(s>=400,f"B cannot insert engine_calls as A ({s})")
+    s,r=req('POST','/rest/v1/engine_calls',{'sprint_id':spid,'model':'forged'},token=B); ok(s>=400,f"B cannot attach engine_calls to A's sprint ({s})")
+    # continue_sprint needs a completed sprint with a reassessment + slot state.
+    s,_=req('POST','/rest/v1/sprint_assessments',[{'sprint_id':spid,'phase':'baseline'},{'sprint_id':spid,'phase':'reassessment'}],token=A); ok(s==201,f"A adds assessments ({s})")
+    s,ra=req('GET',f"/rest/v1/sprint_assessments?select=id&sprint_id=eq.{spid}&phase=eq.reassessment",token=A)
+    s,_=req('POST','/rest/v1/sprint_assessment_results',{'sprint_assessment_id':ra[0]['id'],'test_key':'smoke_test','value_single':4.5},token=A); ok(s==201,f"A adds reassessment result ({s})")
+    s,r=req('POST','/rest/v1/rpc/continue_sprint',{'p_old_sprint_id':spid,'p_started_on':'2026-12-01'},token=A); ok(s>=400,f"continue_sprint on a non-completed sprint fails ({s})")
+    s,_=req('PATCH',f"/rest/v1/sprints?id=eq.{spid}",{'status':'completed'},token=A); ok(s==200,f"A completes sprint ({s})")
+    s,r=req('POST','/rest/v1/rpc/continue_sprint',{'p_old_sprint_id':spid,'p_started_on':'2026-12-01'},token=B); ok(s>=400,f"B cannot continue A's sprint ({s})")
+    s,nc=req('POST','/rest/v1/rpc/continue_sprint',{'p_old_sprint_id':spid,'p_started_on':'2026-12-01'},token=A); ok(s==200 and nc['status']=='active' and nc['owner_id']==a_id and nc['cycle_number']==2,f"A continues own completed sprint ({s} {nc})")
+    if s==200:
+        s,r=req('GET',f"/rest/v1/sprint_days?select=day_number,date,built_at&sprint_id=eq.{nc['id']}&order=day_number",token=A); ok(len(r)==14 and r[0]['date']=='2026-12-01' and r[13]['date']=='2026-12-14' and all(x['built_at'] is None for x in r),f"continued sprint has 14 unbuilt days ({len(r)})")
+        s,r=req('GET',f"/rest/v1/sprint_slot_state?select=slot_key,level,last_done_on&sprint_id=eq.{nc['id']}",token=A); ok(len(r)==1 and r[0]['level']==2 and r[0]['last_done_on']=='2026-11-11',f"slot state copied with last_done_on ({r})")
+        s,r=req('GET',f"/rest/v1/sprint_assessments?select=phase,completed_at,sprint_assessment_results(test_key,value_single)&sprint_id=eq.{nc['id']}",token=A); ok(len(r)==1 and r[0]['phase']=='baseline' and r[0]['sprint_assessment_results'][0]['value_single']==4.5,f"baseline copied from old reassessment ({r})")
+        s,r=req('DELETE',f"/rest/v1/sprints?id=eq.{nc['id']}",token=A); ok(s==200,f"cleanup continued sprint ({s})")
+    s,r=req('DELETE',f"/rest/v1/sprints?id=eq.{spid}",token=A); ok(s==200,f"cleanup engine-check sprint ({s})")
+    s,r=req('GET',f"/rest/v1/engine_calls?select=sprint_id&owner_id=eq.{a_id}",token=A); ok(s==200 and len(r)==1 and r[0]['sprint_id'] is None,f"engine_calls survive sprint delete, sprint_id nulled ({r})")
 finally:
     for i in ids:
         s,_=req('DELETE',f"/auth/v1/admin/users/{i}",token=SR,key=SR); print(f"cleanup user {s}")
