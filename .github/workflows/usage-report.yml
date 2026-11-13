@@ -1,0 +1,30 @@
+name: Supabase usage report
+
+# Emails a weekly report of MoveMaxx's Supabase usage against the Free plan limits.
+# Numbers come from the admin_usage_report() database function (service role only);
+# the email goes out through the same Gmail sender the app's sign-in codes use.
+# Running it also counts as project activity, which keeps the Free project from pausing.
+on:
+  schedule:
+    - cron: "0 13 * * 1" # Mondays 13:00 UTC (8 AM Eastern)
+  workflow_dispatch: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Send report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_ADDRESS: smadimsetty@gmail.com
+        run: python scripts/usage_report/report.py
