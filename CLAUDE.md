@@ -237,4 +237,5 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
   - live: `lib/sprintEngine.live.test.ts` (run with `LIVE_ENGINE=1`, throwaway user) 6/6; workouts 82/82, social 73/73, embed 11/11
   - both coverage checks 0 rows
   - a whole-branch review: 5 important issues found, all fixed
+- **TestFlight build 25 (1.4.0) submitted 2026-11-13** (EAS build `3b3c42c8`). `eas submit` must use `--profile preview`: that submit profile holds the `ascAppId` and API key, while `production` is empty and fails with `--non-interactive`.
 - **Still needs Sohan:** the on-device checklist in the handoff doc, a decision on the API key, and a review of the content numbers marked DEFAULT.
