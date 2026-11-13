@@ -276,5 +276,6 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
 - **Sprint icons:** `components/SprintIcon.tsx`, pictograms via react-native-svg (round 2, approved by Sohan): a figure in each problem's pose with the problem area in full lime and the rest dimmed (nerd neck = craning over a phone, rounded shoulders = hunched at a laptop, pelvic tilt = a pelvis bowl tipping forward). Shown in the sprint picker and "Change today's focus".
 - **Empty-state buttons are centred**, which fixes "Create routine" and "Find people". The shared `Button` defaults to `alignSelf: 'flex-start'`.
 - **Verified:** 486/486 jest, clean tsc, expo export; live suites 82/73/11.
+- **TestFlight build 27 (1.4.0)** carries all of this. It's in the Beta group with notes, but it can't go to Beta App Review until build 25's review finishes (Apple allows one build per version train in review). Submit it with `POST /v1/betaAppReviewSubmissions` then.
 - **Next:** see `docs/BACKLOG.md` "Next up" (History+Progress merge, $2/month or $10/year plan, 4 AI calls per user per day cap).
 
