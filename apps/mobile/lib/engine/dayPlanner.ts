@@ -9,6 +9,12 @@ export const TIME_RANGE_BOUNDS: Record<TimeRange, { min: number; max: number }> 
   '20-30': { min: 20, max: 30 },
 };
 
+export const TIME_RANGE_OPTIONS: readonly { range: TimeRange; title: string; subtitle: string }[] = [
+  { range: '5-10', title: '5–10 min', subtitle: 'A quick daily dose' },
+  { range: '10-20', title: '10–20 min', subtitle: 'The standard sprint' },
+  { range: '20-30', title: '20–30 min', subtitle: 'Go deeper' },
+];
+
 export interface LadderRow {
   slotKey: string;
   level: number;

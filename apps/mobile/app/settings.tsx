@@ -26,6 +26,8 @@ import type { WeightUnit } from '../lib/units';
 import Avatar from '../components/social/Avatar';
 import EquipmentTierPicker from '../components/EquipmentTierPicker';
 import { EQUIPMENT_TIER_OPTIONS, type EquipmentTier } from '../lib/equipmentTiers';
+import TimeRangePicker from '../components/TimeRangePicker';
+import { TIME_RANGE_OPTIONS } from '../lib/engine/dayPlanner';
 import { refitInFlightSprintToTier } from '../lib/sprintTierRefit';
 import WeeklyGoalSheet from '../components/progress/WeeklyGoalSheet';
 import {
@@ -44,6 +46,7 @@ export default function SettingsScreen() {
   const [unitsOpen, setUnitsOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   const [equipmentOpen, setEquipmentOpen] = useState(false);
+  const [timeRangeOpen, setTimeRangeOpen] = useState(false);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [privateConfirmOpen, setPrivateConfirmOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -253,6 +256,13 @@ export default function SettingsScreen() {
             trailing="chevron"
             onPress={() => setEquipmentOpen(true)}
           />
+          <ListRow
+            title="Daily time"
+            leading={{ icon: 'time-outline' }}
+            value={TIME_RANGE_OPTIONS.find((o) => o.range === settings.dailyTimeRange)?.title ?? 'Not set'}
+            trailing="chevron"
+            onPress={() => setTimeRangeOpen(true)}
+          />
         </ListGroup>
 
         <SectionHeader title="Privacy" inset={SPACING.xs} />
@@ -336,6 +346,19 @@ export default function SettingsScreen() {
               void saveSettings({ equipmentTier: tier }).then((saved) => {
                 if (saved) void refitSprint(tier);
               });
+            }}
+          />
+        </View>
+      </Sheet>
+      <Sheet visible={timeRangeOpen} onClose={() => setTimeRangeOpen(false)} title="How much time a day?" subtitle="We'll fit each day's routine into this. You can change it in Settings.">
+        <View style={styles.sheetBody}>
+          <TimeRangePicker
+            value={settings.dailyTimeRange}
+            onSelect={(range) => {
+              setTimeRangeOpen(false);
+              if (range === settings.dailyTimeRange) return;
+              // No sprint refit: the next unbuilt day picks the new range up.
+              void saveSettings({ dailyTimeRange: range });
             }}
           />
         </View>

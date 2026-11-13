@@ -14,7 +14,7 @@ function chain(result: any) {
 
 const ROW = {
   weight_unit: 'kg', weekly_goal: 4, default_visibility: 'public', healthkit_write_enabled: true,
-  notify_follows: false, notify_likes: true, notify_comments: false, notify_reports: true, equipment_tier: "basic",
+  notify_follows: false, notify_likes: true, notify_comments: false, notify_reports: true, equipment_tier: "basic", daily_time_range: "10-20",
 };
 
 beforeEach(() => (supabase.from as jest.Mock).mockReset());
@@ -28,7 +28,7 @@ test('row maps to camelCase', async () => {
   (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: ROW, error: null }));
   await expect(fetchUserSettings()).resolves.toEqual({
     weightUnit: 'kg', weeklyGoal: 4, defaultVisibility: 'public', healthkitWriteEnabled: true,
-    notifyFollows: false, notifyLikes: true, notifyComments: false, notifyReports: true, equipmentTier: "basic",
+    notifyFollows: false, notifyLikes: true, notifyComments: false, notifyReports: true, equipmentTier: "basic", dailyTimeRange: "10-20",
   });
 });
 
@@ -52,4 +52,15 @@ test("equipment tier defaults to null and maps to equipment_tier", async () => {
   const saved = await updateUserSettings({ equipmentTier: "advanced" });
   expect(c.upsert).toHaveBeenCalledWith({ equipment_tier: "advanced" }, { onConflict: "owner_id" });
   expect(saved.equipmentTier).toBeNull();
+});
+
+test("daily time range defaults to null, maps from daily_time_range and is written by update", async () => {
+  expect(DEFAULT_SETTINGS.dailyTimeRange).toBeNull();
+  (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: { ...ROW, daily_time_range: null }, error: null }));
+  await expect(fetchUserSettings()).resolves.toMatchObject({ dailyTimeRange: null });
+  const c = chain({ data: { ...ROW, daily_time_range: "5-10" }, error: null });
+  (supabase.from as jest.Mock).mockReturnValueOnce(c);
+  const saved = await updateUserSettings({ dailyTimeRange: "5-10" });
+  expect(c.upsert).toHaveBeenCalledWith({ daily_time_range: "5-10" }, { onConflict: "owner_id" });
+  expect(saved.dailyTimeRange).toBe("5-10");
 });

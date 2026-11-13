@@ -21,6 +21,8 @@ import ChangeFocusSheet from '../../components/ChangeFocusSheet';
 import { defaultWorkoutTitle } from '../../lib/workoutTitles';
 import { handleStartResult } from '../../lib/workoutStart';
 import EquipmentTierPicker from '../../components/EquipmentTierPicker';
+import TimeRangePicker from '../../components/TimeRangePicker';
+import type { TimeRange } from '../../lib/engine/dayPlanner';
 import { fetchUserSettings, updateUserSettings } from '../../lib/userSettings';
 import { refitInFlightSprintToTier } from '../../lib/sprintTierRefit';
 import type { EquipmentTier } from '../../lib/equipmentTiers';
@@ -60,6 +62,10 @@ export default function WorkoutTab() {
   // One-time equipment prompt: shown when settings loaded with no tier chosen yet.
   const [tierPromptOpen, setTierPromptOpen] = useState(false);
   const tierPromptShownRef = useRef(false);
+  // One-time daily-time prompt: after the tier prompt is resolved, never alongside it.
+  const [timePromptOpen, setTimePromptOpen] = useState(false);
+  const timePromptShownRef = useRef(false);
+  const timePromptPendingRef = useRef(false);
 
   // 'initial' blanks to an error screen on failure, 'refresh' (pull) shows the
   // spinner and Alerts, 'focus' (tab focus / change events) is silent.
@@ -85,13 +91,18 @@ export default function WorkoutTab() {
       setToday(s && s.status === 'active' ? await fetchTodaySprintDay(s.id) : null);
       setLoadError(null);
       loadedRef.current = true;
-      if (!tierPromptShownRef.current) {
+      if (!tierPromptShownRef.current || !timePromptShownRef.current) {
         // Secondary: a settings failure must not affect the tab. The tabs only mount once
         // onboarding is done, so a null tier here means an existing user.
         const settings = await fetchUserSettings().catch(() => null);
         if (settings && settings.equipmentTier === null && !tierPromptShownRef.current) {
           tierPromptShownRef.current = true;
+          // The time prompt follows once the tier is chosen.
+          timePromptPendingRef.current = settings.dailyTimeRange === null;
           setTierPromptOpen(true);
+        } else if (settings && settings.equipmentTier !== null && settings.dailyTimeRange === null && !timePromptShownRef.current) {
+          timePromptShownRef.current = true;
+          setTimePromptOpen(true);
         }
       }
     } catch (err: any) {
@@ -119,11 +130,24 @@ export default function WorkoutTab() {
       reportError(err, 'Could not save your equipment.');
       return;
     }
+    if (timePromptPendingRef.current && !timePromptShownRef.current) {
+      timePromptShownRef.current = true;
+      setTimePromptOpen(true);
+    }
     // The running sprint predates the tier; best effort, the next sprint uses it regardless.
     try {
       if ((await refitInFlightSprintToTier(tier)) > 0) await load('focus');
     } catch {
       // Not worth interrupting the user over.
+    }
+  }
+
+  async function handleSelectTimeRange(range: TimeRange) {
+    setTimePromptOpen(false);
+    try {
+      await updateUserSettings({ dailyTimeRange: range });
+    } catch (err) {
+      reportError(err, 'Could not save your daily time.');
     }
   }
 
@@ -320,6 +344,16 @@ export default function WorkoutTab() {
       >
         <View style={styles.sheetBody}>
           <EquipmentTierPicker value={null} onSelect={handleSelectTier} />
+        </View>
+      </Sheet>
+      <Sheet
+        visible={timePromptOpen}
+        onClose={() => setTimePromptOpen(false)}
+        title="How much time a day?"
+        subtitle="We'll fit each day's routine into this. You can change it in Settings."
+      >
+        <View style={styles.sheetBody}>
+          <TimeRangePicker value={null} onSelect={handleSelectTimeRange} />
         </View>
       </Sheet>
     </View>

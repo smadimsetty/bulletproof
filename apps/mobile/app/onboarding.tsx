@@ -1,7 +1,7 @@
 // apps/mobile/app/onboarding.tsx
 //
-// First-run setup for an account with no profiles row (visual spec 4.2). Four steps on one
-// screen: (1) name, handle, optional photo; (2) units and weekly goal; (3) equipment; (4) Terms. Nothing is
+// First-run setup for an account with no profiles row (visual spec 4.2). Five steps on one
+// screen: (1) name, handle, optional photo; (2) units and weekly goal; (3) equipment; (4) daily time; (5) Terms. Nothing is
 // written until the final step; createProfile then notifies the root layout, which re-checks and
 // swaps this screen for the tabs.
 // TODO(stage4): the spec's "content fades out 200 ms, tabs fade in" hand-off is owned by the root
@@ -22,12 +22,14 @@ import { createProfile, displayNameError, handleError, isHandleAvailable, normal
 import { updateUserSettings } from '../lib/userSettings';
 import type { EquipmentTier } from '../lib/equipmentTiers';
 import EquipmentTierPicker from '../components/EquipmentTierPicker';
+import TimeRangePicker from '../components/TimeRangePicker';
+import type { TimeRange } from '../lib/engine/dayPlanner';
 import type { WeightUnit } from '../lib/units';
 import { PRIVACY_URL, TERMS_URL } from '../lib/links';
 import { signOut } from '../lib/signOut';
 import { Button, Card, IconButton, ListGroup, ListRow, PressableScale, ScreenScroll, SegmentedControl, StickyFooter, Stepper, TextField, useToast } from '../components/ui';
 
-const LAST_STEP = 4;
+const LAST_STEP = 5;
 
 type HandleState = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -60,6 +62,7 @@ export default function Onboarding() {
   const [unit, setUnit] = useState<WeightUnit>('lbs');
   const [weeklyGoal, setWeeklyGoal] = useState(3);
   const [equipmentTier, setEquipmentTier] = useState<EquipmentTier | null>(null);
+  const [dailyTimeRange, setDailyTimeRange] = useState<TimeRange | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -122,7 +125,7 @@ export default function Onboarding() {
     savingRef.current = true;
     setSaving(true);
     try {
-      await updateUserSettings({ weightUnit: unit, weeklyGoal, equipmentTier });
+      await updateUserSettings({ weightUnit: unit, weeklyGoal, equipmentTier, dailyTimeRange });
       await createProfile({ handle: normalized, displayName, avatarUri, termsAccepted: true });
       // The root layout re-checks the profile and replaces this screen.
       haptics.success();
@@ -159,7 +162,7 @@ export default function Onboarding() {
     ) : undefined;
 
   const entering = reduced ? FadeIn.duration(150) : (forward ? SlideInRight : SlideInLeft).duration(280).easing(MOTION.easeOut);
-  const canContinue = step === 1 ? step1Problem() === null : step === 3 ? equipmentTier !== null : true;
+  const canContinue = step === 1 ? step1Problem() === null : step === 3 ? equipmentTier !== null : step === 4 ? dailyTimeRange !== null : true;
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -226,6 +229,14 @@ export default function Onboarding() {
           )}
 
           {step === 4 && (
+            <>
+              <Text style={TYPE.title1}>How much time a day?</Text>
+              <Text style={TYPE.footnote}>We'll fit each day's routine into this. You can change it in Settings.</Text>
+              <TimeRangePicker value={dailyTimeRange} onSelect={setDailyTimeRange} />
+            </>
+          )}
+
+          {step === 5 && (
             <>
               <Text style={TYPE.title1}>One last thing</Text>
               <Card>

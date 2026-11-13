@@ -5,6 +5,7 @@
 import { supabase } from './supabase';
 import type { EquipmentTier } from './equipmentTiers';
 import type { WeightUnit } from './units';
+import type { TimeRange } from './engine/dayPlanner';
 
 export type Visibility = 'private' | 'followers' | 'public';
 
@@ -19,6 +20,8 @@ export interface UserSettings {
   /** Moderators only: push for new content reports. */
   notifyReports: boolean;
   equipmentTier: EquipmentTier | null;
+  /** Target minutes per sprint day; null = not asked yet (planner assumes 10-20). */
+  dailyTimeRange: TimeRange | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -31,10 +34,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notifyComments: true,
   notifyReports: true,
   equipmentTier: null,
+  dailyTimeRange: null,
 };
 
 const COLUMNS =
-  'weight_unit, weekly_goal, default_visibility, healthkit_write_enabled, notify_follows, notify_likes, notify_comments, notify_reports, equipment_tier';
+  'weight_unit, weekly_goal, default_visibility, healthkit_write_enabled, notify_follows, notify_likes, notify_comments, notify_reports, equipment_tier, daily_time_range';
 
 function fromRow(r: any): UserSettings {
   return {
@@ -47,6 +51,7 @@ function fromRow(r: any): UserSettings {
     notifyComments: r.notify_comments,
     notifyReports: r.notify_reports ?? true,
     equipmentTier: r.equipment_tier ?? null,
+    dailyTimeRange: r.daily_time_range ?? null,
   };
 }
 
@@ -60,6 +65,7 @@ const COLUMN_BY_KEY: Record<keyof UserSettings, string> = {
   notifyComments: 'notify_comments',
   notifyReports: 'notify_reports',
   equipmentTier: 'equipment_tier',
+  dailyTimeRange: 'daily_time_range',
 };
 
 export async function fetchUserSettings(): Promise<UserSettings> {
