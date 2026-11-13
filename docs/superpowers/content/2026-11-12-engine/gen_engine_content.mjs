@@ -37,12 +37,18 @@ const NEW_EXERCISES = [
   ['Ankle: Single-Leg Balance on Folded Towel, Eyes Closed', 'balance', 'balance', ['ankles'], 'A thickly folded towel gives an unstable surface like a foam pad, so the eyes-closed progression needs no equipment. Balance training is the best-supported treatment for chronic ankle instability.', 'A', ['towel'], 3, '30s', true, true,
     'Stand on one foot on a thickly folded towel, close your eyes, and stay still.',
     'Fold a bath towel into a thick square on the floor. Stand on it barefoot on one leg with a soft knee and your hands on your hips. Find your balance, then close your eyes. Let your foot make small corrections. If you touch down, open your eyes and start again. Then switch legs.'],
+  ['Ankle: Two-Leg Lateral Line Hop', 'balance', 'plyometric', ['ankles'], 'Small two-footed hops over a line share the landing load between both ankles, so the outer-ankle muscles learn to absorb a sideways landing before a single ankle takes it all. It is the bridge from slow eversion strength to single-leg hops for an ankle with a sprain history.', 'B', ['none'], 3, '8 reps', false, true,
+    'Feet together, hop sideways over a line in small, quiet hops and freeze each landing for a second.',
+    'Stand with your feet together beside a line on the floor (a crack, tape or a towel edge). Hop a few inches sideways over it, land softly on both feet and hold still for a second. Hop back the same way. Keep the hops small and your knees soft. Don\'t let either ankle roll out. Count each landing as one rep.'],
   ['Ankle: Lateral Hop to Stick', 'balance', 'plyometric', ['ankles'], 'Hop-to-stabilization drills train the fast outer-ankle response that resists the inversion sprain, and they carry over directly to the side hop test.', 'B', [], 3, '6 reps', true, true,
     'Hop sideways off one foot onto the same foot and freeze the landing for 2 seconds.',
     'Stand on one leg. Hop about a foot to the side and land on the same foot with a soft knee. Hold the landing still for 2 seconds, then hop back. Keep your knee over your toes and don\'t let the ankle roll out. Start with small hops. Then switch legs.'],
   ['Ankle: Heel Walk, Toes Turned In', 'balance', 'strength', ['ankles', 'feet'], 'Walking on the heels with the toes turned in loads the muscles at the front and inside of the shin together, the inversion and dorsiflexion strength the banded drill trains, with no equipment.', 'C', [], 2, '20m', false, false,
     'Lift your toes, turn them in slightly, and walk slowly on your heels.',
     'Stand tall and lift the front of both feet off the floor. Turn your toes in a little so you feel the inside of your shins working. Walk forward on your heels in short steps. Keep your knees soft and your hips level. Stop and reset if your toes touch down.'],
+  ['Ankle: Two-Leg Pogo Hops', 'balance', 'plyometric', ['ankles'], 'Two-footed pogo hops train the same stiff-ankle spring as the single-leg version at half the load per ankle, the bridge between slow calf strength and single-leg hopping for an ankle with a sprain history.', 'B', ['none'], 3, '15 reps', false, false,
+    'Bounce on both feet in small, quick hops, landing on the balls of your feet.',
+    'Stand tall with your feet hip-width apart. Bounce in small, quick hops, staying on the balls of your feet. Keep your knees almost straight so the ankles do the work. Land quietly and keep the rhythm steady. Stop the set if your heels start to touch down or the hops get sloppy.'],
   ['Ankle: Single-Leg Pogo Hops', 'balance', 'plyometric', ['ankles'], 'Short, stiff-ankle hops train the calf and Achilles spring. Reactive work is the usual next step after slow heavy calf strength and is the quality the hop tests depend on.', 'B', [], 3, '10 reps', true, false,
     'Bounce on one foot in small, quick hops, landing on the ball of the foot.',
     'Stand on one foot with a light touch on a wall if you need it. Bounce in small, quick hops, staying on the ball of your foot. Keep your knee almost straight so the ankle does the work. Land quietly. Stop the set if the hops get sloppy. Then switch feet.'],
@@ -163,7 +169,9 @@ const PAIN_POINTS = {
         ['Pool rows: banded eversion and the outer-edge walk.', [
           ['Ankle: Banded Eversion', '2x15r,3x15r,3x20r'],
           ['Ankle: Outer-Edge Foot Walk', '2x10m,3x10m,3x15m']]],
-        ['Reactive eversion: hop and stick, the fast version of the same job.', [
+        ['Reactive eversion on two feet first: small lateral line hops, sticking each landing (bridge rung for a sprain-history ankle).', [
+          ['Ankle: Two-Leg Lateral Line Hop', '2x8r,3x8r,3x10r']]],
+        ['Single-leg hop and stick, only after the two-leg rung: the fast version of the same job on one ankle.', [
           ['Ankle: Lateral Hop to Stick', '2x6r,3x6r,3x8r']]],
       ]],
       ['ankle-inversion-dorsiflexion-strength', 'ankles', { side_hop: 1 }, [
@@ -178,8 +186,10 @@ const PAIN_POINTS = {
           ['Ankle: Weighted Single-Leg Calf Raise (Straight-Knee)', '3x8r,4x8r,4x12r'],
           ['Ankle: Weighted Single-Leg Calf Raise (Bent-Knee)', '3x8r,4x8r,4x12r'],
           ['Ankle: Slow Single-Leg Calf Raise on Step', '2x10r,3x10r,3x12r']]],
-        ['Strength to spring: single-leg pogo hops.', [
-          ['Ankle: Single-Leg Pogo Hops', '2x10r,3x10r,3x15r']]],
+        ['Strength to spring on two feet first: two-leg pogo hops (bridge rung for a sprain-history ankle).', [
+          ['Ankle: Two-Leg Pogo Hops', '2x15r,3x15r,3x20r']]],
+        ['Single-leg pogo hops, only after the two-leg rung; capped at 3x10 per side.', [
+          ['Ankle: Single-Leg Pogo Hops', '2x8r,3x8r,3x10r']]],
       ]],
       ['ankle-tibialis-strength', 'ankles', { heel_raise_capacity: 0.5 }, [
         ['Pool row: two-leg wall tibialis raise.', [
@@ -318,7 +328,7 @@ const PAIN_POINTS = {
       ['neck-rotation-rom', 'neck', { cervical_rotation_rom: 2 }, [
         ['Pool row: slow full-range rotation; rotation stretch as the alternate.', [
           ['Neck: Cervical Rotation, Slow Full Range', '1x10r,2x10r,3x10r'],
-          ['Neck Rotation Stretch', '1x8r,2x8r,2x10r']]],
+          ['Neck Rotation Stretch', '1x30s,2x30s,2x45s']]],
         ['Contract-relax: active push before each new end range.', [
           ['Neck: Contract-Relax Rotation Stretch', '1x3r,2x3r,2x5r']]],
       ]],
@@ -764,7 +774,7 @@ for (const [pp, data] of Object.entries(PAIN_POINTS)) {
     }
     const firstName = levels[0][1][0][0];
     if (!known.has(firstName)) errors.push(`${pp}/${slot}: unknown exercise ${firstName}`);
-    const isStretch = known.get(firstName)?.type === 'mobility_stretch';
+    const isStretch = levels.some(([, exs]) => exs.some(([n]) => known.get(n)?.type === 'mobility_stretch'));
     slotRows.push({ pp, slot, area, isStretch });
     const inLadder = new Set();
     levels.forEach(([, exercises], li) => {
@@ -789,6 +799,12 @@ for (const [pp, data] of Object.entries(PAIN_POINTS)) {
         });
       });
       if (!basic) errors.push(`${pp}/${slot} L${level}: no Basic-tier exercise`);
+      const isSLPlyo = (n) => { const e = NEW_EXERCISES.find((x) => x[0] === n); return e ? e[2] === 'plyometric' && e[9] : false; };
+      const isBridge = (n) => { const e = NEW_EXERCISES.find((x) => x[0] === n); return e ? e[2] === 'plyometric' && !e[9] : false; };
+      if (exercises.some(([n]) => isSLPlyo(n))) {
+        const bridged = levels.slice(0, li).some(([, exs]) => exs.some(([n]) => isBridge(n)));
+        if (!bridged) errors.push(`${pp}/${slot} L${level}: single-leg plyometric with no two-leg plyometric rung below it`);
+      }
     });
     for (const p of pool.filter((r) => r.pp === pp && r.slot === slot)) {
       if (!inLadder.has(p.name)) errors.push(`${pp}/${slot}: pool exercise "${p.name}" missing from ladder`);
@@ -871,7 +887,7 @@ for (const [pp, data] of Object.entries(PAIN_POINTS)) {
     md += `| \`${slot}\` | ${area} | ${s.isStretch ? 'yes' : 'no'} | ${Object.entries(links).map(([k, w]) => `${k} (${w})`).join(', ')} |\n`;
   }
   md += `\nLink weights are **${DEFAULT}**: 2 = the slot trains what the test measures directly, 1 = a main contributor, 0.5 = a minor contributor.\n`;
-  md += `\n## Ladders\n\nSteps raise sets first, then reps or hold. Step and dose numbers are **${DEFAULT}** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.\n\n`;
+  md += `\n## Ladders\n\nSteps raise volume: sets, reps or hold time. Step and dose numbers are **${DEFAULT}** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.\n\n`;
   md += `| Slot | Lvl | Exercise | Tier | Steps | Why this level |\n|---|---|---|---|---|---|\n`;
   let levelCount = 0;
   for (const [slot, , , levels] of data.slots) {

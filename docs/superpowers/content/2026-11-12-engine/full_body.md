@@ -30,7 +30,7 @@ Link weights are **DEFAULT — clinical judgment**: 2 = the slot trains what the
 
 ## Ladders
 
-Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
+Steps raise volume: sets, reps or hold time. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
 
 | Slot | Lvl | Exercise | Tier | Steps | Why this level |
 |---|---|---|---|---|---|

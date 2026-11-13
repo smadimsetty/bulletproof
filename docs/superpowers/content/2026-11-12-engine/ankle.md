@@ -33,7 +33,7 @@ Link weights are **DEFAULT — clinical judgment**: 2 = the slot trains what the
 
 ## Ladders
 
-Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
+Steps raise volume: sets, reps or hold time. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
 
 | Slot | Lvl | Exercise | Tier | Steps | Why this level |
 |---|---|---|---|---|---|
@@ -50,14 +50,16 @@ Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT �
 | `ankle-calf-endurance` | 2 | Calf Raise on Step (eyes closed) | Basic | 2×10 reps → 3×10 reps → 3×15 reps | Full range off a step with eyes closed: more range and a balance demand on the same muscle. |
 | `ankle-eversion-strength` | 1 | Ankle: Banded Eversion | Int/Adv | 2×15 reps → 3×15 reps → 3×20 reps | Pool rows: banded eversion and the outer-edge walk. |
 |  |  | Ankle: Outer-Edge Foot Walk | Basic | 2×10m → 3×10m → 3×15m |  |
-| `ankle-eversion-strength` | 2 | Ankle: Lateral Hop to Stick *(new)* | Basic | 2×6 reps → 3×6 reps → 3×8 reps | Reactive eversion: hop and stick, the fast version of the same job. |
+| `ankle-eversion-strength` | 2 | Ankle: Two-Leg Lateral Line Hop *(new)* | Basic | 2×8 reps → 3×8 reps → 3×10 reps | Reactive eversion on two feet first: small lateral line hops, sticking each landing (bridge rung for a sprain-history ankle). |
+| `ankle-eversion-strength` | 3 | Ankle: Lateral Hop to Stick *(new)* | Basic | 2×6 reps → 3×6 reps → 3×8 reps | Single-leg hop and stick, only after the two-leg rung: the fast version of the same job on one ankle. |
 | `ankle-inversion-dorsiflexion-strength` | 1 | Ankle: Banded Inversion and Dorsiflexion | Int/Adv | 2×15 reps → 3×15 reps → 3×20 reps | Pool rows: banded inversion/dorsiflexion and toe-and-heel walks. |
 |  |  | Ankle: Toe and Heel Walks | Basic | 1×20m → 2×20m → 3×20m |  |
 | `ankle-inversion-dorsiflexion-strength` | 2 | Ankle: Heel Walk, Toes Turned In *(new)* | Basic | 2×20m → 3×20m → 3×30m | Heel walk with toes in: body-weight load on the same shin muscles for longer. |
 | `ankle-calf-strength-loaded` | 1 | Ankle: Weighted Single-Leg Calf Raise (Straight-Knee) | Int/Adv | 3×8 reps → 4×8 reps → 4×12 reps | Pool rows: weighted straight- and bent-knee raises, and the slow bodyweight raise on a step. |
 |  |  | Ankle: Weighted Single-Leg Calf Raise (Bent-Knee) | Int/Adv | 3×8 reps → 4×8 reps → 4×12 reps |  |
 |  |  | Ankle: Slow Single-Leg Calf Raise on Step | Basic | 2×10 reps → 3×10 reps → 3×12 reps |  |
-| `ankle-calf-strength-loaded` | 2 | Ankle: Single-Leg Pogo Hops *(new)* | Basic | 2×10 reps → 3×10 reps → 3×15 reps | Strength to spring: single-leg pogo hops. |
+| `ankle-calf-strength-loaded` | 2 | Ankle: Two-Leg Pogo Hops *(new)* | Basic | 2×15 reps → 3×15 reps → 3×20 reps | Strength to spring on two feet first: two-leg pogo hops (bridge rung for a sprain-history ankle). |
+| `ankle-calf-strength-loaded` | 3 | Ankle: Single-Leg Pogo Hops *(new)* | Basic | 2×8 reps → 3×8 reps → 3×10 reps | Single-leg pogo hops, only after the two-leg rung; capped at 3x10 per side. |
 | `ankle-tibialis-strength` | 1 | Ankle: Wall Tibialis Raise | Basic | 2×15 reps → 3×15 reps → 3×20 reps | Pool row: two-leg wall tibialis raise. |
 | `ankle-tibialis-strength` | 2 | Ankle: Single-Leg Wall Tibialis Raise *(new)* | Basic | 2×10 reps → 3×10 reps → 3×15 reps | One leg at a time doubles the load. |
 | `ankle-balance-unstable` | 1 | Ankle: Wobble Board Balance | Int/Adv | 2×30s → 3×30s → 3×45s | Pool rows: wobble board and the single-leg reach to a cone. |
@@ -75,8 +77,10 @@ Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT �
 
 - **Ankle: Standing Knee-to-Wall Rock with Hold** (mobility_stretch, grade B, wall): Full-bodyweight version of the knee-to-wall mobilization. A 5-second end-range pause under load builds on the half-kneeling drill, and weight-bearing dorsiflexion is exactly what the knee-to-wall test measures.
 - **Ankle: Single-Leg Balance on Folded Towel, Eyes Closed** (balance, grade A, towel): A thickly folded towel gives an unstable surface like a foam pad, so the eyes-closed progression needs no equipment. Balance training is the best-supported treatment for chronic ankle instability.
+- **Ankle: Two-Leg Lateral Line Hop** (plyometric, grade B, none): Small two-footed hops over a line share the landing load between both ankles, so the outer-ankle muscles learn to absorb a sideways landing before a single ankle takes it all. It is the bridge from slow eversion strength to single-leg hops for an ankle with a sprain history.
 - **Ankle: Lateral Hop to Stick** (plyometric, grade B, no equipment): Hop-to-stabilization drills train the fast outer-ankle response that resists the inversion sprain, and they carry over directly to the side hop test.
 - **Ankle: Heel Walk, Toes Turned In** (strength, grade C, no equipment): Walking on the heels with the toes turned in loads the muscles at the front and inside of the shin together, the inversion and dorsiflexion strength the banded drill trains, with no equipment.
+- **Ankle: Two-Leg Pogo Hops** (plyometric, grade B, none): Two-footed pogo hops train the same stiff-ankle spring as the single-leg version at half the load per ankle, the bridge between slow calf strength and single-leg hopping for an ankle with a sprain history.
 - **Ankle: Single-Leg Pogo Hops** (plyometric, grade B, no equipment): Short, stiff-ankle hops train the calf and Achilles spring. Reactive work is the usual next step after slow heavy calf strength and is the quality the hop tests depend on.
 - **Ankle: Single-Leg Wall Tibialis Raise** (strength, grade B, wall): Doing the wall tibialis raise on one leg doubles the load on the muscle at the front of the shin, the progression once the two-leg version passes 20 easy reps.
 - **Ankle: Side Plank with Leg Lift** (strength, grade B, no equipment): Lifting the top leg in a side plank loads the hip abductors at body weight with the trunk braced, a step up from side-lying abduction. Hip strength ranks second only to balance work in ankle-instability rehab.

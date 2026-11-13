@@ -67,6 +67,12 @@ select 'ladder row points at unknown slot', l.pain_point_id, l.slot_key, null
 from (select distinct pain_point_id, slot_key from slot_ladder) l
 where not exists (select 1 from sprint_slots s where s.pain_point_id = l.pain_point_id and s.slot_key = l.slot_key)
 
+-- 8b. a link weight outside 0.5-2
+union all
+select 'link weight outside 0.5-2', pain_point_id, test_key || ' -> ' || slot_key, weight::text
+from assessment_slot_links
+where weight not between 0.5 and 2
+
 -- 9. a slot with fewer than 2 or more than 4 levels
 union all
 select 'slot level count outside 2-4', pain_point_id, slot_key, count(distinct level)::text

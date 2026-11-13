@@ -23,16 +23,16 @@ Every number without a source is marked **DEFAULT — clinical judgment**. Stret
 | `shoulder-passive-hang` | shoulders | yes | wall_overhead_reach (1.5), apley_scratch (1) |
 | `shoulder-overhead-press-full-range` | shoulders | no | wall_overhead_reach (1) |
 | `shoulder-scapular-raises` | shoulders | no | pushup_plus_control (1) |
-| `shoulder-external-rotation-90` | shoulders | no | supine_external_rotation (2), apley_scratch (1), sleeper_stretch_ir (1) |
+| `shoulder-external-rotation-90` | shoulders | yes | supine_external_rotation (2), apley_scratch (1), sleeper_stretch_ir (1) |
 | `shoulder-face-pulls` | shoulders | no | supine_external_rotation (1) |
 | `shoulder-bottoms-up-carry-press` | shoulders | no | pushup_plus_control (1), sleeper_stretch_ir (0.5) |
-| `shoulder-serratus-wall-slides` | shoulders | no | pushup_plus_control (2), wall_overhead_reach (1) |
+| `shoulder-serratus-wall-slides` | shoulders | yes | pushup_plus_control (2), wall_overhead_reach (1) |
 
 Link weights are **DEFAULT — clinical judgment**: 2 = the slot trains what the test measures directly, 1 = a main contributor, 0.5 = a minor contributor.
 
 ## Ladders
 
-Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
+Steps raise volume: sets, reps or hold time. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
 
 | Slot | Lvl | Exercise | Tier | Steps | Why this level |
 |---|---|---|---|---|---|

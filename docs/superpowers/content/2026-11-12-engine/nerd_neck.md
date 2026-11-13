@@ -15,7 +15,7 @@ Every number without a source is marked **DEFAULT — clinical judgment**. Stret
 
 | Slot | Area | Stretch | Linked tests (weight) |
 |---|---|---|---|
-| `neck-craniocervical-flexion` | neck | no | ccf_endurance_hold (2), forward_head_wall_gap (1) |
+| `neck-craniocervical-flexion` | neck | yes | ccf_endurance_hold (2), forward_head_wall_gap (1) |
 | `neck-rotation-rom` | neck | yes | cervical_rotation_rom (2) |
 | `neck-upper-trap-levator-stretch` | neck | yes | cervical_rotation_rom (1.5) |
 | `neck-thoracic-extension` | thoracic_spine | yes | forward_head_wall_gap (2), cervical_rotation_rom (0.5) |
@@ -29,7 +29,7 @@ Link weights are **DEFAULT — clinical judgment**: 2 = the slot trains what the
 
 ## Ladders
 
-Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
+Steps raise volume: sets, reps or hold time. Step and dose numbers are **DEFAULT — clinical judgment** unless the level note says they come from the pool. Alternates at a level are listed in alt_rank order.
 
 | Slot | Lvl | Exercise | Tier | Steps | Why this level |
 |---|---|---|---|---|---|
@@ -37,7 +37,7 @@ Steps raise sets first, then reps or hold. Step and dose numbers are **DEFAULT �
 |  |  | Wall-Supported Chin Tuck | Basic | 2×10 reps → 3×10 reps → 3×12 reps |  |
 | `neck-craniocervical-flexion` | 2 | Neck: Chin Tuck Head Lift Hold *(new)* | Basic | 3×10s → 5×10s → 5×15s | Head lifted: the deep neck flexor endurance test position. |
 | `neck-rotation-rom` | 1 | Neck: Cervical Rotation, Slow Full Range | Basic | 1×10 reps → 2×10 reps → 3×10 reps | Pool row: slow full-range rotation; rotation stretch as the alternate. |
-|  |  | Neck Rotation Stretch | Basic | 1×8 reps → 2×8 reps → 2×10 reps |  |
+|  |  | Neck Rotation Stretch | Basic | 1×30s → 2×30s → 2×45s |  |
 | `neck-rotation-rom` | 2 | Neck: Contract-Relax Rotation Stretch *(new)* | Basic | 1×3 reps → 2×3 reps → 2×5 reps | Contract-relax: active push before each new end range. |
 | `neck-upper-trap-levator-stretch` | 1 | Neck: Upper Trapezius and Levator Stretch | Basic | 1×30s → 2×30s → 2×45s | Pool row: upper trap and levator stretch; the library levator stretch as the alternate. Hold capped well under 240 s. |
 |  |  | Levator scapulae stretch | Basic | 1×30s → 2×30s → 2×45s |  |
