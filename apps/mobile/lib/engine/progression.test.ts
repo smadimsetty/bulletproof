@@ -4,7 +4,7 @@ import {
 } from './progression';
 
 const shape: LadderShape = { maxLevel: 3, stepsAt: (l) => (l === 1 ? 2 : 3) };
-const base: SlotState = { slotKey: 's', level: 2, step: 2, rightStreak: 0, hardStreak: 0, lastDoneOn: null };
+const base: SlotState = { slotKey: 's', level: 2, step: 2, rightStreak: 0, hardStreak: 0, lastDoneOn: null, gapBackApplied: 0 };
 const out = (f = 1, area = 'ankle'): SlotOutcome => ({ slotKey: 's', area, completedFraction: f });
 const fb = (effort: DayFeedback['effort'], pain: number | null, painArea: string | null = null): DayFeedback => ({ effort, pain, painArea });
 const run = (s: SlotState, o: SlotOutcome, f: DayFeedback, trend = false) => progressSlot(s, shape, o, f, trend, '2026-11-12');
@@ -43,6 +43,7 @@ describe('progressSlot', () => {
     const r = run(base, out(1, 'ankle'), fb('right', 4, 'ankle'));
     expect(r.reason).toBe('pain_back');
     expect(r.painFlag).toBe(true);
+    expect(pos(r.state)).toEqual([2, 1]);
     expect(run(base, out(1, 'ankle'), fb('right', 4, 'neck')).reason).toBe('pain_hold');
   });
   it('pain 3-5 holds', () => {
@@ -65,7 +66,7 @@ describe('progressSlot', () => {
     const a = run(base, out(), fb('hard', 1));
     expect(a.reason).toBe('hard');
     expect(a.state.hardStreak).toBe(1);
-    const b = run(a.state, out(), fb('hard', 1));
+    const b = progressSlot(a.state, shape, out(), fb('hard', 1), false, '2026-11-13');
     expect(b.reason).toBe('hard_back');
     expect(pos(b.state)).toEqual([2, 1]);
     expect(b.state.hardStreak).toBe(0);
@@ -74,7 +75,7 @@ describe('progressSlot', () => {
     const a = run(base, out(), fb('right', 1));
     expect(a.reason).toBe('right');
     expect(a.state.rightStreak).toBe(1);
-    const b = run(a.state, out(), fb('right', 1));
+    const b = progressSlot(a.state, shape, out(), fb('right', 1), false, '2026-11-13');
     expect(b.reason).toBe('right_up');
     expect(pos(b.state)).toEqual([2, 3]);
     expect(b.state.rightStreak).toBe(0);
@@ -103,6 +104,23 @@ describe('progressSlot', () => {
     expect(run(base, out(1), fb('easy', 3), true).reason).toBe('pain_trend');
     expect(run(base, out(0.5), fb('hard', 1)).reason).toBe('incomplete');
   });
+  it('already_today holds unchanged when lastDoneOn equals doneOn', () => {
+    const s = { ...base, lastDoneOn: '2026-11-12', rightStreak: 1 };
+    const r = run(s, out(), fb('right', 1));
+    expect(r.reason).toBe('already_today');
+    expect(r.state).toEqual(s);
+  });
+  it('non-finite pain is no_feedback', () => {
+    expect(run(base, out(), fb('easy', NaN)).reason).toBe('no_feedback');
+  });
+  it('rising trend blocks right_up with rightStreak 1', () => {
+    const r = run({ ...base, rightStreak: 1 }, out(), fb('right', 1), true);
+    expect(r.reason).toBe('pain_trend');
+    expect(pos(r.state)).toEqual([2, 2]);
+  });
+  it('any real session resets gapBackApplied', () => {
+    expect(run({ ...base, gapBackApplied: 2 }, out(), fb('right', 1)).state.gapBackApplied).toBe(0);
+  });
   it('sets lastDoneOn', () => {
     expect(run(base, out(), fb('right', 1)).state.lastDoneOn).toBe('2026-11-12');
   });
@@ -115,9 +133,10 @@ describe('applyGap', () => {
     expect(applyGap(s, shape, '2026-11-10', '2026-11-12').reason).toBeNull();
   });
   it('3-6 days holds', () => {
-    const r = applyGap(s, shape, '2026-11-08', '2026-11-12');
+    const withStreaks = { ...s, rightStreak: 1, hardStreak: 1, gapBackApplied: 1 };
+    const r = applyGap(withStreaks, shape, '2026-11-08', '2026-11-12');
     expect(r.reason).toBe('gap_hold');
-    expect(r.state).toEqual(s);
+    expect(r.state).toEqual({ ...withStreaks, rightStreak: 0, hardStreak: 0 });
   });
   it('10 days is one step back; 30 days at most 3', () => {
     expect(pos(applyGap(s, shape, '2026-11-02', '2026-11-12').state)).toEqual([2, 1]);
@@ -126,6 +145,25 @@ describe('applyGap', () => {
     expect(pos(r.state)).toEqual([2, 3]); // (3,3) -> (3,2) -> (3,1) -> (2,3)
     const far = applyGap({ ...base, level: 3, step: 3 }, shape, '2026-01-01', '2026-11-12');
     expect(pos(far.state)).toEqual([2, 3]);
+  });
+  it('exactly 7 days is one step back', () => {
+    const r = applyGap(s, shape, '2026-11-05', '2026-11-12');
+    expect(r.reason).toBe('gap_back');
+    expect(pos(r.state)).toEqual([2, 1]);
+    expect(r.state.gapBackApplied).toBe(1);
+  });
+  it('is idempotent across repeated builds: day 8 then day 15 = 2 steps total', () => {
+    const start = { ...base, level: 3, step: 3 };
+    const a = applyGap(start, shape, '2026-11-01', '2026-11-09');
+    expect(pos(a.state)).toEqual([3, 2]);
+    const b = applyGap(a.state, shape, '2026-11-01', '2026-11-16');
+    expect(pos(b.state)).toEqual([3, 1]);
+    expect(b.state.gapBackApplied).toBe(2);
+    const c = applyGap(b.state, shape, '2026-11-01', '2026-11-16');
+    expect(pos(c.state)).toEqual([3, 1]);
+  });
+  it('non-finite days: no action', () => {
+    expect(applyGap(s, shape, 'garbage', '2026-11-12').reason).toBeNull();
   });
   it('measures from lastActiveOn, not the slot lastDoneOn', () => {
     expect(applyGap(s, shape, '2026-11-11', '2026-11-12').reason).toBeNull();
@@ -143,6 +181,16 @@ describe('isPainTrendingUp', () => {
   it('[3,4,5] a week apart is true', () => {
     expect(isPainTrendingUp([
       { date: '2026-11-01', pain: 3 }, { date: '2026-11-08', pain: 4 }, { date: '2026-11-15', pain: 5 },
+    ])).toBe(true);
+  });
+  it('several sessions inside the 7-day window use the latest one >= 7 days earlier', () => {
+    expect(isPainTrendingUp([
+      { date: '2026-11-01', pain: 2 }, { date: '2026-11-07', pain: 9 }, { date: '2026-11-08', pain: 3 },
+      { date: '2026-11-12', pain: 2 }, { date: '2026-11-15', pain: 4 },
+    ])).toBe(false);
+    expect(isPainTrendingUp([
+      { date: '2026-11-01', pain: 2 }, { date: '2026-11-08', pain: 3 }, { date: '2026-11-10', pain: 1 },
+      { date: '2026-11-15', pain: 4 }, { date: '2026-11-16', pain: 4 },
     ])).toBe(true);
   });
   it('false when short or only one rise', () => {

@@ -7,6 +7,8 @@ export interface SlotState {
   rightStreak: number;
   hardStreak: number;
   lastDoneOn: string | null;
+  /** Gap step-backs already applied since the last real session (keeps applyGap idempotent). */
+  gapBackApplied: number;
 }
 export interface LadderShape {
   maxLevel: number;
@@ -25,7 +27,7 @@ export interface SlotOutcome {
 }
 export type ProgressionReason =
   | 'pain_back' | 'pain_hold' | 'pain_trend' | 'incomplete' | 'hard' | 'hard_back'
-  | 'right' | 'right_up' | 'easy_up' | 'no_feedback' | 'gap_hold' | 'gap_back';
+  | 'right' | 'right_up' | 'easy_up' | 'no_feedback' | 'gap_hold' | 'gap_back' | 'already_today';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -59,6 +61,7 @@ export function stepBack(state: SlotState, shape: LadderShape): SlotState {
 const resetStreaks = (s: SlotState): SlotState => ({ ...s, rightStreak: 0, hardStreak: 0 });
 
 /**
+ * At most one step per slot per day: if state.lastDoneOn === doneOn, hold unchanged ('already_today').
  * Rule precedence when signals overlap (first match wins):
  *  1. no_feedback (effort or pain missing -> hold, only lastDoneOn changes)
  *  2. pain_back   (pain > 5, or painArea matches slot area with pain >= 4)
@@ -78,9 +81,12 @@ export function progressSlot(
   painTrendUp: boolean,
   doneOn: string,
 ): { state: SlotState; reason: ProgressionReason; painFlag: boolean } {
-  const done = (s: SlotState): SlotState => ({ ...s, lastDoneOn: doneOn });
+  const done = (s: SlotState): SlotState => ({ ...s, lastDoneOn: doneOn, gapBackApplied: 0 });
 
-  if (fb.effort == null || fb.pain == null) {
+  if (state.lastDoneOn === doneOn) {
+    return { state, reason: 'already_today', painFlag: false };
+  }
+  if (fb.effort == null || fb.pain == null || !Number.isFinite(fb.pain)) {
     return { state: done(state), reason: 'no_feedback', painFlag: false };
   }
   const pain = fb.pain;
@@ -105,7 +111,7 @@ export function progressSlot(
     return { state: done({ ...state, hardStreak: state.hardStreak + 1, rightStreak: 0 }), reason: 'hard', painFlag: false };
   }
   if (fb.effort === 'right') {
-    if (state.rightStreak + 1 >= 2) {
+    if (state.rightStreak + 1 >= 2 && pain <= 2) {
       return { state: done(resetStreaks(stepUp(state, shape))), reason: 'right_up', painFlag: false };
     }
     return { state: done({ ...state, rightStreak: state.rightStreak + 1, hardStreak: 0 }), reason: 'right', painFlag: false };
@@ -126,12 +132,13 @@ export function applyGap(
 ): { state: SlotState; reason: ProgressionReason | null } {
   if (lastActiveOn == null) return { state, reason: null };
   const days = daysBetween(lastActiveOn, today);
-  if (days < 3) return { state, reason: null };
-  if (days < 7) return { state, reason: 'gap_hold' };
-  const n = Math.min(3, Math.floor(days / 7));
+  if (!Number.isFinite(days) || days < 3) return { state, reason: null };
+  if (days < 7) return { state: resetStreaks(state), reason: 'gap_hold' };
+  const target = Math.min(3, Math.floor(days / 7));
+  const extra = Math.max(0, target - state.gapBackApplied);
   let s = state;
-  for (let i = 0; i < n; i++) s = stepBack(s, shape);
-  return { state: resetStreaks(s), reason: 'gap_back' };
+  for (let i = 0; i < extra; i++) s = stepBack(s, shape);
+  return { state: { ...resetStreaks(s), gapBackApplied: Math.max(target, state.gapBackApplied) }, reason: 'gap_back' };
 }
 
 /** True when each of the last 2 sessions had higher pain than the latest session >= 7 days before it. */
