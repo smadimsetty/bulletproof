@@ -25,11 +25,16 @@ function iconFor(pp: PainPoint): IconName {
 export default function PainPointPicker({
   painPoints,
   onSelect,
+  suggestedId,
 }: {
   painPoints: readonly PainPoint[];
   onSelect: (painPoint: PainPoint) => void;
+  /** The coach's suggestion after a retest: preselected and marked. */
+  suggestedId?: string | null;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    suggestedId && painPoints.some((p) => p.id === suggestedId) ? suggestedId : null
+  );
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const selected = painPoints.find((p) => p.id === selectedId) ?? null;
 
@@ -61,6 +66,7 @@ export default function PainPointPicker({
                   <Ionicons name={iconFor(pp)} size={32} color={COLORS.accent} />
                 </View>
                 <Text style={TYPE.title3}>{pp.displayName}</Text>
+                {pp.id === suggestedId ? <Text style={styles.suggested}>Suggested next</Text> : null}
                 {pp.tagline ? <Text style={TYPE.footnote}>{pp.tagline}</Text> : null}
                 <PressableScale
                   haptic="select"
@@ -97,6 +103,7 @@ export default function PainPointPicker({
 }
 
 const styles = StyleSheet.create({
+  suggested: { ...TYPE.caption, color: COLORS.accent, fontWeight: '600' },
   root: { flex: 1, backgroundColor: COLORS.bg },
   content: { padding: SPACING.lg, gap: SPACING.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginTop: SPACING.sm },

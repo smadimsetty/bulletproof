@@ -521,6 +521,22 @@ export async function switchSprint(oldSprintId: string, painPointId: string): Pr
   return toSprint(data);
 }
 
+/**
+ * "Stay": start the next cycle on the same pain point (rpc continue_sprint).
+ * The retest becomes the new baseline, slot state carries over, and the new
+ * sprint is active straight away; the coach's plan arrives in the background.
+ */
+export async function continueSprint(oldSprintId: string): Promise<Sprint> {
+  const { data, error } = await supabase.rpc('continue_sprint', {
+    p_old_sprint_id: oldSprintId,
+    p_started_on: localDateString(new Date()),
+  });
+  if (error) throw new Error(error.message);
+  const sprint = toSprint(data);
+  requestCoach('start', sprint.id);
+  return sprint;
+}
+
 export async function abandonSprint(sprintId: string): Promise<void> {
   const { error } = await supabase.from('sprints').update({ status: 'abandoned' }).eq('id', sprintId);
   if (error) throw new Error(error.message);

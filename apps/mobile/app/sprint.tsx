@@ -25,6 +25,7 @@ import {
   swapExercise,
   stepDownExercise,
   abandonSprint,
+  continueSprint,
   type PainPoint,
   type Sprint,
   type SprintDay,
@@ -38,6 +39,8 @@ import {
   prefillDraft,
   submitAssessment,
   buildBeforeAfterComparison,
+  toEngineInputs,
+  fetchRetestRecommendation,
   type AssessmentDefinition,
   type AssessmentResultInput,
   type AssessmentComparison,
@@ -47,6 +50,7 @@ import AssessmentForm from '../components/AssessmentForm';
 import LastAssessmentSheet from '../components/LastAssessmentSheet';
 import SprintDayChecklist from '../components/SprintDayChecklist';
 import AssessmentSummary from '../components/AssessmentSummary';
+import { pickRecommendation, recommendStayOrSwitch, type Recommendation } from '../lib/engine/retestRecommendation';
 import { fetchActiveWorkout, startSprintWorkout, type ActiveWorkoutSummary } from '../lib/workouts';
 import { handleStartResult } from '../lib/workoutStart';
 
@@ -105,6 +109,10 @@ export default function SprintScreen() {
   const [lastAssessmentOpen, setLastAssessmentOpen] = useState(false);
   const [comparisons, setComparisons] = useState<AssessmentComparison[] | null>(null);
   const [abandonOpen, setAbandonOpen] = useState(false);
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [suggestedPainPointId, setSuggestedPainPointId] = useState<string | null>(null);
+  const [continuing, setContinuing] = useState(false);
+  const retestSprintRef = useRef<string | null>(null);
   const startingRef = useRef(false);
   const loadedRef = useRef(false);
 
@@ -197,6 +205,20 @@ export default function SprintScreen() {
         fetchAssessmentResults(sprint.id, 'reassessment'),
       ]);
       setComparisons(buildBeforeAfterComparison(definitions, baseline, reassessment));
+      // Rules recommendation now; the coach's (if any) replaces it when it lands. One poll, never blocking.
+      const engine = toEngineInputs(definitions, reassessment);
+      const names = Object.fromEntries(definitions.map((d) => [d.testKey, d.name]));
+      const rules = recommendStayOrSwitch(engine.tests, engine.results, names);
+      setRecommendation(pickRecommendation(null, rules));
+      const finishedId = sprint.id;
+      retestSprintRef.current = finishedId;
+      setTimeout(() => {
+        fetchRetestRecommendation(finishedId)
+          .then((ai) => {
+            if (ai && retestSprintRef.current === finishedId) setRecommendation(pickRecommendation(ai, rules));
+          })
+          .catch(() => {});
+      }, 5000);
       setSprint((prev) => (prev ? { ...prev, status: 'completed' } : prev));
     } catch (err: any) {
       reportError(err, 'Could not save your reassessment.');
@@ -254,6 +276,31 @@ export default function SprintScreen() {
     } catch (err: any) {
       reportError(err, 'Could not switch to an easier version.');
     }
+  }
+
+  async function handleStay() {
+    const finishedId = retestSprintRef.current;
+    if (!finishedId) return;
+    setContinuing(true);
+    try {
+      await continueSprint(finishedId);
+      retestSprintRef.current = null;
+      setRecommendation(null);
+      haptics.success();
+      await load();
+    } catch (err: any) {
+      reportError(err, 'Could not start another cycle.');
+    } finally {
+      setContinuing(false);
+    }
+  }
+
+  function handlePickNewArea() {
+    setSuggestedPainPointId(recommendation?.choice === 'switch' ? recommendation.suggestedPainPointId : null);
+    retestSprintRef.current = null;
+    setRecommendation(null);
+    setSprint(null);
+    setComparisons(null);
   }
 
   async function handleStartRoutine() {
@@ -320,7 +367,14 @@ export default function SprintScreen() {
     return (
       <>
         <Stack.Screen options={{ title: 'Results' }} />
-        <AssessmentSummary comparisons={comparisons} onDone={() => { setSprint(null); setComparisons(null); }} />
+        <AssessmentSummary
+          comparisons={comparisons}
+          onDone={handlePickNewArea}
+          recommendation={recommendation}
+          painPointName={painPoints.find((p) => p.id === sprint?.painPointId)?.displayName}
+          onStay={handleStay}
+          busy={continuing}
+        />
       </>
     );
   }
@@ -329,7 +383,7 @@ export default function SprintScreen() {
     return (
       <>
         <Stack.Screen options={{ title: 'Choose a pain point' }} />
-        <PainPointPicker painPoints={painPoints} onSelect={handleSelectPainPoint} />
+        <PainPointPicker painPoints={painPoints} onSelect={handleSelectPainPoint} suggestedId={suggestedPainPointId} />
       </>
     );
   }

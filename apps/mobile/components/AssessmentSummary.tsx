@@ -1,7 +1,9 @@
 // apps/mobile/components/AssessmentSummary.tsx
 //
 // Results screen after a reassessment (visual spec 4.5e): how many tests improved,
-// then one card per test with BEFORE -> AFTER and a verdict chip.
+// then one card per test with BEFORE -> AFTER and a verdict chip (a change within a
+// test's noise threshold reads "No clear change"), then the stay-or-switch
+// recommendation (spec 2026-11-12 §5.5).
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -9,6 +11,7 @@ import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
 import { COLORS, ELEVATION, MOTION, SPACING, TYPE } from '../lib/theme';
 import * as haptics from '../lib/haptics';
 import { changeVerdict, type AssessmentComparison, type AssessmentComparisonValue, type ChangeVerdict } from '../lib/sprintAssessment';
+import type { Recommendation } from '../lib/engine/retestRecommendation';
 import { Button, Card, Chip, Stat, StickyFooter } from './ui';
 
 const PASS_FAIL_UNIT = 'pass/fail';
@@ -66,16 +69,26 @@ export function VerdictChip({ verdict }: { verdict: ChangeVerdict }) {
   if (!verdict) return null;
   if (verdict === 'better') return <Chip label="Better" tone="success" icon="arrow-up" />;
   if (verdict === 'worse') return <Chip label="Worse" tone="danger" icon="arrow-down" />;
-  return <Chip label="Same" tone="neutral" icon="remove" />;
+  return <Chip label="No clear change" tone="neutral" icon="remove" />;
 }
 
 export default function AssessmentSummary({
   comparisons,
   onDone,
+  recommendation,
+  painPointName,
+  onStay,
+  busy,
 }: {
   comparisons: readonly AssessmentComparison[];
-  /** Start another sprint (back to the picker). */
+  /** Start another sprint (back to the picker, with any suggestion highlighted). */
   onDone: () => void;
+  /** Stay or switch; the coach's when it has arrived, else the rules'. */
+  recommendation?: Recommendation | null;
+  painPointName?: string;
+  /** Another cycle on the same pain point. */
+  onStay?: () => void;
+  busy?: boolean;
 }) {
   const router = useRouter();
   const reduced = useReducedMotion();
@@ -119,10 +132,35 @@ export default function AssessmentSummary({
             </Animated.View>
           );
         })}
+        {recommendation ? (
+          <Card style={styles.recCard}>
+            <Text style={TYPE.overline}>What next</Text>
+            <Text style={TYPE.title3}>
+              {recommendation.choice === 'stay'
+                ? `Another cycle on ${painPointName ?? 'this area'}`
+                : 'Try a new area'}
+            </Text>
+            <Text style={TYPE.body}>{recommendation.reason}</Text>
+          </Card>
+        ) : null}
       </ScrollView>
       <StickyFooter>
-        <Button title="Start another sprint" size="lg" fullWidth onPress={onDone} />
-        <Button title="Done" variant="secondary" fullWidth onPress={() => router.dismissTo('/')} />
+        {recommendation && onStay ? (
+          recommendation.choice === 'stay' ? (
+            <>
+              <Button title="Start another cycle" size="lg" fullWidth loading={busy} onPress={onStay} />
+              <Button title="Pick a new area" variant="secondary" fullWidth disabled={busy} onPress={onDone} />
+            </>
+          ) : (
+            <>
+              <Button title="Pick a new area" size="lg" fullWidth disabled={busy} onPress={onDone} />
+              <Button title="Another cycle here" variant="secondary" fullWidth loading={busy} onPress={onStay} />
+            </>
+          )
+        ) : (
+          <Button title="Start another sprint" size="lg" fullWidth onPress={onDone} />
+        )}
+        <Button title="Done" variant="ghost" fullWidth disabled={busy} onPress={() => router.dismissTo('/')} />
       </StickyFooter>
     </View>
   );
@@ -137,6 +175,7 @@ const styles = StyleSheet.create({
   cols: { gap: SPACING.md },
   col: { gap: 2 },
   improvedCard: { borderLeftWidth: 2, borderLeftColor: COLORS.success },
+  recCard: { gap: SPACING.xs, borderLeftWidth: 2, borderLeftColor: COLORS.accent },
   valueStrong: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
   tabular: { fontVariant: ['tabular-nums'] },
 });

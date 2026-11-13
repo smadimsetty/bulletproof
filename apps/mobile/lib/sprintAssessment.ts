@@ -3,6 +3,7 @@
 // summary screen renders. See design spec section 2.1/2.2 for the
 // assessment_definitions/sprint_assessments/sprint_assessment_results
 // schema this implements.
+import type { EngineTest, TestResult } from './engine/types';
 import { requestCoach } from './sprintCoach';
 import { supabase } from './supabase';
 
@@ -17,6 +18,11 @@ export interface AssessmentDefinition {
   readonly betterDirection: BetterDirection;
   readonly isBilateral: boolean;
   readonly isSynthesized: boolean;
+  /** Engine fields (spec 2026-11-12 §4): numeric target, raw direction for symmetry tests,
+   *  and the smallest change or side gap that counts as real. Null when not authored. */
+  readonly targetValue?: number | null;
+  readonly rawDirection?: 'higher' | 'lower' | null;
+  readonly noiseThreshold?: number | null;
 }
 
 export interface AssessmentResultInput {
@@ -37,13 +43,16 @@ function toAssessmentDefinition(row: any): AssessmentDefinition {
     betterDirection: row.better_direction,
     isBilateral: row.is_bilateral,
     isSynthesized: row.is_synthesized,
+    targetValue: row.target_value == null ? null : Number(row.target_value),
+    rawDirection: row.raw_direction ?? null,
+    noiseThreshold: row.noise_threshold == null ? null : Number(row.noise_threshold),
   };
 }
 
 export async function fetchAssessmentDefinitions(painPointId: string): Promise<AssessmentDefinition[]> {
   const { data, error } = await supabase
     .from('assessment_definitions')
-    .select('test_key, name, instructions, unit, target_description, better_direction, is_bilateral, is_synthesized')
+    .select('test_key, name, instructions, unit, target_description, better_direction, is_bilateral, is_synthesized, target_value, raw_direction, noise_threshold')
     .eq('pain_point_id', painPointId)
     .order('sort_order');
 
@@ -124,6 +133,8 @@ export interface AssessmentComparison {
   readonly betterDirection: BetterDirection;
   readonly baseline: AssessmentComparisonValue | null;
   readonly reassessment: AssessmentComparisonValue | null;
+  /** A change no bigger than this reads as "No clear change". */
+  readonly noiseThreshold?: number | null;
 }
 
 function toComparisonValue(result: AssessmentResultInput | undefined): AssessmentComparisonValue | null {
@@ -146,6 +157,7 @@ export function buildBeforeAfterComparison(
     betterDirection: def.betterDirection,
     baseline: toComparisonValue(baselineByKey.get(def.testKey)),
     reassessment: toComparisonValue(reassessmentByKey.get(def.testKey)),
+    noiseThreshold: def.noiseThreshold ?? null,
   }));
 }
 
@@ -280,14 +292,16 @@ function scalarFor(direction: BetterDirection, v: AssessmentComparisonValue): nu
 /**
  * Direction of change from `baseline` (the earlier value) to `reassessment`
  * (the later one), judged by the test's better_direction. For symmetry the
- * measure is the left/right gap, smaller being better.
+ * measure is the left/right gap, smaller being better. A change no bigger
+ * than the test's noise threshold is 'same' (no clear change).
  */
-export function changeVerdict(c: AssessmentComparison): ChangeVerdict {
+export function changeVerdict(c: AssessmentComparison, noiseThreshold?: number | null): ChangeVerdict {
   if (!c.baseline || !c.reassessment) return null;
   const before = scalarFor(c.betterDirection, c.baseline);
   const after = scalarFor(c.betterDirection, c.reassessment);
   if (before === null || after === null) return null;
-  if (after === before) return 'same';
+  const noise = noiseThreshold ?? c.noiseThreshold ?? null;
+  if (after === before || (noise != null && noise > 0 && Math.abs(after - before) <= noise)) return 'same';
   const increased = after > before;
   return (c.betterDirection === 'higher') === increased ? 'better' : 'worse';
 }
@@ -331,4 +345,34 @@ export async function fetchAllAssessments(): Promise<(PastAssessment & { painPoi
         notes: x.notes ?? undefined,
       })),
   }));
+}
+
+/** Assessment definitions and results in the shapes the engine's pure modules take. */
+export function toEngineInputs(
+  definitions: readonly AssessmentDefinition[],
+  results: readonly AssessmentResultInput[]
+): { tests: EngineTest[]; results: TestResult[] } {
+  return {
+    tests: definitions.map((d) => ({
+      testKey: d.testKey,
+      betterDirection: d.betterDirection,
+      rawDirection: d.rawDirection ?? null,
+      targetValue: d.targetValue ?? null,
+      noiseThreshold: d.noiseThreshold ?? null,
+      isBilateral: d.isBilateral,
+    })),
+    results: results.map((r) => ({
+      testKey: r.testKey,
+      left: r.valueLeft ?? null,
+      right: r.valueRight ?? null,
+      single: r.valueSingle ?? null,
+    })),
+  };
+}
+
+/** The coach's stay-or-switch recommendation for a finished sprint, if it has arrived. */
+export async function fetchRetestRecommendation(sprintId: string): Promise<unknown> {
+  const { data, error } = await supabase.from('sprints').select('retest_recommendation').eq('id', sprintId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as any)?.retest_recommendation ?? null;
 }

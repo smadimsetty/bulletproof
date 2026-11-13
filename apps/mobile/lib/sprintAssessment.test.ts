@@ -5,6 +5,7 @@ import {
   buildBeforeAfterComparison,
   prefillDraft,
   changeVerdict,
+  toEngineInputs,
   type AssessmentComparison,
   type PastAssessment,
   type AssessmentDefinition,
@@ -82,6 +83,7 @@ describe('buildBeforeAfterComparison', () => {
         betterDirection: 'symmetry',
         baseline: { left: 8, right: 8.5, single: undefined },
         reassessment: { left: 10, right: 9.5, single: undefined },
+        noiseThreshold: null,
       },
     ]);
   });
@@ -273,5 +275,34 @@ describe('changeVerdict', () => {
   });
   test('equal is same', () => {
     expect(changeVerdict(comparison('lower', { single: 5 }, { single: 5 }))).toBe('same');
+  });
+});
+
+describe('changeVerdict with a noise threshold', () => {
+  const c = {
+    testKey: 't', name: 'T', unit: 'cm', betterDirection: 'higher' as const,
+    baseline: { single: 10 }, reassessment: { single: 11 },
+  };
+  test('a change within the noise threshold is "same"', () => {
+    expect(changeVerdict(c, 1.5)).toBe('same');
+  });
+  test('without a threshold the direction still counts', () => {
+    expect(changeVerdict(c)).toBe('better');
+    expect(changeVerdict(c, null)).toBe('better');
+  });
+  test('the comparison carries the threshold when none is passed', () => {
+    expect(changeVerdict({ ...c, noiseThreshold: 1.5 })).toBe('same');
+  });
+});
+
+describe('toEngineInputs', () => {
+  test('maps definitions and results to the engine shapes, null for missing values', () => {
+    const { tests, results } = toEngineInputs(
+      [{ testKey: 'k', name: 'K', instructions: '', unit: 'cm', targetDescription: '', betterDirection: 'symmetry',
+         isBilateral: true, isSynthesized: false, targetValue: 10, rawDirection: 'higher', noiseThreshold: 1.5 }],
+      [{ testKey: 'k', valueLeft: 8 }],
+    );
+    expect(tests).toEqual([{ testKey: 'k', betterDirection: 'symmetry', rawDirection: 'higher', targetValue: 10, noiseThreshold: 1.5, isBilateral: true }]);
+    expect(results).toEqual([{ testKey: 'k', left: 8, right: null, single: null }]);
   });
 });

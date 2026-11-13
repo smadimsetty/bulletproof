@@ -9,8 +9,11 @@ import {
   fetchInFlightSprint,
   isSprintPastFinalDay,
   switchSprint,
+  continueSprint,
 } from './sprintLifecycle';
 
+jest.mock('./sprintCoach', () => ({ requestCoach: jest.fn() }));
+import { requestCoach } from './sprintCoach';
 jest.mock('./supabase', () => ({
   supabase: { from: jest.fn(), rpc: jest.fn() },
 }));
@@ -292,5 +295,18 @@ describe('switchSprint', () => {
   test('throws the server error so the old sprint is never left ended on its own', async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: { message: 'That sprint is no longer in progress.' } });
     await expect(switchSprint('old', 'knees')).rejects.toThrow('That sprint is no longer in progress.');
+  });
+});
+
+describe('continueSprint', () => {
+  test('calls continue_sprint for today and asks the coach for a start plan', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValueOnce({
+      data: { id: 'sp2', pain_point_id: 'ankle', cycle_number: 2, started_on: '2026-11-20', status: 'active' },
+      error: null,
+    });
+    const s = await continueSprint('sp1');
+    expect(supabase.rpc).toHaveBeenCalledWith('continue_sprint', { p_old_sprint_id: 'sp1', p_started_on: expect.any(String) });
+    expect(s).toMatchObject({ id: 'sp2', cycleNumber: 2, status: 'active' });
+    expect(requestCoach).toHaveBeenCalledWith('start', 'sp2');
   });
 });
