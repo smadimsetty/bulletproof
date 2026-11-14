@@ -296,3 +296,13 @@ Sohan also asked for two follow-on improvements, both shipped: (1) the "Yesterda
 
 **2026-11-13 — session wrap-up: START HERE next time.** Build 30 is confirmed working on Sohan's phone. **Pick-up doc: `docs/superpowers/reports/2026-11-13-session-wrapup.md`.** It covers today's decisions, what's waiting on Sohan (the Paid Applications agreement, a Twilio account, `ANTHROPIC_API_KEY`, Beta App Review), the pre-launch list, and key IDs.
 
+
+**2026-11-14 — Twilio texting and the AI coach are live; build 25 passed Beta App Review.**
+- **Beta:** build 25 (1.4.0) was approved for external testing, so the public link works. Builds 27/29/30 are in the Beta group but haven't been submitted for review. Submit 30; never 29, which crashes at launch.
+- **Paid Applications agreement, bank and tax:** submitted by Sohan 2026-11-14, Apple processing (up to 24 h). Both subscription products were still `MISSING_METADATA` at that point; re-check them, then run a sandbox purchase.
+- **Twilio Verify:** Supabase Auth has `external_phone_enabled` on with `sms_provider = twilio_verify` (set via `PATCH /v1/projects/<ref>/config/auth`). The credentials are `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_VERIFY_SERVICE_SID` in `.env`, with the Verify Service named "MoveMaxx".
+  - Sends were first refused until the Twilio account had an approved **Primary Compliance Profile** (Trust Hub). Sohan completed it the same day.
+  - Live-verified: a code was delivered to Sohan's number through the app's exact `updateUser({ phone })` path, using a throwaway user that was then deleted.
+- **App fix (`f9cb15b`, ships with the next build):** `friendlySmsError` used to turn every Twilio error into "not switched on yet". Provider send failures now read "We couldn't text that number…".
+- **`ANTHROPIC_API_KEY`** is set as a Supabase secret. The live engine test (`LIVE_ENGINE=1`) passed 6/6, and its `sprint-coach` calls returned `outcome: ok` from `claude-haiku-5-5` with real token counts.
+- **Gotcha:** the Management API's `logs.all` endpoint is removed, and the new `/analytics/endpoints/logs` rejected `auth_logs` / `edge_logs`. To debug auth, reproduce the call with a throwaway user, or read Twilio's Monitor Alerts.
