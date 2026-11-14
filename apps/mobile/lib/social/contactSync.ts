@@ -40,8 +40,13 @@ export async function confirmPhoneCode(e164: string, code: string): Promise<void
 }
 
 function friendlySmsError(message: string): string {
-  if (/provider|sms|phone.*disabled|Unsupported phone/i.test(message)) {
+  // Only a missing/disabled provider means texting isn't set up. A provider-side
+  // send failure (Twilio rejecting the number, compliance, geo) gets its own message.
+  if (/phone.*(disabled|provider)|Unsupported phone provider|sms provider/i.test(message) && !/Error sending/i.test(message)) {
     return 'Text messages are not switched on yet. Try again later.';
+  }
+  if (/Error sending|sms_send_failed/i.test(message)) {
+    return "We couldn't text that number. Check it and try again in a few minutes.";
   }
   if (/already|registered|exists/i.test(message)) return 'That number is already linked to another MoveMaxx account.';
   return message;
