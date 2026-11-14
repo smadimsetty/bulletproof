@@ -9,7 +9,7 @@
 // dormant rather than being torn out.
 import { useCallback, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import { Session } from '@supabase/supabase-js';
@@ -21,6 +21,7 @@ import { fetchMyProfile, subscribeToProfileChanges } from '../lib/social/profile
 import { ensurePushRegistered } from '../lib/social/push';
 import { safePushRoute } from '../lib/social/notificationFormat';
 import { signOut } from '../lib/signOut';
+import { applyUpdateIfSafe, isSafeToReload } from '../lib/otaUpdates';
 import { fetchPremiumStatus, subscribePremiumChanges, syncPurchases } from '../lib/premium';
 import { needsPaywall, type PremiumStatus } from '../lib/premiumRules';
 import { ToastProvider } from '../components/ui/Toast';
@@ -63,6 +64,32 @@ export default function RootLayout() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const appState = useRef(AppState.currentState);
   const hadSession = useRef(false);
+
+  // OTA updates: expo-updates downloads a newer bundle on cold launch by itself
+  // (applied next launch). On every return to the foreground we also reload into
+  // it, but only when nothing would be interrupted.
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+  useEffect(() => {
+    const isSafe = async () => {
+      let hasActiveWorkout = false;
+      if (sessionRef.current) {
+        try {
+          hasActiveWorkout = (await fetchActiveWorkout()) !== null;
+        } catch {
+          return false; // can't tell (offline?): don't risk it
+        }
+      }
+      return isSafeToReload({ pathname: pathnameRef.current, hasActiveWorkout });
+    };
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') applyUpdateIfSafe(isSafe);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
